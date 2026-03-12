@@ -5,7 +5,12 @@ import dotenv from 'dotenv';
 
 import { getPackageRoot, getPluginConfigFilename } from '../../runtime-paths.js';
 import { getRepoRoot, getRootEnvPath, getServerEnvPath } from './state.js';
-import type { DeploymentMode, InstancePurpose, SetupAnswers } from './types.js';
+import type {
+  ConfigureAnswers,
+  ExposureMode,
+  InstancePurpose,
+  LegacyDeploymentMode,
+} from './types.js';
 
 const packageRoot = getPackageRoot();
 const serverEnvPath = getServerEnvPath();
@@ -64,21 +69,73 @@ export function getCurrentLanguage(): 'zh-CN' | 'en' | 'ko' {
   return 'zh-CN';
 }
 
-export function defaultConfig(mode: DeploymentMode, purpose: InstancePurpose, publicHost: string, httpPort: string, wsPort: string): Omit<SetupAnswers, 'lang' | 'mode' | 'purpose' | 'publicHost' | 'httpPort' | 'wsPort'> {
-  const isServer = mode === 'server';
-  const enableSsl = isServer && !!publicHost && !/^\d+\.\d+\.\d+\.\d+$/.test(publicHost);
-  const baseUrl = isServer
-    ? `${enableSsl ? 'https' : 'http'}://${publicHost || '127.0.0.1'}`
-    : `${enableSsl ? 'https' : 'http'}://${publicHost || '127.0.0.1'}${httpPort === '80' || (enableSsl && httpPort === '443') ? '' : `:${httpPort}`}`;
-  const pluginConfigPath = isServer ? './plugins.prod.json' : './plugins.dev.json';
-  const dbPath = isServer ? './data/uruc.prod.db' : './data/uruc.local.db';
-  const defaultOrigins = isServer
-    ? `${baseUrl},http://localhost:3000,http://localhost:5173`
-    : `http://127.0.0.1:${httpPort},http://localhost:${httpPort},http://localhost:5173`;
+export function legacyDeploymentModeToExposure(mode: LegacyDeploymentMode | string | undefined): ExposureMode {
+  return mode === 'server' ? 'direct-public' : 'local-only';
+}
+
+export function defaultBindHostForExposure(exposure: ExposureMode): string {
+  return exposure === 'local-only' ? '127.0.0.1' : '0.0.0.0';
+}
+
+function inferHttps(baseUrl: string | undefined, legacyEnableSsl: string | undefined): boolean {
+  if (baseUrl) {
+    try {
+      return new URL(baseUrl).protocol === 'https:';
+    } catch {
+      // Fall back to the legacy flag if BASE_URL is malformed.
+    }
+  }
+  return toBool(legacyEnableSsl, false);
+}
+
+function getOrigin(baseUrl: string): string {
+  const parsed = new URL(baseUrl);
+  return `${parsed.protocol}//${parsed.host}`;
+}
+
+export function normalizeAppBasePath(raw: string | undefined): string {
+  const trimmed = raw?.trim() ?? '';
+  if (trimmed === '' || trimmed === '/') return '';
+  const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return withLeadingSlash.replace(/\/+$/, '');
+}
+
+export function buildBaseUrl(publicHost: string, httpPort: string, useHttps: boolean): string {
+  const scheme = useHttps ? 'https' : 'http';
+  const defaultPort = useHttps ? '443' : '80';
+  const safeHost = publicHost.trim() === '' ? '127.0.0.1' : publicHost.trim();
+  return `${scheme}://${safeHost}${httpPort === defaultPort ? '' : `:${httpPort}`}`;
+}
+
+export function buildSiteUrl(baseUrl: string, appBasePath: string): string {
+  const normalizedBase = baseUrl.replace(/\/$/, '');
+  const normalizedBasePath = normalizeAppBasePath(appBasePath);
+  return normalizedBasePath === '' ? normalizedBase : `${normalizedBase}${normalizedBasePath}`;
+}
+
+export function defaultConfig(
+  exposure: ExposureMode,
+  purpose: InstancePurpose,
+  bindHost: string,
+  publicHost: string,
+  httpPort: string,
+  wsPort: string,
+  useHttps: boolean,
+): Omit<ConfigureAnswers, 'lang' | 'exposure' | 'purpose' | 'bindHost' | 'publicHost' | 'httpPort' | 'wsPort' | 'useHttps'> {
+  const baseUrl = buildBaseUrl(publicHost, httpPort, useHttps);
+  const pluginConfigPath = getDefaultPluginConfig(purpose);
+  const dbPath = purpose === 'production' ? './data/uruc.prod.db' : './data/uruc.local.db';
+  const origin = getOrigin(baseUrl);
+  const defaultOrigins = Array.from(new Set([
+    origin,
+    `http://127.0.0.1:${httpPort}`,
+    `http://localhost:${httpPort}`,
+    'http://localhost:5173',
+  ])).join(',');
 
   return {
-    enableSsl,
-    letsencryptEmail: '',
+    baseUrl,
+    appBasePath: '',
     adminUsername: 'admin',
     adminPassword: '',
     adminEmail: 'admin@localhost',
@@ -89,7 +146,6 @@ export function defaultConfig(mode: DeploymentMode, purpose: InstancePurpose, pu
     pluginConfigPath,
     allowedOrigins: defaultOrigins,
     jwtSecret: generateSecret(),
-    baseUrl,
     publicDir: '../human-web/dist',
     uploadsDir: './uploads',
     resendApiKey: '',
@@ -101,18 +157,26 @@ export function defaultConfig(mode: DeploymentMode, purpose: InstancePurpose, pu
   };
 }
 
-export function currentSetupDefaults(mode: DeploymentMode, purpose: InstancePurpose, publicHost: string, httpPort: string, wsPort: string): SetupAnswers {
+export function currentConfigureDefaults(
+  exposure: ExposureMode,
+  purpose: InstancePurpose,
+  bindHost: string,
+  publicHost: string,
+  httpPort: string,
+  wsPort: string,
+): ConfigureAnswers {
   const current = parseEnvFile(serverEnvPath);
-  const defaults = defaultConfig(mode, purpose, publicHost, httpPort, wsPort);
+  const useHttps = inferHttps(current.BASE_URL, current.ENABLE_SSL);
+  const defaults = defaultConfig(exposure, purpose, bindHost, publicHost, httpPort, wsPort, useHttps);
   return {
     lang: getCurrentLanguage(),
-    mode,
+    exposure,
     purpose,
+    bindHost: current.BIND_HOST ?? bindHost,
     publicHost,
     httpPort,
     wsPort,
-    enableSsl: toBool(current.ENABLE_SSL, defaults.enableSsl),
-    letsencryptEmail: current.LETSENCRYPT_EMAIL ?? current.ADMIN_EMAIL ?? defaults.letsencryptEmail,
+    useHttps,
     adminUsername: current.ADMIN_USERNAME ?? defaults.adminUsername,
     adminPassword: current.ADMIN_PASSWORD ?? defaults.adminPassword,
     adminEmail: current.ADMIN_EMAIL ?? defaults.adminEmail,
@@ -124,6 +188,7 @@ export function currentSetupDefaults(mode: DeploymentMode, purpose: InstancePurp
     allowedOrigins: current.ALLOWED_ORIGINS ?? defaults.allowedOrigins,
     jwtSecret: current.JWT_SECRET ?? defaults.jwtSecret,
     baseUrl: current.BASE_URL ?? defaults.baseUrl,
+    appBasePath: normalizeAppBasePath(current.APP_BASE_PATH ?? defaults.appBasePath),
     publicDir: current.PUBLIC_DIR ?? defaults.publicDir,
     uploadsDir: current.UPLOADS_DIR ?? defaults.uploadsDir,
     resendApiKey: current.RESEND_API_KEY ?? defaults.resendApiKey,
@@ -135,18 +200,21 @@ export function currentSetupDefaults(mode: DeploymentMode, purpose: InstancePurp
   };
 }
 
-export function setupAnswersToEnv(answers: SetupAnswers): Record<string, string> {
+export function configureAnswersToEnv(answers: ConfigureAnswers): Record<string, string> {
   const env = parseEnvFile(serverEnvPath);
-  const scheme = answers.enableSsl ? 'https' : 'http';
-  const baseUrl = answers.baseUrl || `${scheme}://${answers.publicHost}`;
+  const baseUrl = answers.baseUrl || buildBaseUrl(answers.publicHost, answers.httpPort, answers.useHttps);
   return {
     ...env,
     URUC_CLI_LANG: answers.lang,
+    URUC_EXPOSURE: answers.exposure,
+    URUC_PURPOSE: answers.purpose,
     BASE_URL: baseUrl,
+    BIND_HOST: answers.bindHost,
     PORT: answers.httpPort,
     WS_PORT: answers.wsPort,
     DB_PATH: answers.dbPath,
     PLUGIN_CONFIG_PATH: answers.pluginConfigPath,
+    APP_BASE_PATH: normalizeAppBasePath(answers.appBasePath),
     PUBLIC_DIR: answers.publicDir,
     UPLOADS_DIR: answers.uploadsDir,
     JWT_SECRET: answers.jwtSecret,
@@ -163,10 +231,9 @@ export function setupAnswersToEnv(answers: SetupAnswers): Record<string, string>
     GITHUB_CLIENT_ID: answers.githubClientId,
     GITHUB_CLIENT_SECRET: answers.githubClientSecret,
     URUC_NOINDEX: answers.noindex ? 'true' : 'false',
-    ENABLE_SSL: answers.enableSsl ? 'true' : 'false',
-    LETSENCRYPT_EMAIL: answers.letsencryptEmail,
-    URUC_DEPLOYMENT_MODE: answers.mode,
-    URUC_PURPOSE: answers.purpose,
+    ENABLE_SSL: '',
+    LETSENCRYPT_EMAIL: '',
+    URUC_DEPLOYMENT_MODE: '',
   };
 }
 
@@ -179,8 +246,8 @@ export function generateSecret(): string {
   return crypto.randomBytes(24).toString('hex');
 }
 
-export function getDefaultPluginConfig(mode: DeploymentMode): string {
-  return `./${getPluginConfigFilename(mode === 'server' ? 'production' : 'development')}`;
+export function getDefaultPluginConfig(purpose: InstancePurpose): string {
+  return `./${getPluginConfigFilename(purpose === 'production' ? 'production' : 'development')}`;
 }
 
 export function getRepoRootPath(): string {

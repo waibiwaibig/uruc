@@ -5,6 +5,7 @@ import path from 'path';
 
 import { getPackageRoot, getPublicDir, getDbPath, getPluginConfigPath } from '../../runtime-paths.js';
 import { commandExists, exec, isPidAlive, killPid, openUrl, runOrThrow } from './process.js';
+import { buildSiteUrl, normalizeAppBasePath } from './env.js';
 import {
   clearManagedProcess,
   ensureCliDirs,
@@ -27,6 +28,9 @@ export interface RuntimeStatus {
   mode: 'stopped' | 'background' | 'systemd' | 'unmanaged';
   serviceName: string;
   envPath: string;
+  bindHost: string;
+  exposure: string;
+  appBasePath: string;
   siteUrl: string;
   healthUrl: string;
   wsUrl: string;
@@ -78,15 +82,20 @@ export async function fetchHealth(url: string): Promise<HealthStatus> {
 export async function getRuntimeStatus(): Promise<RuntimeStatus> {
   loadServerEnv();
 
+  const bindHost = process.env.BIND_HOST ?? '127.0.0.1';
+  const exposure = process.env.URUC_EXPOSURE ?? process.env.URUC_DEPLOYMENT_MODE ?? 'local-only';
   const httpPort = process.env.PORT ?? '3000';
   const wsPort = process.env.WS_PORT ?? '3001';
   const baseUrl = process.env.BASE_URL && process.env.BASE_URL.trim() !== ''
     ? process.env.BASE_URL
     : `http://127.0.0.1:${httpPort}`;
-  const wsUrl = baseUrl.startsWith('https://')
-    ? `${baseUrl.replace(/^https:/, 'wss:')}/ws`
-    : `ws://127.0.0.1:${wsPort}`;
-  const healthUrl = `${baseUrl.replace(/\/$/, '')}/api/health`;
+  const appBasePath = normalizeAppBasePath(process.env.APP_BASE_PATH);
+  const siteUrl = buildSiteUrl(baseUrl, appBasePath);
+  const origin = new URL(baseUrl).origin;
+  const wsUrl = origin.startsWith('https://')
+    ? `${origin.replace(/^https:/, 'wss:')}/ws`
+    : `${origin.replace(/^http:/, 'ws:')}/ws`;
+  const healthUrl = `${origin}/api/health`;
   const managed = getLiveManagedProcess();
   const localUnmanaged = managed ? null : findLocalUnmanagedProcess();
   const systemd = isSystemdActive();
@@ -102,7 +111,10 @@ export async function getRuntimeStatus(): Promise<RuntimeStatus> {
     mode,
     serviceName: getServiceName(),
     envPath: getServerEnvPath(),
-    siteUrl: baseUrl,
+    bindHost,
+    exposure,
+    appBasePath,
+    siteUrl,
     healthUrl,
     wsUrl,
     dbPath: getDbPath(),

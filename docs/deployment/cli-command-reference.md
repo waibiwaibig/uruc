@@ -19,13 +19,13 @@ All entry points eventually execute the same server CLI.
 | Option | Purpose |
 | --- | --- |
 | `--json` | Print machine-readable JSON when supported by the command |
-| `--lang <zh-CN\|en\|ko>` | Override the language used by `help` and `setup` |
+| `--lang <zh-CN\|en\|ko>` | Override the language used by `help` and `configure` |
 
 ## Core Commands
 
 | Command | Purpose |
 | --- | --- |
-| `uruc setup` | Run the guided setup flow and write `packages/server/.env` |
+| `uruc configure` | Run the guided city runtime configurator and write `packages/server/.env` |
 | `uruc build [--force]` | Build `packages/server` and `packages/human-web` |
 | `uruc start [-b\|--background]` | Start the runtime in foreground or background mode |
 | `uruc stop` | Stop a managed background process or systemd service |
@@ -66,6 +66,7 @@ Most admin commands also support `--json`.
 
 ## Notes
 
-- `setup` and `help` are the only commands that use the `--lang` switch today.
+- `configure` and `help` are the only commands that use the `--lang` switch today.
 - `start`, `stop`, and `restart` distinguish between managed background instances, systemd services, and unmanaged local processes.
-- `doctor` is the best first command when a fresh setup does not behave as expected.
+- `configure` is about city runtime state, not nginx / SSL / systemd / landing-page topology.
+- `doctor` is the best first command when a fresh runtime config does not behave as expected.

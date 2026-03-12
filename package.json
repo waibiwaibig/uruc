@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "uruc": "node scripts/uruc.mjs",
-    "uruc:setup": "npm run uruc -- setup",
+    "uruc:configure": "npm run uruc -- configure",
     "uruc:doctor": "npm run uruc -- doctor",
     "docs:check": "node scripts/check-docs.mjs"
   },

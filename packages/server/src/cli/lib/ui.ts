@@ -16,7 +16,7 @@ const labels = {
   },
   en: {
     welcome: 'Welcome to Uruc',
-    subtitle: 'City setup and operations CLI',
+    subtitle: 'City configure and runtime CLI',
     selectLang: 'Choose language',
     pressEnterDefault: 'Press Enter to keep the default',
     selectHint: 'Use ↑/↓ to choose, Enter to confirm, or type a number',
@@ -26,7 +26,7 @@ const labels = {
   },
   ko: {
     welcome: 'Uruc에 오신 것을 환영합니다',
-    subtitle: '도시 설정 및 운영 CLI',
+    subtitle: '도시 구성 및 런타임 CLI',
     selectLang: '언어를 선택하세요',
     pressEnterDefault: '기본값을 유지하려면 Enter를 누르세요',
     selectHint: '↑/↓ 로 선택하고 Enter 로 확인하거나 숫자를 입력하세요',

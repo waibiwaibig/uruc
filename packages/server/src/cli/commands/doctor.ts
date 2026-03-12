@@ -6,7 +6,7 @@ import { getPackageRoot, getPluginConfigPath } from '../../runtime-paths.js';
 import { adminExists, resolveAdminPasswordState } from '../lib/admin.js';
 import { getBuildFreshness } from '../lib/build.js';
 import { loadServerEnv, parseEnvFile, rootEnvExists, serverEnvExists } from '../lib/env.js';
-import { isSystemdActive, isSystemdInstalled, getRuntimeStatus } from '../lib/runtime.js';
+import { getRuntimeStatus } from '../lib/runtime.js';
 import { getRootEnvPath, getServerEnvPath } from '../lib/state.js';
 import { printStatus } from '../lib/ui.js';
 import type { CommandContext } from '../lib/types.js';
@@ -64,6 +64,21 @@ export async function runDoctorCommand(context: CommandContext): Promise<void> {
     level: existsSync(resolvedPublicDir) ? 'ok' : 'warn',
     name: 'public-dir',
     detail: `PUBLIC_DIR=${resolvedPublicDir}`,
+  });
+  checks.push({
+    level: env.BIND_HOST ? 'ok' : 'warn',
+    name: 'bind-host',
+    detail: `BIND_HOST=${runtime.bindHost}`,
+  });
+  checks.push({
+    level: 'ok',
+    name: 'exposure',
+    detail: `URUC_EXPOSURE=${runtime.exposure}`,
+  });
+  checks.push({
+    level: 'ok',
+    name: 'app-base-path',
+    detail: `APP_BASE_PATH=${runtime.appBasePath || '/'}`,
   });
 
   const build = getBuildFreshness();
@@ -163,27 +178,12 @@ export async function runDoctorCommand(context: CommandContext): Promise<void> {
     });
   }
 
-  if ((env.URUC_DEPLOYMENT_MODE ?? '') === 'server') {
-    checks.push({
-      level: isSystemdInstalled() ? 'ok' : 'warn',
-      name: 'systemd-installed',
-      detail: isSystemdInstalled() ? 'systemd unit detected' : 'No systemd unit detected for Uruc',
-    });
-    checks.push({
-      level: isSystemdActive() ? 'ok' : 'warn',
-      name: 'systemd-active',
-      detail: isSystemdActive() ? 'Uruc systemd service is active' : 'Uruc systemd service is not active',
-    });
-    checks.push({
-      level: runtime.siteUrl.startsWith('https://') ? 'ok' : 'warn',
-      name: 'ssl',
-      detail: runtime.siteUrl.startsWith('https://') ? `HTTPS enabled at ${runtime.siteUrl}` : `Current site URL is ${runtime.siteUrl}`,
-    });
-  }
-
   const report = {
     envPath,
     rootEnvPath,
+    bindHost: runtime.bindHost,
+    exposure: runtime.exposure,
+    appBasePath: runtime.appBasePath,
     dbPath: runtime.dbPath,
     pluginConfigPath: runtime.pluginConfigPath,
     siteUrl: runtime.siteUrl,
@@ -200,6 +200,9 @@ export async function runDoctorCommand(context: CommandContext): Promise<void> {
 
   console.log(`Config:      ${report.envPath}`);
   console.log(`Repo root .env: ${rootEnvExists() ? rootEnvPath : '(absent)'}`);
+  console.log(`Bind host:   ${report.bindHost}`);
+  console.log(`Exposure:    ${report.exposure}`);
+  console.log(`City path:   ${report.appBasePath || '/'}`);
   console.log(`DB:          ${report.dbPath}`);
   console.log(`Plugins:     ${report.pluginConfigPath}`);
   console.log(`Site:        ${report.siteUrl}`);

@@ -16,6 +16,15 @@ const mocks = vi.hoisted(() => ({
   writeCliMeta: vi.fn(),
   writeManagedProcess: vi.fn(),
   loadServerEnv: vi.fn(() => process.env),
+  normalizeAppBasePath: vi.fn((value: string | undefined) => {
+    const trimmed = value?.trim() ?? '';
+    if (trimmed === '' || trimmed === '/') return '';
+    const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+    return withLeadingSlash.replace(/\/+$/, '');
+  }),
+  buildSiteUrl: vi.fn((baseUrl: string, appBasePath: string) => (
+    appBasePath ? `${baseUrl.replace(/\/$/, '')}${appBasePath}` : baseUrl.replace(/\/$/, '')
+  )),
 }));
 
 vi.mock('../lib/process.js', () => ({
@@ -40,6 +49,8 @@ vi.mock('../lib/state.js', () => ({
 
 vi.mock('../lib/env.js', () => ({
   loadServerEnv: mocks.loadServerEnv,
+  normalizeAppBasePath: mocks.normalizeAppBasePath,
+  buildSiteUrl: mocks.buildSiteUrl,
 }));
 
 import { getRuntimeStatus, stopRuntime } from '../lib/runtime.js';
@@ -49,6 +60,8 @@ describe('stopRuntime', () => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     global.fetch = vi.fn().mockRejectedValue(new Error('fetch failed')) as typeof fetch;
+    process.env.BASE_URL = 'http://127.0.0.1:3000';
+    process.env.APP_BASE_PATH = '';
     process.env.PORT = '3000';
     process.env.WS_PORT = '3001';
     mocks.commandExists.mockImplementation((cmd: string) => cmd === 'lsof');

@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseCommandContext } from '../lib/argv.js';
-import { getSetupActions, getSetupSummaryLines } from '../lib/server-install.js';
-import type { SetupAnswers } from '../lib/types.js';
+import { getConfigureActions, getConfigureSummaryLines } from '../lib/configure-plan.js';
+import type { ConfigureAnswers } from '../lib/types.js';
 
-function makeAnswers(overrides: Partial<SetupAnswers> = {}): SetupAnswers {
+function makeAnswers(overrides: Partial<ConfigureAnswers> = {}): ConfigureAnswers {
   return {
     lang: 'zh-CN',
-    mode: 'local',
+    exposure: 'local-only',
     purpose: 'test',
+    bindHost: '127.0.0.1',
     publicHost: '127.0.0.1',
-    enableSsl: false,
-    letsencryptEmail: '',
+    useHttps: false,
     httpPort: '3000',
     wsPort: '3001',
     adminUsername: 'admin',
@@ -25,6 +25,7 @@ function makeAnswers(overrides: Partial<SetupAnswers> = {}): SetupAnswers {
     allowedOrigins: 'http://127.0.0.1:3000,http://localhost:5173',
     jwtSecret: 'secret',
     baseUrl: 'http://127.0.0.1:3000',
+    appBasePath: '',
     publicDir: '../human-web/dist',
     uploadsDir: './uploads',
     resendApiKey: '',
@@ -47,23 +48,32 @@ describe('CLI command parsing', () => {
   });
 });
 
-describe('setup summaries', () => {
-  it('keeps local setup actions focused on config and later start', () => {
-    const actions = getSetupActions(makeAnswers());
+describe('configure summaries', () => {
+  it('keeps configure actions focused on runtime config and later start', () => {
+    const actions = getConfigureActions(makeAnswers(), 'zh-CN');
     expect(actions).toContain('写入 packages/server/.env');
-    expect(actions).toContain('等待后续通过 `uruc start` 自动构建并启动');
+    expect(actions).toContain('后续通过 `uruc start` 或 `uruc start -b` 启动 city runtime');
   });
 
-  it('includes server install steps for server deployments', () => {
-    const actions = getSetupActions(makeAnswers({ mode: 'server', publicHost: 'uruc.life', enableSsl: true, letsencryptEmail: 'ops@example.com', baseUrl: 'https://uruc.life' }));
-    expect(actions).toContain('写入并启动 systemd 服务');
-    expect(actions).toContain('写入 nginx 反向代理配置');
-    expect(actions).toContain('申请并部署 HTTPS 证书');
+  it('keeps public exposure actions out of server install territory', () => {
+    const actions = getConfigureActions(makeAnswers({
+      exposure: 'direct-public',
+      publicHost: 'uruc.life',
+      useHttps: true,
+      baseUrl: 'https://uruc.life',
+    }), 'zh-CN');
+    expect(actions).toContain('保留 nginx / SSL / systemd 给外部运维层处理');
   });
 
   it('summarizes the key deployment values', () => {
-    const summary = getSetupSummaryLines(makeAnswers({ mode: 'server', publicHost: 'uruc.life', enableSsl: true, baseUrl: 'https://uruc.life' }));
+    const summary = getConfigureSummaryLines(makeAnswers({
+      exposure: 'direct-public',
+      publicHost: 'uruc.life',
+      useHttps: true,
+      baseUrl: 'https://uruc.life',
+      appBasePath: '/app',
+    }), 'zh-CN');
     expect(summary.some((line) => line.includes('uruc.life'))).toBe(true);
-    expect(summary.some((line) => line.includes('管理员: admin'))).toBe(true);
+    expect(summary.some((line) => line.includes('City 路径: /app'))).toBe(true);
   });
 });

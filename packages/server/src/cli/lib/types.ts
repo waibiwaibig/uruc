@@ -1,10 +1,12 @@
 export type UiLanguage = 'zh-CN' | 'en' | 'ko';
-export type DeploymentMode = 'local' | 'server';
+export type ExposureMode = 'local-only' | 'lan-share' | 'direct-public';
+export type LegacyDeploymentMode = 'local' | 'server';
 export type InstancePurpose = 'test' | 'production';
 
 export interface CliMeta {
   language: UiLanguage;
-  deploymentMode?: DeploymentMode;
+  exposure?: ExposureMode;
+  deploymentMode?: LegacyDeploymentMode;
   purpose?: InstancePurpose;
   serviceName?: string;
   install?: {
@@ -38,13 +40,13 @@ export interface OutputOptions {
   lang?: UiLanguage;
 }
 
-export interface SetupAnswers {
+export interface ConfigureAnswers {
   lang: UiLanguage;
-  mode: DeploymentMode;
+  exposure: ExposureMode;
   purpose: InstancePurpose;
+  bindHost: string;
   publicHost: string;
-  enableSsl: boolean;
-  letsencryptEmail: string;
+  useHttps: boolean;
   httpPort: string;
   wsPort: string;
   adminUsername: string;
@@ -58,6 +60,7 @@ export interface SetupAnswers {
   allowedOrigins: string;
   jwtSecret: string;
   baseUrl: string;
+  appBasePath: string;
   publicDir: string;
   uploadsDir: string;
   resendApiKey: string;

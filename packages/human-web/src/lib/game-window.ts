@@ -1,4 +1,7 @@
 const GAME_WINDOW_NAME = 'uruc-game';
+const APP_BASE_PATH = import.meta.env.BASE_URL === '/'
+  ? ''
+  : import.meta.env.BASE_URL.replace(/\/$/, '');
 
 export interface PreparedGameWindow {
   navigate: (path: string) => void;
@@ -24,7 +27,8 @@ export function prepareGameWindow(): PreparedGameWindow | null {
 
   return {
     navigate(path: string) {
-      popup.location.replace(new URL(path, window.location.origin).toString());
+      const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+      popup.location.replace(new URL(`${APP_BASE_PATH}${normalizedPath}`, window.location.origin).toString());
       popup.focus();
     },
     close() {

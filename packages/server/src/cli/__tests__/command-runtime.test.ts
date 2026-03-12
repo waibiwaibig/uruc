@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   startForeground: vi.fn(),
   assertConfiguredPortsAvailable: vi.fn(),
   ensureFreshBuildIfNeeded: vi.fn(),
-  runSetupCommand: vi.fn(),
+  runConfigureCommand: vi.fn(),
   hasFlag: vi.fn((args: string[], ...flags: string[]) => args.some((arg) => flags.includes(arg))),
   rootEnvExists: vi.fn(() => false),
   serverEnvExists: vi.fn(() => true),
@@ -34,8 +34,8 @@ vi.mock('../commands/build.js', () => ({
   ensureFreshBuildIfNeeded: mocks.ensureFreshBuildIfNeeded,
 }));
 
-vi.mock('../commands/setup.js', () => ({
-  runSetupCommand: mocks.runSetupCommand,
+vi.mock('../commands/configure.js', () => ({
+  runConfigureCommand: mocks.runConfigureCommand,
 }));
 
 import { getStartConflictMessage, runStartCommand } from '../commands/start.js';
