@@ -9,6 +9,7 @@ interface AgentsContextValue {
   loading: boolean;
   error: string;
   agents: Agent[];
+  shadowAgent: Agent | null;
   selectedAgentId: string | null;
   selectedAgent: Agent | null;
   setSelectedAgentId: (agentId: string | null) => void;
@@ -66,11 +67,14 @@ export function AgentsProvider({ children }: { children: React.ReactNode }) {
   }, [ready, user?.id]);
 
   const createAgent = useCallback(async (name: string) => {
+    const hadSelection = selectedAgentId;
     const res = await DashboardApi.createAgent(name);
     await reloadAgents();
-    setSelectedAgentId(res.agent.id);
+    if (!hadSelection) {
+      setSelectedAgentId(res.agent.id);
+    }
     return res.agent;
-  }, [reloadAgents]);
+  }, [reloadAgents, selectedAgentId]);
 
   const updateAgent = useCallback(async (agentId: string, fields: { name?: string; description?: string; searchable?: boolean; trustMode?: 'confirm' | 'full' }) => {
     await DashboardApi.updateAgent(agentId, fields);
@@ -92,6 +96,7 @@ export function AgentsProvider({ children }: { children: React.ReactNode }) {
     await reloadAgents();
   }, [reloadAgents]);
 
+  const shadowAgent = agents.find((agent) => agent.isShadow) ?? null;
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? null;
 
   const value = useMemo<AgentsContextValue>(
@@ -99,6 +104,7 @@ export function AgentsProvider({ children }: { children: React.ReactNode }) {
       loading,
       error,
       agents,
+      shadowAgent,
       selectedAgentId,
       selectedAgent,
       setSelectedAgentId,
@@ -113,6 +119,7 @@ export function AgentsProvider({ children }: { children: React.ReactNode }) {
       loading,
       error,
       agents,
+      shadowAgent,
       selectedAgentId,
       selectedAgent,
       reloadAgents,

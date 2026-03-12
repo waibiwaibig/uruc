@@ -165,7 +165,7 @@ function toTimelineEvent(change: ArcadeTableChange, id: string): ArcadeTimelineE
 
 export function useArcadeClient(preferredTableId?: string | null) {
   const { t } = useTranslation('play');
-  const { selectedAgent } = useAgents();
+  const { shadowAgent } = useAgents();
   const runtime = useAgentRuntime();
 
   const [lobby, setLobby] = useState<ArcadeLobbyState | null>(null);
@@ -181,7 +181,7 @@ export function useArcadeClient(preferredTableId?: string | null) {
   const [initialSyncDone, setInitialSyncDone] = useState(false);
   const autoBootRef = useRef('');
 
-  const currentAgentId = runtime.agentSession?.agentId ?? selectedAgent?.id ?? null;
+  const currentAgentId = runtime.agentSession?.agentId ?? shadowAgent?.id ?? null;
   const availableGames = lobby?.games ?? [];
   const selectedGame = availableGames.find((game) => game.id === selectedGameId) ?? availableGames[0] ?? null;
   const tableSummaries = lobby?.tables ?? [];
@@ -248,8 +248,8 @@ export function useArcadeClient(preferredTableId?: string | null) {
   };
 
   const ensureArcadeReady = async () => {
-    if (!selectedAgent) {
-      throw new Error(t('arcade.runtime.needAgentFirst'));
+    if (!shadowAgent) {
+      throw new Error(t('runtime:websocket.missingShadowAgent'));
     }
 
     if (!runtime.isConnected) {
@@ -518,15 +518,15 @@ export function useArcadeClient(preferredTableId?: string | null) {
     setSuccessText('');
     setLocalFeed([]);
     setInitialSyncDone(false);
-  }, [selectedAgent?.id]);
+  }, [shadowAgent?.id]);
 
   useEffect(() => {
-    if (!selectedAgent) return;
-    if (autoBootRef.current === selectedAgent.id) return;
-    autoBootRef.current = selectedAgent.id;
+    if (!shadowAgent) return;
+    if (autoBootRef.current === shadowAgent.id) return;
+    autoBootRef.current = shadowAgent.id;
     void refreshArcade(preferredTableId ?? null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAgent?.id, preferredTableId]);
+  }, [shadowAgent?.id, preferredTableId]);
 
   useEffect(() => {
     if (!lobby) return undefined;
@@ -586,7 +586,7 @@ export function useArcadeClient(preferredTableId?: string | null) {
   }, [runtime, selectedGameId, preferredTableId]);
 
   return {
-    selectedAgent,
+    selectedAgent: shadowAgent,
     runtime,
     lobby,
     currentTable,

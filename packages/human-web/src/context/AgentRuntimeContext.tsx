@@ -59,12 +59,20 @@ function parseRuntimePatch(payload: unknown): Partial<RuntimeSnapshot & { locati
   return patch;
 }
 
+function shouldClearRuntimeError(payload: unknown): boolean {
+  const patch = parseRuntimePatch(payload);
+  if (patch.connected === false) return false;
+  if (patch.isController === true) return true;
+  if (patch.hasController === false) return true;
+  return false;
+}
+
 function nowLabel(message: string): string {
   return `${formatTime(new Date())} ${message}`;
 }
 
 export function AgentRuntimeProvider({ children }: { children: React.ReactNode }) {
-  const { selectedAgent } = useAgents();
+  const { shadowAgent } = useAgents();
   const { user } = useAuth();
   const clientRef = useRef(new AgentWsClient());
   const previousAgentIdRef = useRef<string | null>(null);
@@ -125,6 +133,9 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
       const envelope = raw as WsEnvelope;
       if (envelope.type === 'session_state') {
         applyPatch(envelope.payload);
+        if (shouldClearRuntimeError(envelope.payload)) {
+          setError('');
+        }
       }
       if (envelope.type === 'error') {
         const payload = envelope.payload as { error?: string } | undefined;
@@ -135,6 +146,9 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
       }
       if (envelope.type === 'result') {
         applyPatch(envelope.payload);
+        if (shouldClearRuntimeError(envelope.payload)) {
+          setError('');
+        }
       }
       if (envelope.type === 'chess_welcome') {
         pushEvent(i18n.t('runtime:events.chessEntered'));
@@ -190,7 +204,7 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     const previousAgentId = previousAgentIdRef.current;
-    previousAgentIdRef.current = selectedAgent?.id ?? null;
+    previousAgentIdRef.current = shadowAgent?.id ?? null;
 
     setError('');
     setAgentSession(null);
@@ -202,10 +216,10 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
     setAvailableCommands([]);
     setAvailableLocations([]);
     setEvents([]);
-    if (previousAgentId && previousAgentId !== selectedAgent?.id) {
+    if (previousAgentId && previousAgentId !== shadowAgent?.id) {
       clientRef.current.disconnect();
     }
-  }, [selectedAgent?.id]);
+  }, [shadowAgent?.id]);
 
   const setWsUrl = useCallback((value: string) => {
     setWsUrlState(value);
@@ -213,21 +227,16 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const connect = useCallback(async () => {
-    if (!selectedAgent) {
-      throw new Error(i18n.t('runtime:websocket.needAgentFirst'));
-    }
-
-    const authCredential = selectedAgent.isShadow ? undefined : selectedAgent.token;
-    if (selectedAgent.isShadow && !user) {
+    if (!user) {
       throw new Error(i18n.t('runtime:websocket.needOwnerLogin'));
     }
-    if (!selectedAgent.isShadow && !authCredential) {
-      throw new Error(selectedAgent.isShadow ? i18n.t('runtime:websocket.needOwnerLogin') : i18n.t('runtime:websocket.missingCredential'));
+    if (!shadowAgent) {
+      throw new Error(i18n.t('runtime:websocket.missingShadowAgent'));
     }
 
     setError('');
     try {
-      const result = await clientRef.current.connect(wsUrl.trim(), authCredential);
+      const result = await clientRef.current.connect(wsUrl.trim(), undefined);
       setAgentSession({ agentId: result.agentId, agentName: result.agentName });
       applyPatch(result.snapshot);
       pushEvent(i18n.t('runtime:events.agentConnected', { name: result.agentName }));
@@ -236,10 +245,11 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
       setError(message);
       throw err;
     }
-  }, [selectedAgent, user, wsUrl, pushEvent, applyPatch]);
+  }, [shadowAgent, user, wsUrl, pushEvent, applyPatch]);
 
   const disconnect = useCallback(() => {
     clientRef.current.disconnect();
+    setError('');
     setAgentSession(null);
     setHasController(false);
     setIsController(false);
@@ -253,24 +263,36 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
   const sendCommand = useCallback(async <T = unknown,>(type: string, payload?: unknown): Promise<T> => {
     const result = await clientRef.current.send<T>(type, payload);
     applyPatch(result);
+    if (shouldClearRuntimeError(result)) {
+      setError('');
+    }
     return result;
   }, [applyPatch]);
 
   const refreshSessionState = useCallback(async () => {
     const result = await clientRef.current.send<RuntimeSnapshot>('session_state');
     applyPatch(result);
+    if (shouldClearRuntimeError(result)) {
+      setError('');
+    }
     return result;
   }, [applyPatch]);
 
   const claimControl = useCallback(async () => {
     const result = await clientRef.current.send<RuntimeSnapshot>('claim_control');
     applyPatch(result);
+    if (shouldClearRuntimeError(result)) {
+      setError('');
+    }
     return result;
   }, [applyPatch]);
 
   const releaseControl = useCallback(async () => {
     const result = await clientRef.current.send<RuntimeSnapshot>('release_control');
     applyPatch(result);
+    if (shouldClearRuntimeError(result)) {
+      setError('');
+    }
     return result;
   }, [applyPatch]);
 

@@ -154,7 +154,7 @@ function describeNode(t: (key: string) => string, destination: Destination): str
 
 export function PlayPage() {
   const { t } = useTranslation(['play', 'common', 'runtime', 'dashboard']);
-  const { selectedAgent } = useAgents();
+  const { shadowAgent } = useAgents();
   const runtime = useAgentRuntime();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -209,6 +209,10 @@ export function PlayPage() {
   };
 
   const ensureGameplayReady = async () => {
+    if (!shadowAgent) {
+      throw new Error(t('runtime:websocket.missingShadowAgent'));
+    }
+
     if (!runtime.isConnected) {
       await runtime.connect();
     }
@@ -231,13 +235,13 @@ export function PlayPage() {
   useEffect(() => {
     autoConnectAttemptRef.current = '';
     setErrorText('');
-  }, [selectedAgent?.id]);
+  }, [shadowAgent?.id]);
 
   useEffect(() => {
-    if (!selectedAgent || !autoStart) return;
+    if (!shadowAgent || !autoStart) return;
     if (runtime.isConnected || isPending) return;
-    if (autoConnectAttemptRef.current === selectedAgent.id) return;
-    autoConnectAttemptRef.current = selectedAgent.id;
+    if (autoConnectAttemptRef.current === shadowAgent.id) return;
+    autoConnectAttemptRef.current = shadowAgent.id;
     void ensureGameplayReady().then(() => {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
@@ -248,7 +252,7 @@ export function PlayPage() {
       setErrorText(err instanceof Error ? err.message : t('play:playPage.autoEnterFailure'));
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAgent?.id, autoStart, runtime.isConnected, isPending]);
+  }, [shadowAgent?.id, autoStart, runtime.isConnected, isPending]);
 
   useEffect(() => {
     if (!runtime.currentLocation) return undefined;
@@ -314,7 +318,7 @@ export function PlayPage() {
     navigate('/lobby');
   });
 
-  if (!selectedAgent) {
+  if (!shadowAgent) {
     return (
       <div className="page-wrap main-grid">
         <section className="card game-stage game-stage--empty">

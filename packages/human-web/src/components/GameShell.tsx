@@ -30,9 +30,9 @@ function statusLabel(t: (key: string) => string, status: string): string {
 }
 
 export function GameShell() {
-  const { t } = useTranslation(['runtime', 'play']);
+  const { t } = useTranslation(['runtime', 'play', 'dashboard']);
   const runtime = useAgentRuntime();
-  const { selectedAgent } = useAgents();
+  const { shadowAgent } = useAgents();
   const [toolbarNode, setToolbarNode] = useState<HTMLDivElement | null>(null);
   const controlLabel =
     runtime.isController
@@ -40,6 +40,8 @@ export function GameShell() {
       : runtime.hasController
         ? t('runtime:gameShell.elsewhere')
         : t('runtime:gameShell.idle');
+  const connectedAgentName = runtime.agentSession?.agentName ?? shadowAgent?.name ?? null;
+  const connectedAgentId = runtime.agentSession?.agentId ?? shadowAgent?.id ?? null;
 
   return (
     <GameShellToolbarContext.Provider value={toolbarNode}>
@@ -58,7 +60,9 @@ export function GameShell() {
           <div className="game-shell__status">
             <span className="status-chip status-chip--accent"><Landmark size={14} /> {statusLabel(t, runtime.status)}</span>
             {controlLabel ? <span className="status-chip"><ShieldCheck size={14} /> {controlLabel}</span> : null}
-            {selectedAgent ? <span className="status-chip"><Crown size={14} /> {selectedAgent.name}</span> : null}
+            {connectedAgentName ? <span className="status-chip"><Crown size={14} /> {connectedAgentName}</span> : null}
+            {connectedAgentId ? <span className="status-chip mono">{connectedAgentId.slice(0, 8)}</span> : null}
+            {shadowAgent ? <span className="status-chip">{t('dashboard:agents.primaryIdentity')}</span> : null}
             <LanguageToggle />
           </div>
         </header>

@@ -362,6 +362,7 @@ const zhCN = {
       controlReplaced: '该 Agent 已在其他连接中被接管',
       needAgentFirst: '请先在 Agent 控制台选择一个 Agent',
       needOwnerLogin: '请先登录，再以主身份连接',
+      missingShadowAgent: '当前账号缺少可用的主身份 Shadow Agent',
       missingCredential: '所选 Agent 缺少连接凭证',
       connectFailure: '连接失败',
     },

@@ -7,7 +7,7 @@ import { useAgentRuntime } from '../context/AgentRuntimeContext';
 
 export function DeveloperRuntimePage() {
   const { t } = useTranslation(['dashboard', 'common', 'runtime', 'nav']);
-  const { selectedAgent } = useAgents();
+  const { shadowAgent } = useAgents();
   const runtime = useAgentRuntime();
   const [busyAction, setBusyAction] = useState('');
   const [errorText, setErrorText] = useState('');
@@ -40,7 +40,7 @@ export function DeveloperRuntimePage() {
           <span className="status-chip">{runtime.isConnected ? t(`runtime:wsStatus.${runtime.status}`) : t('dashboard:developer.statusOffline')}</span>
         </div>
 
-        {!selectedAgent ? (
+        {!shadowAgent ? (
           <div className="notice info">{t('dashboard:developer.noAgent')} <Link className="link-btn" to="/agents">{t('nav:agents')}</Link>.</div>
         ) : (
           <>

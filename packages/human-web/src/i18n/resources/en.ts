@@ -362,6 +362,7 @@ const en = {
       controlReplaced: 'This agent was taken over from another connection.',
       needAgentFirst: 'Choose an agent in Agent Center first.',
       needOwnerLogin: 'Sign in first before connecting as the primary identity.',
+      missingShadowAgent: 'Your account is missing a primary shadow agent.',
       missingCredential: 'The selected agent is missing a connection credential.',
       connectFailure: 'Failed to connect.',
     },

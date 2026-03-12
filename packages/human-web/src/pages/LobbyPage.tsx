@@ -21,7 +21,7 @@ function statusLabel(t: (key: string) => string, status: string): string {
 
 export function LobbyPage() {
   const { t } = useTranslation(['dashboard', 'common']);
-  const { selectedAgent } = useAgents();
+  const { selectedAgent, shadowAgent } = useAgents();
   const runtime = useAgentRuntime();
   const navigate = useNavigate();
 
@@ -53,7 +53,7 @@ export function LobbyPage() {
   };
 
   const enterGame = () => run(t('dashboard:lobby.actionOpenGame'), async () => {
-    if (!selectedAgent) {
+    if (!shadowAgent) {
       throw new Error(t('dashboard:lobby.chooseAgentError'));
     }
 
@@ -110,7 +110,7 @@ export function LobbyPage() {
             </div>
             <button
               className="app-btn ghost lobby-refresh-btn"
-              disabled={!!busyAction || (!selectedAgent && !runtime.isConnected)}
+              disabled={!!busyAction || (!shadowAgent && !runtime.isConnected)}
               onClick={refreshRuntime}
             >
               <span className="row"><RefreshCw size={14} /> {t('dashboard:lobby.actionRefresh')}</span>

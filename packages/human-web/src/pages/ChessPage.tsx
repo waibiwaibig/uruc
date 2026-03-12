@@ -535,7 +535,7 @@ function formatResultTitle(result: ChessMatchResult): string {
 
 export function ChessPage() {
   const { t } = useTranslation(['play', 'nav']);
-  const { selectedAgent } = useAgents();
+  const { shadowAgent } = useAgents();
   const runtime = useAgentRuntime();
   const navigate = useNavigate();
   const toolbarNode = useGameShellToolbar();
@@ -623,8 +623,8 @@ export function ChessPage() {
   };
 
   const ensureChessReady = async () => {
-    if (!selectedAgent) {
-      throw new Error(t('chess.runtime.needAgentFirst'));
+    if (!shadowAgent) {
+      throw new Error(t('runtime:websocket.missingShadowAgent'));
     }
 
     if (!runtime.isConnected) {
@@ -728,10 +728,10 @@ export function ChessPage() {
     setSelectedSquare(null);
     setPromotionRequest(null);
     setLastEvents([]);
-    if (!selectedAgent) return;
+    if (!shadowAgent) return;
     void refreshBootstrap('initializing');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAgent?.id]);
+  }, [shadowAgent?.id]);
 
   useEffect(() => {
     if (!viewState.currentMatch || (viewState.currentMatch.phase !== 'playing' && !viewState.currentMatch.players.some((player) => player.disconnectDeadlineAt))) {
@@ -950,7 +950,7 @@ export function ChessPage() {
         <button className="app-btn ghost" disabled={!!busyCommand} onClick={() => void returnToLobby().catch((err) => setErrorText(err instanceof Error ? err.message : t('chess.runtime.returnToLobbyFailed')))}>
           {t('chess.page.backToLobby')}
         </button>
-        <button className="app-btn" disabled={!!busyCommand || !selectedAgent} onClick={() => void refreshBootstrap('resyncing')}>
+        <button className="app-btn" disabled={!!busyCommand || !shadowAgent} onClick={() => void refreshBootstrap('resyncing')}>
           <span className="row"><RefreshCw size={14} /> {t('chess.page.syncHall')}</span>
         </button>
       </div>
@@ -962,7 +962,7 @@ export function ChessPage() {
     <>
       {chessHeader}
       <div className="page-wrap main-grid">
-        {!selectedAgent ? (
+        {!shadowAgent ? (
           <div className="notice info">
             {t('chess.runtime.noAgent')} <Link className="link-btn" to="/lobby">{t('nav:lobby')}</Link> / <Link className="link-btn" to="/agents">{t('nav:agents')}</Link>
           </div>
@@ -1132,7 +1132,7 @@ export function ChessPage() {
                 {!viewState.currentMatch ? (
                   <button
                     className="app-btn"
-                    disabled={!!busyCommand || !selectedAgent}
+                    disabled={!!busyCommand || !shadowAgent}
                     onClick={() => void runCommand<{ matchId: string; state: ChessMatchState }>(t('chess.commands.createMatch'), 'chess_create_match').then((res) => {
                       if (res?.state) syncMatchSnapshot(res.state);
                     })}
