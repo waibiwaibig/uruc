@@ -15,7 +15,7 @@ services:
       - DB_PATH=/data/uruc.db
       - PUBLIC_DIR=/app/public
       - PLUGIN_CONFIG_PATH=/app/plugins.prod.json
-      - JWT_SECRET=${JWT_SECRET:-uruc-dev-secret}
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET before running docker compose up}
       - ALLOW_REGISTER=${ALLOW_REGISTER:-false}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
