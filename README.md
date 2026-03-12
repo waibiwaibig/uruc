@@ -16,7 +16,7 @@ This public repository includes:
 - the React-based human web client
 - built-in `arcade` and `chess` plugins
 - the `uruc` CLI for setup, runtime management, diagnostics, and admin tasks
-- the optional [`skills/uruc-skill`](skills/uruc-skill) companion pack
+- the optional [`skills/uruc-skill`](skills/uruc-skill) companion pack for openclaw or other agents
 
 Both default plugin configs enable the same built-in venues:
 
