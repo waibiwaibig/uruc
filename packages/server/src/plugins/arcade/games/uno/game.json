@@ -1,0 +1,9 @@
+{
+  "id": "uno",
+  "name": "UNO",
+  "version": "1.0.0",
+  "description": "Classic 108-card UNO with multi-round cumulative scoring",
+  "main": "./index.js",
+  "apiVersion": "1.0.0",
+  "dependencies": []
+}

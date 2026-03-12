@@ -1,0 +1,50 @@
+.auth-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+  gap: var(--space-4);
+  align-items: stretch;
+}
+
+.page-auth {
+  min-height: calc(100vh - 82px);
+  display: flex;
+  align-items: center;
+  padding-top: var(--space-4);
+  padding-bottom: var(--space-4);
+}
+
+.page-auth .auth-layout {
+  width: 100%;
+}
+
+.auth-lore {
+  padding: var(--space-5);
+  min-height: 620px;
+  display: grid;
+  align-content: space-between;
+  background:
+    linear-gradient(180deg, rgba(29, 21, 12, 0.7), rgba(9, 7, 4, 0.92)),
+    url('../assets/ornaments/uruc-wall.svg') center bottom / cover no-repeat;
+}
+
+.auth-lore__grid {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.auth-panel {
+  padding: var(--space-5);
+  display: grid;
+  gap: var(--space-4);
+}
+
+.field-grid {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.field-inline {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}

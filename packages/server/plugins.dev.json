@@ -1,0 +1,24 @@
+{
+  "plugins": {
+    "arcade": {
+      "enabled": true,
+      "autoLoad": true
+    },
+    "chess": {
+      "enabled": true,
+      "autoLoad": true
+    }
+  },
+  "discovery": {
+    "enabled": true,
+    "paths": [
+      "./src/plugins"
+    ],
+    "exclude": [
+      "__tests__",
+      "node_modules",
+      "*.test.ts",
+      "*.spec.ts"
+    ]
+  }
+}

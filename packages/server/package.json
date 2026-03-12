@@ -1,0 +1,49 @@
+{
+  "name": "@uruc/server",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/waibiwaibig/uruc.git",
+    "directory": "packages/server"
+  },
+  "homepage": "https://github.com/waibiwaibig/uruc/tree/main/packages/server",
+  "author": "Uruc Contributors",
+  "bin": {
+    "uruc": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc && node scripts/copy-plugin-manifests.mjs",
+    "test": "vitest run",
+    "cli": "node dist/cli/index.js",
+    "setup": "node dist/cli/index.js setup",
+    "doctor": "node dist/cli/index.js doctor",
+    "plugin": "node dist/cli/index.js plugin",
+    "plugin:list": "node dist/cli/index.js plugin list",
+    "plugin:discover": "node dist/cli/index.js plugin discover"
+  },
+  "dependencies": {
+    "@types/express": "^5.0.6",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.0.0",
+    "chess.js": "^1.4.0",
+    "dotenv": "^17.3.1",
+    "drizzle-orm": "^0.36.0",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.0",
+    "nanoid": "^5.0.0",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.0",
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/jsonwebtoken": "^9.0.0",
+    "@types/ws": "^8.5.0",
+    "drizzle-kit": "^0.28.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  }
+}

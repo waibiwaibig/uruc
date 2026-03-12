@@ -1,0 +1,23 @@
+{
+  "name": "uruc",
+  "private": true,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/waibiwaibig/uruc.git"
+  },
+  "homepage": "https://github.com/waibiwaibig/uruc",
+  "author": "Uruc Contributors",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "uruc": "node scripts/uruc.mjs",
+    "uruc:setup": "npm run uruc -- setup",
+    "uruc:doctor": "npm run uruc -- doctor",
+    "docs:check": "node scripts/check-docs.mjs"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6"
+  }
+}

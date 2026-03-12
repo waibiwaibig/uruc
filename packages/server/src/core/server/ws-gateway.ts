@@ -1,0 +1,603 @@
+/**
+ * WSGateway — Pure Transport Layer.
+ *
+ * Responsibilities:
+ * - WebSocket connection management
+ * - Agent and Owner authentication
+ * - Heartbeat and connection cleanup
+ * - Message routing to hooks.handleWSCommand()
+ * - Message sending/broadcasting (WSGatewayPublic interface)
+ *
+ * This file has ZERO domain logic. No city, no locations, no business commands.
+ * All commands (including city gate) are registered via hooks.registerWSCommand().
+ */
+
+import type { IncomingMessage } from 'http';
+import { WebSocketServer, WebSocket } from 'ws';
+import { nanoid } from 'nanoid';
+
+import type { HookRegistry, WSContext, WSGatewayPublic, WSDispatchResult } from '../plugin-system/hook-registry.js';
+import type { ServiceRegistry } from '../plugin-system/service-registry.js';
+import type { AuthService } from '../auth/service.js';
+import type { AgentSession, WSMessage } from '../../types/index.js';
+import { getCookieAuthUser, verifyToken } from './middleware.js';
+import { AgentSessionService, type AgentSessionSnapshot } from './agent-session-service.js';
+import { AppError, CORE_ERROR_CODES, resolveError } from './errors.js';
+
+/**
+ * Typed interface for admin operations on the gateway.
+ * Used by admin routes to avoid `as any` coupling.
+ */
+export interface IGatewayAdmin {
+  getOnlineAgentIds(): string[];
+  getAgentCurrentLocation(agentId: string): string | undefined;
+  kickAgent(agentId: string): void;
+}
+
+declare module '../plugin-system/service-registry.js' {
+  interface ServiceMap {
+    'ws-gateway': WSGateway;
+  }
+}
+
+// =============================================
+// Connected client state
+// =============================================
+
+interface ConnectedClient {
+  id: string;
+  ws: WebSocket;
+  session?: AgentSession;
+  ownerSession?: { userId: string };
+  cookieAuthUser?: { userId: string; role: string };
+  msgTimestamps: number[];
+  isAlive: boolean;
+  lastPong: number;
+}
+
+// =============================================
+// WSGateway
+// =============================================
+
+export class WSGateway implements WSGatewayPublic {
+  private wss?: WebSocketServer;
+  private clients = new Map<string, ConnectedClient>();
+  private port: number;
+  private hooks: HookRegistry;
+  private services: ServiceRegistry;
+  private auth: AuthService;
+  private agentSessions: AgentSessionService;
+  private heartbeatTimer?: ReturnType<typeof setInterval>;
+  private startTime = Date.now();
+
+  constructor(opts: { port: number }, hooks: HookRegistry, services: ServiceRegistry, auth: AuthService) {
+    this.port = opts.port;
+    this.hooks = hooks;
+    this.services = services;
+    this.auth = auth;
+    this.agentSessions = new AgentSessionService();
+  }
+
+  async start() {
+    this.wss = new WebSocketServer({ port: this.port });
+    this.wss.on('connection', (ws, req) => this.handleConnection(ws, req));
+    this.startHeartbeat();
+  }
+
+  async stop() {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    for (const [, client] of this.clients) client.ws.terminate();
+    this.clients.clear();
+    await new Promise<void>((resolve) => this.wss?.close(() => resolve()));
+  }
+
+  // === Public messaging API (WSGatewayPublic) ===
+
+  send(ws: WebSocket, msg: WSMessage): void {
+    if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+  }
+
+  broadcast(msg: WSMessage): void {
+    const data = JSON.stringify(msg);
+    for (const [, client] of this.clients) {
+      if (client.ws.readyState === WebSocket.OPEN) client.ws.send(data);
+    }
+  }
+
+  sendToAgent(agentId: string, msg: WSMessage): void {
+    for (const [, client] of this.clients) {
+      if (client.session?.agentId === agentId && client.ws.readyState === WebSocket.OPEN) {
+        client.ws.send(JSON.stringify(msg));
+      }
+    }
+  }
+
+  pushToOwner(userId: string, msg: WSMessage): void {
+    for (const [, client] of this.clients) {
+      if (client.ownerSession?.userId === userId && client.ws.readyState === WebSocket.OPEN) {
+        client.ws.send(JSON.stringify(msg));
+      }
+    }
+  }
+
+  kickAgent(agentId: string): void {
+    for (const [clientId, client] of this.clients) {
+      if (client.session?.agentId === agentId) {
+        this.send(client.ws, { id: '', type: 'kicked', payload: { reason: 'Disconnected by an administrator.' } });
+        this.cleanupClient(clientId, client);
+        client.ws.close();
+      }
+    }
+    this.agentSessions.clear(agentId, true);
+  }
+
+  getOnlineAgentIds(): string[] {
+    const ids: string[] = [];
+    for (const [, client] of this.clients) {
+      if (client.session) ids.push(client.session.agentId);
+    }
+    return [...new Set(ids)];
+  }
+
+  getAgentCurrentLocation(agentId: string): string | undefined {
+    return this.agentSessions.getCurrentLocation(agentId);
+  }
+
+
+
+  // NOTE: Event-bus subscription removed.
+  // The event-bus plugin should subscribe itself via:
+  //   const gateway = ctx.services.get('ws-gateway');
+  //   eventBus.subscribe(event => gateway.broadcast({ id: '', type: 'event', payload: event }));
+
+
+  // === Private: Connection lifecycle ===
+
+  private startHeartbeat(): void {
+    const INTERVAL = 30;
+    const TIMEOUT = 60;
+    this.heartbeatTimer = setInterval(() => {
+      const now = Date.now();
+      for (const [clientId, client] of this.clients) {
+        if (now - client.lastPong > TIMEOUT * 1000) {
+          this.cleanupClient(clientId, client);
+          client.ws.terminate();
+          continue;
+        }
+        if (client.ws.readyState === WebSocket.OPEN) client.ws.ping();
+      }
+    }, INTERVAL * 1000);
+  }
+
+  private handleConnection(ws: WebSocket, req: IncomingMessage): void {
+    const clientId = nanoid();
+    const client: ConnectedClient = {
+      id: clientId,
+      ws,
+      cookieAuthUser: getCookieAuthUser(req) ?? undefined,
+      msgTimestamps: [],
+      isAlive: true,
+      lastPong: Date.now(),
+    };
+    this.clients.set(clientId, client);
+
+    ws.on('pong', () => { client.isAlive = true; client.lastPong = Date.now(); });
+
+    ws.on('message', async (data) => {
+      let msg: WSMessage;
+      try {
+        msg = JSON.parse(data.toString());
+        if (!msg.type) throw new Error('Missing type');
+      } catch {
+        return this.send(ws, {
+          id: '',
+          type: 'error',
+          payload: { error: 'Invalid JSON', code: CORE_ERROR_CODES.INVALID_JSON },
+        });
+      }
+      try {
+        await this.handleMessage(clientId, msg);
+      } catch (err) {
+        console.error(`[WS] Unhandled error in handleMessage:`, (err as Error).message);
+        this.send(ws, { id: msg.id, type: 'error', payload: { error: 'Internal server error', code: 'INTERNAL_ERROR' } });
+      }
+    });
+
+    ws.on('close', () => this.cleanupClient(clientId, client));
+
+    ws.on('error', (err) => {
+      if ((err as any).code !== 'ECONNRESET') {
+        console.error(`[WS] Error for ${clientId}:`, (err as Error).message);
+      }
+    });
+  }
+
+  private cleanupClient(clientId: string, client: ConnectedClient): void {
+    if (!this.clients.has(clientId)) return;
+
+    this.clients.delete(clientId);
+
+    if (client.session) {
+      const { agentId, userId } = client.session;
+      const sessionSnapshot = this.agentSessions.getSnapshot(agentId, clientId);
+      const closed = this.agentSessions.handleConnectionClosed(agentId, clientId);
+
+      if (closed.wasController) {
+        this.hooks.runHook('connection.close', {
+          session: client.session,
+          currentLocation: sessionSnapshot.currentLocation,
+          gateway: this as WSGatewayPublic,
+        }).catch((err) => { console.error('[WS] connection.close hook error:', (err as Error).message); });
+      }
+
+      const hasSameAgentClient = this.hasAuthenticatedClientForAgent(agentId);
+      if (!hasSameAgentClient) {
+        this.auth.setAgentOnline(agentId, false).catch((err) => {
+          console.error('[WS] setAgentOnline(false) failed:', (err as Error).message);
+        });
+
+        this.pushToOwner(userId, {
+          id: '', type: 'agent_status', payload: { agentId, isOnline: false },
+        });
+      }
+
+      this.pushSessionState(agentId);
+    }
+  }
+
+  // === Private: Message routing ===
+
+  private async handleMessage(clientId: string, msg: WSMessage): Promise<void> {
+    const client = this.clients.get(clientId);
+    if (!client) return;
+
+    // --- Rate limiting ---
+    if (client.session) {
+      const now = Date.now();
+      client.msgTimestamps = client.msgTimestamps.filter(t => now - t < 60000);
+      if (client.msgTimestamps.length >= 120) {
+        return this.send(client.ws, { id: msg.id, type: 'error', payload: { error: 'You are sending commands too quickly.', code: 'RATE_LIMITED', retryable: true } });
+      }
+      client.msgTimestamps.push(now);
+    }
+
+    // --- Owner auth ---
+    if (msg.type === 'auth_owner') {
+      return this.handleOwnerAuth(clientId, client, msg);
+    }
+
+    // --- Agent auth ---
+    if (msg.type === 'auth') {
+      return this.handleAgentAuth(clientId, client, msg);
+    }
+
+    // --- Owner messages ---
+    if (msg.type === 'owner_send' && client.ownerSession) {
+      const wsCtx = this.createWSContext(clientId, client);
+      const result = await this.hooks.handleWSCommand('owner_send', wsCtx, msg);
+      if (!result.handled) {
+        this.send(client.ws, { id: msg.id, type: 'error', payload: { error: 'owner_send handler not available', code: 'NO_HANDLER' } });
+      } else if (result.blocked) {
+        this.send(client.ws, { id: msg.id, type: 'error', payload: result.blocked });
+      }
+      return;
+    }
+
+    // --- Agent messages require auth ---
+    if (!client.session) {
+      return this.send(client.ws, { id: msg.id, type: 'error', payload: { error: 'Not authenticated. Send auth message first.', code: 'NOT_AUTHENTICATED', action: 'auth' } });
+    }
+
+    if (msg.type === 'session_state') {
+      return this.handleSessionState(clientId, client, msg);
+    }
+
+    if (msg.type === 'claim_control') {
+      return this.handleClaimControl(clientId, client, msg);
+    }
+
+    if (msg.type === 'release_control') {
+      return this.handleReleaseControl(clientId, client, msg);
+    }
+
+    if (this.hooks.hasWSCommand(msg.type)) {
+      const claimed = await this.ensureGameplayControl(clientId, client, msg);
+      if (!claimed) return;
+    }
+
+    const sessionStateBefore = client.session
+      ? this.agentSessions.getSnapshot(client.session.agentId, clientId)
+      : null;
+    const wsCtx = this.createWSContext(clientId, client);
+    const result: WSDispatchResult = await this.hooks.handleWSCommand(msg.type, wsCtx, msg);
+    if (result.handled) {
+      // If blocked by a before-hook, send the structured reason
+      if (result.blocked) {
+        return this.send(client.ws, { id: msg.id, type: 'error', payload: result.blocked });
+      }
+      if (
+        client.session &&
+        sessionStateBefore &&
+        this.didSessionStateChange(
+          sessionStateBefore,
+          this.agentSessions.getSnapshot(client.session.agentId, clientId),
+        )
+      ) {
+        this.pushSessionState(client.session.agentId, clientId);
+      }
+      return;
+    }
+
+    return this.send(client.ws, { id: msg.id, type: 'error', payload: { error: `Unknown command: ${msg.type}`, code: 'UNKNOWN_COMMAND' } });
+  }
+
+  // === Private: Auth handlers ===
+
+  private async handleOwnerAuth(clientId: string, client: ConnectedClient, msg: WSMessage): Promise<void> {
+    const decoded = verifyToken(msg.payload as string);
+    if (!decoded) {
+      return this.send(client.ws, { id: msg.id, type: 'error', payload: { error: 'Invalid owner token', code: 'INVALID_TOKEN' } });
+    }
+
+    try {
+      const owner = await this.auth.getUserById(decoded.userId);
+      if (owner.banned) {
+        return this.send(client.ws, { id: msg.id, type: 'error', payload: { error: 'Account is banned', code: 'USER_BANNED' } });
+      }
+    } catch {
+      return this.send(client.ws, { id: msg.id, type: 'error', payload: { error: 'User not found', code: 'USER_NOT_FOUND' } });
+    }
+
+    client.ownerSession = { userId: decoded.userId };
+    this.send(client.ws, { id: msg.id, type: 'result', payload: { userId: decoded.userId } });
+
+    const wsCtx = this.createWSContext(clientId, client);
+    await this.hooks.runHook('owner.authenticated', { session: client.ownerSession, ctx: wsCtx });
+  }
+
+  private async handleAgentAuth(clientId: string, client: ConnectedClient, msg: WSMessage): Promise<void> {
+    try {
+      const session = await this.resolveAgentSession(client, msg.payload as string | undefined);
+
+      // Check user banned
+      try {
+        const owner = await this.auth.getUserById(session.userId);
+        if (owner.banned) {
+          return this.send(client.ws, { id: msg.id, type: 'error', payload: { error: 'Account is banned', code: 'USER_BANNED' } });
+        }
+      } catch { /* ignore */ }
+
+      // Check agent frozen
+      const agents = await this.auth.getAgentsByUser(session.userId);
+      const agentRecord = agents.find((a: any) => a.id === session.agentId);
+      if (agentRecord?.frozen) {
+        return this.send(client.ws, { id: msg.id, type: 'error', payload: { error: 'Agent is frozen', code: 'AGENT_FROZEN' } });
+      }
+
+      client.session = session;
+      const sessionState = this.buildSessionState(session.agentId, clientId);
+      await this.auth.setAgentOnline(session.agentId, true);
+
+      this.pushToOwner(session.userId, {
+        id: '', type: 'agent_status', payload: { agentId: session.agentId, isOnline: true },
+      });
+
+      const bootstrapData: Record<string, unknown> = {};
+      const wsCtx = this.createWSContext(clientId, client);
+      await this.hooks.runHook('agent.authenticated', { session, ctx: wsCtx, bootstrapData });
+
+      this.send(client.ws, {
+        id: msg.id,
+        type: 'result',
+        payload: {
+          agentId: session.agentId,
+          agentName: session.agentName,
+          ...sessionState,
+          ...bootstrapData,
+        },
+      });
+
+    } catch (error) {
+      return this.sendWsError(client.ws, msg.id, error, {
+        status: 401,
+        code: 'INVALID_TOKEN',
+        error: 'Invalid token',
+      });
+    }
+  }
+
+  private async resolveAgentSession(client: ConnectedClient, authInput?: string): Promise<AgentSession> {
+    if (authInput) {
+      try {
+        return await this.auth.authenticateAgent(authInput);
+      } catch {
+        const decoded = verifyToken(authInput);
+        if (!decoded) {
+          throw new AppError({ status: 401, code: 'INVALID_TOKEN', error: 'Invalid token' });
+        }
+        return this.auth.authenticateShadowAgent(decoded.userId);
+      }
+    }
+
+    if (client.cookieAuthUser) {
+      return this.auth.authenticateShadowAgent(client.cookieAuthUser.userId);
+    }
+
+    throw new AppError({ status: 401, code: 'INVALID_TOKEN', error: 'Invalid token' });
+  }
+
+  // === Helpers ===
+
+  private handleSessionState(clientId: string, client: ConnectedClient, msg: WSMessage): void {
+    if (!client.session) return;
+    this.send(client.ws, { id: msg.id, type: 'result', payload: this.buildSessionState(client.session.agentId, clientId) });
+  }
+
+  private handleClaimControl(clientId: string, client: ConnectedClient, msg: WSMessage): void {
+    if (!client.session) return;
+
+    const result = this.agentSessions.claimWithTakeover(client.session.agentId, clientId);
+    if (result.replacedConnectionId) {
+      const replaced = this.clients.get(result.replacedConnectionId);
+      if (replaced) {
+        this.send(replaced.ws, {
+          id: '',
+          type: 'control_replaced',
+          payload: {
+            ...this.buildSessionState(client.session.agentId, result.replacedConnectionId),
+            error: 'This agent has been taken over by another connection.',
+            agentId: client.session.agentId,
+          },
+        });
+      }
+    }
+
+    this.send(client.ws, {
+      id: msg.id,
+      type: 'result',
+      payload: {
+        ...this.buildSessionState(client.session.agentId, clientId),
+        claimed: true,
+        restored: result.restored,
+      },
+    });
+    this.pushSessionState(client.session.agentId, clientId);
+  }
+
+  private handleReleaseControl(clientId: string, client: ConnectedClient, msg: WSMessage): void {
+    if (!client.session) return;
+    const snapshot = this.agentSessions.releaseControl(client.session.agentId, clientId);
+    if (!snapshot) {
+      return this.send(client.ws, {
+        id: msg.id,
+        type: 'error',
+        payload: {
+          error: 'This connection is not the controlling connection.',
+          code: 'NOT_CONTROLLER',
+          action: 'claim_control',
+        },
+      });
+    }
+    this.send(client.ws, {
+      id: msg.id,
+      type: 'result',
+      payload: {
+        ...this.buildSessionState(client.session.agentId, clientId),
+        released: true,
+      },
+    });
+    this.pushSessionState(client.session.agentId, clientId);
+  }
+
+  private async ensureGameplayControl(clientId: string, client: ConnectedClient, msg: WSMessage): Promise<boolean> {
+    if (!client.session) return false;
+    const { agentId } = client.session;
+
+    if (this.agentSessions.isController(agentId, clientId)) {
+      return true;
+    }
+
+    const claimed = this.agentSessions.claimAvailable(agentId, clientId);
+    if (claimed) {
+      this.pushSessionState(agentId, clientId);
+      return true;
+    }
+
+    this.send(client.ws, {
+      id: msg.id,
+      type: 'error',
+      payload: {
+        error: 'This agent is currently controlled by another connection. Claim control first.',
+        code: 'CONTROLLED_ELSEWHERE',
+        action: 'claim_control',
+        details: { agentId },
+      },
+    });
+    return false;
+  }
+
+  private buildSessionState(agentId: string, connectionId: string): AgentSessionSnapshot & {
+    availableCommands: ReturnType<HookRegistry['getWSCommandSchemas']>;
+    availableLocations: ReturnType<HookRegistry['getLocations']>;
+  } {
+    return {
+      ...this.agentSessions.getSnapshot(agentId, connectionId),
+      availableCommands: this.hooks.getWSCommandSchemas(),
+      availableLocations: this.hooks.getLocations(),
+    };
+  }
+
+  private didSessionStateChange(before: AgentSessionSnapshot, after: AgentSessionSnapshot): boolean {
+    return before.hasController !== after.hasController
+      || before.isController !== after.isController
+      || before.inCity !== after.inCity
+      || before.currentLocation !== after.currentLocation;
+  }
+
+  private pushSessionState(agentId: string, excludedClientId?: string): void {
+    for (const [clientId, client] of this.clients) {
+      if (client.session?.agentId !== agentId) continue;
+      if (excludedClientId && clientId === excludedClientId) continue;
+      this.send(client.ws, { id: '', type: 'session_state', payload: this.buildSessionState(agentId, clientId) });
+    }
+  }
+
+  private hasAuthenticatedClientForAgent(agentId: string): boolean {
+    for (const [, client] of this.clients) {
+      if (client.session?.agentId === agentId) return true;
+    }
+    return false;
+  }
+
+  private sendWsError(
+    ws: WebSocket,
+    id: string,
+    error: unknown,
+    fallback: { status: number; code: string; error: string; retryable?: boolean; action?: string; details?: Record<string, unknown> },
+  ): void {
+    const resolved = resolveError(error, fallback);
+    this.send(ws, { id, type: 'error', payload: resolved.payload });
+  }
+
+  private createWSContext(clientId: string, client: ConnectedClient): WSContext {
+    const getSessionState = (): AgentSessionSnapshot => (
+      client.session
+        ? this.agentSessions.getSnapshot(client.session.agentId, clientId)
+        : {
+            connected: false,
+            hasController: false,
+            isController: false,
+            inCity: false,
+            currentLocation: null,
+            serverTimestamp: Date.now(),
+          }
+    );
+
+    return {
+      ws: client.ws,
+      session: client.session ?? null,
+      get inCity() {
+        return getSessionState().inCity;
+      },
+      get currentLocation() {
+        return getSessionState().currentLocation;
+      },
+      get isController() {
+        return getSessionState().isController;
+      },
+      get hasController() {
+        return getSessionState().hasController;
+      },
+      currentTable: null,
+      gateway: this as WSGatewayPublic,
+      setLocation: (locationId: string | null) => {
+        if (!client.session) return;
+        this.agentSessions.updateState(client.session.agentId, { currentLocation: locationId });
+      },
+      setInCity: (value: boolean) => {
+        if (!client.session) return;
+        this.agentSessions.updateState(client.session.agentId, { inCity: value });
+      },
+    };
+  }
+}

@@ -1,0 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:wght@500;600;700&family=IBM+Plex+Mono:wght@500&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+
+:root {
+  --font-brand: 'Cinzel', 'Times New Roman', serif;
+  --font-display: 'Cormorant Garamond', 'Times New Roman', serif;
+  --font-sans: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', 'SFMono-Regular', monospace;
+
+  --bg-abyss: #070603;
+  --bg-night: #0e0b07;
+  --bg-obsidian: #15100a;
+  --bg-stone: #22180f;
+  --bg-bronze: #302113;
+  --bg-sand: #594125;
+  --bg-panel: rgba(21, 15, 10, 0.78);
+  --bg-panel-strong: rgba(29, 20, 11, 0.9);
+  --bg-panel-soft: rgba(48, 34, 20, 0.54);
+
+  --ink-hi: #f3ead5;
+  --ink-mid: #cab690;
+  --ink-soft: #a58d66;
+  --ink-dim: #7b684d;
+
+  --gold-bright: #efd28f;
+  --gold-main: #d8b26f;
+  --gold-deep: #a3773a;
+  --gold-burnt: #70471f;
+  --bronze-main: #7f5728;
+  --bronze-deep: #45290f;
+
+  --accent-sun: rgba(239, 210, 143, 0.16);
+  --accent-fire: rgba(185, 126, 64, 0.12);
+  --accent-sky: rgba(112, 85, 44, 0.1);
+
+  --ok: #88b972;
+  --warn: #d7a95f;
+  --err: #d8745e;
+
+  --line-faint: rgba(245, 217, 143, 0.08);
+  --line-soft: rgba(245, 217, 143, 0.16);
+  --line-mid: rgba(245, 217, 143, 0.28);
+  --line-strong: rgba(245, 217, 143, 0.42);
+
+  --shadow-panel: 0 22px 52px rgba(0, 0, 0, 0.42);
+  --shadow-gold: 0 18px 34px rgba(0, 0, 0, 0.46), 0 0 42px rgba(221, 183, 107, 0.14);
+  --shadow-emboss: inset 0 1px 0 rgba(255, 243, 206, 0.08), inset 0 -1px 0 rgba(0, 0, 0, 0.34);
+
+  --radius-xs: 10px;
+  --radius-sm: 16px;
+  --radius-md: 24px;
+  --radius-lg: 32px;
+  --radius-pill: 999px;
+
+  --space-1: 8px;
+  --space-2: 12px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --space-6: 48px;
+  --space-7: 64px;
+  --space-8: 64px;
+
+  --dur-fast: 140ms;
+  --dur-mid: 260ms;
+  --dur-slow: 520ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* city map node accents */
+  --city-node-royal: #c9a84c;
+  --city-node-neon: #d4a24e;
+  --city-node-ember: #b87a3a;
+  --city-node-future: #8a7048;
+
+  /* parchment palette */
+  --parchment-light: #3a2c1a;
+  --parchment-mid: #2a1f14;
+  --parchment-dark: #1a140c;
+  --parchment-ink: rgba(139, 100, 52, 0.7);
+  --parchment-ink-strong: rgba(160, 115, 55, 0.85);
+  --parchment-gold: #c9a84c;
+  --parchment-border: rgba(180, 140, 70, 0.35);
+}

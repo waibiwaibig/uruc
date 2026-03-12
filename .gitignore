@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.DS_Store
+.playwright-cli/
+*.db
+*.db-shm
+*.db-wal
+*.swp
+*.swo
+.env
+.claude/
+config/mcporter.json
+.uruc/
+logs/

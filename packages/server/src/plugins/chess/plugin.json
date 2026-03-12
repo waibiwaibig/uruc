@@ -1,0 +1,8 @@
+{
+  "name": "chess",
+  "version": "0.1.0",
+  "description": "Chess plugin: head-to-head matches, Elo rating, total time bank, and reconnect support",
+  "author": "uruc",
+  "main": "./index.js",
+  "dependencies": []
+}

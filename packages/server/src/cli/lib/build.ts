@@ -1,0 +1,107 @@
+import { existsSync, readdirSync, statSync } from 'fs';
+import path from 'path';
+
+import { getPackageRoot } from '../../runtime-paths.js';
+import { getRepoRoot, writeBuildState } from './state.js';
+import { runOrThrow } from './process.js';
+import type { BuildState } from './types.js';
+
+const repoRoot = getRepoRoot();
+const packageRoot = getPackageRoot();
+
+const INPUT_PATHS = [
+  path.join(packageRoot, 'src'),
+  path.join(packageRoot, 'package.json'),
+  path.join(packageRoot, 'tsconfig.json'),
+  path.join(repoRoot, 'packages', 'human-web', 'src'),
+  path.join(repoRoot, 'packages', 'human-web', 'package.json'),
+  path.join(repoRoot, 'package.json'),
+  path.join(repoRoot, 'package-lock.json'),
+];
+
+const OUTPUT_PATHS = [
+  path.join(packageRoot, 'dist', 'index.js'),
+  path.join(repoRoot, 'packages', 'human-web', 'dist', 'index.html'),
+];
+
+export interface BuildFreshness {
+  stale: boolean;
+  reason: string;
+  newestInputMtimeMs: number;
+  oldestOutputMtimeMs: number;
+  outputs: string[];
+}
+
+function newestMtime(targetPath: string): number {
+  if (!existsSync(targetPath)) return 0;
+  const stats = statSync(targetPath);
+  if (!stats.isDirectory()) return stats.mtimeMs;
+
+  let newest = stats.mtimeMs;
+  for (const entry of readdirSync(targetPath, { withFileTypes: true })) {
+    newest = Math.max(newest, newestMtime(path.join(targetPath, entry.name)));
+  }
+  return newest;
+}
+
+function oldestOutputMtime(paths: string[]): number {
+  let oldest = Number.POSITIVE_INFINITY;
+  for (const targetPath of paths) {
+    if (!existsSync(targetPath)) return 0;
+    oldest = Math.min(oldest, statSync(targetPath).mtimeMs);
+  }
+  return Number.isFinite(oldest) ? oldest : 0;
+}
+
+export function getBuildFreshness(): BuildFreshness {
+  const newestInputMtimeMs = Math.max(...INPUT_PATHS.map((targetPath) => newestMtime(targetPath)));
+  const pluginManifestMtime = newestMtime(path.join(packageRoot, 'src', 'plugins'));
+  const combinedInput = Math.max(newestInputMtimeMs, pluginManifestMtime);
+  const oldestOutputMtimeMs = oldestOutputMtime(OUTPUT_PATHS);
+
+  if (oldestOutputMtimeMs === 0) {
+    return {
+      stale: true,
+      reason: 'build artifacts are missing',
+      newestInputMtimeMs: combinedInput,
+      oldestOutputMtimeMs,
+      outputs: OUTPUT_PATHS,
+    };
+  }
+
+  if (combinedInput > oldestOutputMtimeMs) {
+    return {
+      stale: true,
+      reason: 'source files are newer than build artifacts',
+      newestInputMtimeMs: combinedInput,
+      oldestOutputMtimeMs,
+      outputs: OUTPUT_PATHS,
+    };
+  }
+
+  return {
+    stale: false,
+    reason: 'build artifacts are current',
+    newestInputMtimeMs: combinedInput,
+    oldestOutputMtimeMs,
+    outputs: OUTPUT_PATHS,
+  };
+}
+
+export async function buildAll(force = false): Promise<BuildFreshness> {
+  const freshness = getBuildFreshness();
+  if (!force && !freshness.stale) return freshness;
+
+  await runOrThrow('npm', ['run', 'build', '--workspace=packages/server'], { cwd: repoRoot });
+  await runOrThrow('npm', ['run', 'build', '--workspace=packages/human-web'], { cwd: repoRoot });
+
+  const next = getBuildFreshness();
+  const state: BuildState = {
+    builtAt: new Date().toISOString(),
+    newestInputMtimeMs: next.newestInputMtimeMs,
+    oldestOutputMtimeMs: next.oldestOutputMtimeMs,
+    outputs: next.outputs,
+  };
+  writeBuildState(state);
+  return next;
+}

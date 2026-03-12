@@ -1,0 +1,9 @@
+{
+  "id": "texas-holdem",
+  "name": "Texas Hold'em",
+  "version": "1.0.0",
+  "description": "Standard no-limit Texas Hold'em cash table",
+  "main": "./index.js",
+  "apiVersion": "1.0.0",
+  "dependencies": []
+}

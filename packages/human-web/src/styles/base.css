@@ -1,0 +1,328 @@
+@import './tokens.css';
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  color: var(--ink-hi);
+  font-family: var(--font-sans);
+  background:
+    radial-gradient(circle at 50% -14%, rgba(239, 210, 143, 0.17), transparent 36%),
+    radial-gradient(circle at 12% 20%, rgba(145, 90, 36, 0.12), transparent 34%),
+    radial-gradient(circle at 88% 16%, rgba(95, 72, 33, 0.11), transparent 32%),
+    linear-gradient(180deg, #090703 0%, #130e08 28%, #1a130b 56%, #120d08 100%);
+  line-height: 1.55;
+  letter-spacing: 0.01em;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+body::before {
+  background-image: url('../assets/ornaments/uruc-grid.svg');
+  opacity: 0.12;
+}
+
+body::after {
+  background:
+    url('../assets/ornaments/uruc-seal.svg') no-repeat right -6vw top -16vh / min(72vmax, 760px),
+    radial-gradient(circle at right top, rgba(245, 217, 143, 0.06), transparent 48%);
+  opacity: 0.22;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+  margin: 0;
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+  line-height: 1.02;
+  font-weight: 600;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  border: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+::selection {
+  background: rgba(245, 217, 143, 0.3);
+  color: var(--ink-hi);
+}
+
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+}
+
+.app-shell::before {
+  content: '';
+  position: fixed;
+  inset: auto 0 0;
+  height: min(34vh, 280px);
+  background:
+    linear-gradient(180deg, rgba(5, 4, 2, 0), rgba(5, 4, 2, 0.72)),
+    url('../assets/ornaments/uruc-wall.svg') center bottom / cover no-repeat;
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.app-shell::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(245, 217, 143, 0.08), transparent 24%),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.22), transparent 18%, transparent 82%, rgba(0, 0, 0, 0.22));
+  pointer-events: none;
+  z-index: -1;
+}
+
+.page-wrap {
+  width: min(1240px, calc(100% - (var(--space-4) * 2)));
+  margin: 0 auto;
+  padding: var(--space-4) 0 var(--space-7);
+  animation: rise-in var(--dur-slow) var(--ease-out);
+}
+
+.page-wrap.page-narrow {
+  width: min(980px, calc(100% - (var(--space-4) * 2)));
+}
+
+.page-wrap.page-auth {
+  width: min(1160px, calc(100% - (var(--space-4) * 2)));
+}
+
+.card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(160deg, rgba(76, 55, 26, 0.16), transparent 30%),
+    linear-gradient(180deg, rgba(30, 22, 14, 0.92), rgba(15, 11, 7, 0.94));
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(10px);
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: calc(var(--radius-md) - 1px);
+  border: 1px solid rgba(255, 247, 217, 0.03);
+  pointer-events: none;
+}
+
+.card.card-muted {
+  background:
+    linear-gradient(160deg, rgba(63, 44, 22, 0.12), transparent 26%),
+    linear-gradient(180deg, rgba(24, 18, 12, 0.82), rgba(12, 10, 7, 0.84));
+}
+
+.card.card-hero {
+  background:
+    radial-gradient(circle at top left, rgba(245, 217, 143, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(34, 24, 13, 0.95), rgba(15, 11, 7, 0.94));
+}
+
+.kicker {
+  color: var(--gold-main);
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 10px;
+  font-family: var(--font-mono);
+}
+
+.app-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 42px;
+  border: 1px solid var(--line-mid);
+  background:
+    linear-gradient(180deg, rgba(94, 67, 30, 0.95), rgba(49, 34, 17, 0.98));
+  color: var(--ink-hi);
+  border-radius: var(--radius-pill);
+  padding: 10px var(--space-3);
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast),
+    box-shadow var(--dur-mid),
+    background var(--dur-mid);
+  box-shadow: var(--shadow-emboss);
+}
+
+.app-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-gold);
+}
+
+.app-btn:active {
+  transform: translateY(0);
+}
+
+.app-btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.app-btn.secondary {
+  border-color: var(--line-soft);
+  background:
+    linear-gradient(180deg, rgba(49, 39, 27, 0.9), rgba(21, 17, 12, 0.94));
+}
+
+.app-btn.ghost {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(245, 217, 143, 0.16);
+}
+
+.app-input,
+.app-select,
+.app-textarea {
+  width: 100%;
+  border: 1px solid var(--line-soft);
+  background:
+    linear-gradient(180deg, rgba(10, 8, 5, 0.94), rgba(20, 15, 10, 0.94));
+  color: var(--ink-hi);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast), background var(--dur-mid);
+}
+
+.app-input:focus,
+.app-select:focus,
+.app-textarea:focus {
+  outline: none;
+  border-color: var(--line-strong);
+  box-shadow: 0 0 0 3px rgba(245, 217, 143, 0.12);
+}
+
+.notice {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font-size: 13px;
+  backdrop-filter: blur(10px);
+}
+
+.notice.error {
+  background: rgba(113, 36, 22, 0.26);
+  color: #ffcabf;
+  border-color: rgba(222, 111, 87, 0.4);
+}
+
+.notice.success {
+  background: rgba(73, 108, 52, 0.2);
+  color: #c9e3bc;
+  border-color: rgba(133, 192, 127, 0.35);
+}
+
+.notice.info {
+  background: rgba(107, 80, 31, 0.24);
+  color: #f0d79d;
+  border-color: rgba(206, 162, 75, 0.4);
+}
+
+.stagger-in > * {
+  animation: rise-in var(--dur-slow) var(--ease-out);
+}
+
+.scroll-pane {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+
+.scroll-pane::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.scroll-pane::-webkit-scrollbar-thumb {
+  background: rgba(245, 217, 143, 0.2);
+  border-radius: 999px;
+}
+
+.scroll-pane::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 760px) {
+  .page-wrap {
+    width: min(100% - 16px, 980px);
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-6);
+  }
+
+  body::after {
+    background:
+      url('../assets/ornaments/uruc-seal.svg') no-repeat right -34vw top -6vh / 100vmax;
+    opacity: 0.18;
+  }
+}

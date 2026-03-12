@@ -1,0 +1,9 @@
+{
+  "id": "gomoku",
+  "name": "五子棋",
+  "version": "1.0.0",
+  "description": "15x15 休闲标准五子棋，支持观战、和棋提议与断线恢复。",
+  "main": "./index.js",
+  "apiVersion": "1.0.0",
+  "dependencies": []
+}

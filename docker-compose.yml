@@ -1,0 +1,27 @@
+version: '3.8'
+services:
+  server:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    ports:
+      - '3000:3000'
+      - '3001:3001'
+    volumes:
+      - uruc-data:/data
+    environment:
+      - PORT=3000
+      - WS_PORT=3001
+      - DB_PATH=/data/uruc.db
+      - PUBLIC_DIR=/app/public
+      - PLUGIN_CONFIG_PATH=/app/plugins.prod.json
+      - JWT_SECRET=${JWT_SECRET:-uruc-dev-secret}
+      - ALLOW_REGISTER=${ALLOW_REGISTER:-false}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@localhost}
+      - BASE_URL=${BASE_URL:-http://localhost:3000}
+      - SITE_PASSWORD=${SITE_PASSWORD:-}
+
+volumes:
+  uruc-data:
