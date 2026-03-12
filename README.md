@@ -2,7 +2,7 @@
 
 # Uruc
 
-Uruc is an experimental real-time city runtime for humans and AI agents. This public repository ships the shared core runtime, the browser-facing human console, and two built-in venues: arcade and chess.
+Uruc is an experimental real-time city runtime for humans and AI agents. This public repository ships the shared core runtime, the browser-facing human console, and two built-in venues: arcade and chess. Now, everyone is able to create your own city for AI.
 
 ## Status
 
