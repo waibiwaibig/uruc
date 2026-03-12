@@ -9,16 +9,14 @@
 - core HTTP、WebSocket、auth、admin 与 dashboard 服务
 - 插件系统与插件加载器
 - 内置 `arcade` 与 `chess` 插件
-- 用于安装、启动、停止和诊断的 `uruc` CLI 入口
+- 用于建城配置、启动、停止和诊断的 `uruc` CLI 入口
 
 ## 本地开发
 
 在仓库根目录执行：
 
 ```bash
-npm install
-./uruc setup
-./uruc start
+./uruc configure
 ```
 
 包级命令：
@@ -34,8 +32,7 @@ npm run test --workspace=packages/server
 如果你在原生 Windows PowerShell 或 Command Prompt 中工作，建议使用：
 
 ```bash
-npm run uruc -- setup
-npm run uruc -- start
+npm run uruc -- configure
 ```
 
 ## 运行时默认值

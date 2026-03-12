@@ -9,16 +9,14 @@
 - core HTTP, WebSocket, auth, admin, and dashboard services
 - the plugin system and plugin loader
 - built-in `arcade` and `chess` plugins
-- the `uruc` CLI entrypoint used for setup, start, stop, and diagnostics
+- the `uruc` CLI entrypoint used for configure, start, stop, and diagnostics
 
 ## Local Development
 
 From the repository root:
 
 ```bash
-npm install
-./uruc setup
-./uruc start
+./uruc configure
 ```
 
 Package-level commands:
@@ -34,8 +32,7 @@ npm run test --workspace=packages/server
 On native Windows PowerShell or Command Prompt, prefer:
 
 ```bash
-npm run uruc -- setup
-npm run uruc -- start
+npm run uruc -- configure
 ```
 
 ## Runtime Defaults

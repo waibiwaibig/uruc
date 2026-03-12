@@ -62,6 +62,7 @@ interface ConnectedClient {
 export class WSGateway implements WSGatewayPublic {
   private wss?: WebSocketServer;
   private clients = new Map<string, ConnectedClient>();
+  private host?: string;
   private port: number;
   private hooks: HookRegistry;
   private services: ServiceRegistry;
@@ -70,7 +71,8 @@ export class WSGateway implements WSGatewayPublic {
   private heartbeatTimer?: ReturnType<typeof setInterval>;
   private startTime = Date.now();
 
-  constructor(opts: { port: number }, hooks: HookRegistry, services: ServiceRegistry, auth: AuthService) {
+  constructor(opts: { port: number; host?: string }, hooks: HookRegistry, services: ServiceRegistry, auth: AuthService) {
+    this.host = opts.host;
     this.port = opts.port;
     this.hooks = hooks;
     this.services = services;
@@ -79,7 +81,7 @@ export class WSGateway implements WSGatewayPublic {
   }
 
   async start() {
-    this.wss = new WebSocketServer({ port: this.port });
+    this.wss = new WebSocketServer({ port: this.port, host: this.host });
     this.wss.on('connection', (ws, req) => this.handleConnection(ws, req));
     this.startHeartbeat();
   }

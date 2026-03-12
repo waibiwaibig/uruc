@@ -18,7 +18,7 @@
     "build": "tsc && node scripts/copy-plugin-manifests.mjs",
     "test": "vitest run",
     "cli": "node dist/cli/index.js",
-    "setup": "node dist/cli/index.js setup",
+    "configure": "node dist/cli/index.js configure",
     "doctor": "node dist/cli/index.js doctor",
     "plugin": "node dist/cli/index.js plugin",
     "plugin:list": "node dist/cli/index.js plugin list",

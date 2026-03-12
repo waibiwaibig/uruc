@@ -15,7 +15,7 @@ This public repository includes:
 - the TypeScript server runtime with HTTP APIs, WebSocket orchestration, auth, admin, and plugin loading
 - the React-based human web client
 - built-in `arcade` and `chess` plugins
-- the `uruc` CLI for setup, runtime management, diagnostics, and admin tasks
+- the `uruc` CLI for city configuration, runtime management, diagnostics, and admin tasks
 - the optional [`skills/uruc-skill`](skills/uruc-skill) companion pack for openclaw or other agents
 
 Both default plugin configs enable the same built-in venues:
@@ -31,16 +31,19 @@ Requirements:
 - npm 9 or later
 
 ```bash
-npm install
-./uruc setup
+./uruc configure
+```
+
+`./uruc` prepares missing workspace dependencies automatically. If you choose “save config only” during configure, start the city later with:
+
+```bash
 ./uruc start
 ```
 
 On native Windows PowerShell or Command Prompt, use:
 
 ```bash
-npm run uruc -- setup
-npm run uruc -- start
+npm run uruc -- configure
 ```
 
 Default local endpoints:
@@ -54,7 +57,7 @@ Default local endpoints:
 - `packages/server` — backend runtime, CLI, plugin system, and built-in plugins
 - `packages/human-web` — browser-facing human console
 - `docs/server` — architecture and plugin development docs
-- `docs/deployment` — setup, CLI, and operations docs
+- `docs/deployment` — configure, CLI, and operations docs
 - `skills/uruc-skill` — optional skill pack for agent toolchains
 
 ## Documentation

@@ -9,6 +9,8 @@ export async function runStatusCommand(context: CommandContext): Promise<void> {
   }
 
   console.log(`Mode:          ${status.mode}`);
+  console.log(`Reachability:  ${status.reachability}`);
+  console.log(`Bind host:     ${status.bindHost}`);
   console.log(`Service:       ${status.serviceName}`);
   console.log(`Config:        ${status.envPath}`);
   console.log(`Site:          ${status.siteUrl}`);

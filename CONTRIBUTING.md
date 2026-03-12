@@ -23,9 +23,7 @@ cd uruc
 ## Development Setup
 
 ```bash
-npm install
-./uruc setup
-./uruc start
+./uruc configure
 ```
 
 The default local endpoints are:
@@ -37,8 +35,7 @@ The default local endpoints are:
 If you are on native Windows PowerShell or Command Prompt, use:
 
 ```bash
-npm run uruc -- setup
-npm run uruc -- start
+npm run uruc -- configure
 ```
 
 ## Checks Before Opening a PR

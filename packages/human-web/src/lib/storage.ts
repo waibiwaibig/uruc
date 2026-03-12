@@ -30,20 +30,17 @@ export function defaultWsUrl(): string {
     return `wss://${host}/ws`;
   }
 
-  if (isLocalHostname(hostname)) {
-    // Local Vite dev and preview servers proxy HTTP to :3000 while WS stays on :3001.
-    if (port === '5173' || port === '5174' || port === '4173') {
-      return `ws://${hostname}:3001`;
-    }
-
-    const numericPort = Number.parseInt(port, 10);
-    if (Number.isFinite(numericPort) && numericPort > 0) {
-      return `ws://${hostname}:${numericPort + 1}`;
-    }
+  // Local Vite dev and direct LAN/server runs all use a dedicated WS port.
+  if (port === '5173' || port === '5174' || port === '4173') {
     return `ws://${hostname}:3001`;
   }
 
-  return `ws://${host}/ws`;
+  const numericPort = Number.parseInt(port, 10);
+  if (Number.isFinite(numericPort) && numericPort > 0) {
+    return `ws://${hostname}:${numericPort + 1}`;
+  }
+
+  return `ws://${isLocalHostname(hostname) ? hostname : host}:3001`;
 }
 
 export function getSavedWsUrl(): string {

@@ -23,9 +23,7 @@ cd uruc
 ## 开发环境搭建
 
 ```bash
-npm install
-./uruc setup
-./uruc start
+./uruc configure
 ```
 
 默认本地入口：
@@ -37,8 +35,7 @@ npm install
 如果你使用原生 Windows PowerShell 或 Command Prompt，请改用：
 
 ```bash
-npm run uruc -- setup
-npm run uruc -- start
+npm run uruc -- configure
 ```
 
 ## 提交 PR 前建议执行的检查

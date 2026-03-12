@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 
 import { getPackageRoot, getPluginConfigFilename } from '../../runtime-paths.js';
 import { getRepoRoot, getRootEnvPath, getServerEnvPath } from './state.js';
-import type { DeploymentMode, InstancePurpose, SetupAnswers } from './types.js';
+import type { CityReachability, ConfigureAnswers, InstancePurpose, SiteProtocol } from './types.js';
 
 const packageRoot = getPackageRoot();
 const serverEnvPath = getServerEnvPath();
@@ -64,25 +64,30 @@ export function getCurrentLanguage(): 'zh-CN' | 'en' | 'ko' {
   return 'zh-CN';
 }
 
-export function defaultConfig(mode: DeploymentMode, purpose: InstancePurpose, publicHost: string, httpPort: string, wsPort: string): Omit<SetupAnswers, 'lang' | 'mode' | 'purpose' | 'publicHost' | 'httpPort' | 'wsPort'> {
-  const isServer = mode === 'server';
-  const enableSsl = isServer && !!publicHost && !/^\d+\.\d+\.\d+\.\d+$/.test(publicHost);
-  const baseUrl = isServer
-    ? `${enableSsl ? 'https' : 'http'}://${publicHost || '127.0.0.1'}`
-    : `${enableSsl ? 'https' : 'http'}://${publicHost || '127.0.0.1'}${httpPort === '80' || (enableSsl && httpPort === '443') ? '' : `:${httpPort}`}`;
-  const pluginConfigPath = isServer ? './plugins.prod.json' : './plugins.dev.json';
-  const dbPath = isServer ? './data/uruc.prod.db' : './data/uruc.local.db';
-  const defaultOrigins = isServer
-    ? `${baseUrl},http://localhost:3000,http://localhost:5173`
-    : `http://127.0.0.1:${httpPort},http://localhost:${httpPort},http://localhost:5173`;
+export function defaultConfig(
+  reachability: CityReachability,
+  purpose: InstancePurpose,
+  publicHost: string,
+  httpPort: string,
+  wsPort: string,
+  siteProtocol: SiteProtocol,
+): Omit<ConfigureAnswers, 'lang' | 'reachability' | 'purpose' | 'publicHost' | 'httpPort' | 'wsPort'> {
+  const bindHost = defaultBindHost(reachability);
+  const baseUrl = buildBaseUrl(siteProtocol, publicHost, httpPort);
+  const pluginConfigPath = purpose === 'production' ? './plugins.prod.json' : './plugins.dev.json';
+  const dbPath = purpose === 'production' ? './data/uruc.prod.db' : './data/uruc.local.db';
+  const allowRegister = reachability !== 'local';
+  const defaultOrigins = reachability === 'local'
+    ? `http://127.0.0.1:${httpPort},http://localhost:${httpPort},http://localhost:5173`
+    : `${baseUrl},http://127.0.0.1:${httpPort},http://localhost:${httpPort},http://localhost:5173`;
 
   return {
-    enableSsl,
-    letsencryptEmail: '',
+    bindHost,
+    siteProtocol,
     adminUsername: 'admin',
     adminPassword: '',
     adminEmail: 'admin@localhost',
-    allowRegister: false,
+    allowRegister,
     noindex: purpose === 'test',
     sitePassword: '',
     dbPath,
@@ -101,18 +106,26 @@ export function defaultConfig(mode: DeploymentMode, purpose: InstancePurpose, pu
   };
 }
 
-export function currentSetupDefaults(mode: DeploymentMode, purpose: InstancePurpose, publicHost: string, httpPort: string, wsPort: string): SetupAnswers {
+export function currentConfigureDefaults(
+  reachability: CityReachability,
+  purpose: InstancePurpose,
+  publicHost: string,
+  httpPort: string,
+  wsPort: string,
+  siteProtocol: SiteProtocol,
+): ConfigureAnswers {
   const current = parseEnvFile(serverEnvPath);
-  const defaults = defaultConfig(mode, purpose, publicHost, httpPort, wsPort);
+  const defaults = defaultConfig(reachability, purpose, publicHost, httpPort, wsPort, siteProtocol);
+  const activeReachability = inferReachability(current, reachability);
   return {
     lang: getCurrentLanguage(),
-    mode,
+    reachability: activeReachability,
     purpose,
+    bindHost: defaults.bindHost,
     publicHost,
     httpPort,
     wsPort,
-    enableSsl: toBool(current.ENABLE_SSL, defaults.enableSsl),
-    letsencryptEmail: current.LETSENCRYPT_EMAIL ?? current.ADMIN_EMAIL ?? defaults.letsencryptEmail,
+    siteProtocol: inferSiteProtocol(current.BASE_URL, defaults.siteProtocol),
     adminUsername: current.ADMIN_USERNAME ?? defaults.adminUsername,
     adminPassword: current.ADMIN_PASSWORD ?? defaults.adminPassword,
     adminEmail: current.ADMIN_EMAIL ?? defaults.adminEmail,
@@ -135,13 +148,13 @@ export function currentSetupDefaults(mode: DeploymentMode, purpose: InstancePurp
   };
 }
 
-export function setupAnswersToEnv(answers: SetupAnswers): Record<string, string> {
+export function configureAnswersToEnv(answers: ConfigureAnswers): Record<string, string> {
   const env = parseEnvFile(serverEnvPath);
-  const scheme = answers.enableSsl ? 'https' : 'http';
-  const baseUrl = answers.baseUrl || `${scheme}://${answers.publicHost}`;
+  const baseUrl = answers.baseUrl || buildBaseUrl(answers.siteProtocol, answers.publicHost, answers.httpPort);
   return {
     ...env,
     URUC_CLI_LANG: answers.lang,
+    BIND_HOST: answers.bindHost,
     BASE_URL: baseUrl,
     PORT: answers.httpPort,
     WS_PORT: answers.wsPort,
@@ -163,9 +176,10 @@ export function setupAnswersToEnv(answers: SetupAnswers): Record<string, string>
     GITHUB_CLIENT_ID: answers.githubClientId,
     GITHUB_CLIENT_SECRET: answers.githubClientSecret,
     URUC_NOINDEX: answers.noindex ? 'true' : 'false',
-    ENABLE_SSL: answers.enableSsl ? 'true' : 'false',
-    LETSENCRYPT_EMAIL: answers.letsencryptEmail,
-    URUC_DEPLOYMENT_MODE: answers.mode,
+    ENABLE_SSL: '',
+    LETSENCRYPT_EMAIL: '',
+    URUC_DEPLOYMENT_MODE: '',
+    URUC_CITY_REACHABILITY: answers.reachability,
     URUC_PURPOSE: answers.purpose,
   };
 }
@@ -179,10 +193,35 @@ export function generateSecret(): string {
   return crypto.randomBytes(24).toString('hex');
 }
 
-export function getDefaultPluginConfig(mode: DeploymentMode): string {
-  return `./${getPluginConfigFilename(mode === 'server' ? 'production' : 'development')}`;
+export function getDefaultPluginConfig(purpose: InstancePurpose): string {
+  return `./${getPluginConfigFilename(purpose === 'production' ? 'production' : 'development')}`;
 }
 
 export function getRepoRootPath(): string {
   return getRepoRoot();
+}
+
+export function buildBaseUrl(protocol: SiteProtocol, publicHost: string, httpPort: string): string {
+  const omitPort = (protocol === 'http' && httpPort === '80') || (protocol === 'https' && httpPort === '443');
+  return `${protocol}://${publicHost}${omitPort ? '' : `:${httpPort}`}`;
+}
+
+export function defaultBindHost(reachability: CityReachability): string {
+  return reachability === 'local' ? '127.0.0.1' : '0.0.0.0';
+}
+
+export function inferSiteProtocol(baseUrl: string | undefined, fallback: SiteProtocol): SiteProtocol {
+  if (!baseUrl) return fallback;
+  try {
+    const protocol = new URL(baseUrl).protocol.replace(':', '');
+    return protocol === 'https' ? 'https' : 'http';
+  } catch {
+    return fallback;
+  }
+}
+
+export function inferReachability(current: Record<string, string>, fallback: CityReachability): CityReachability {
+  const value = current.URUC_CITY_REACHABILITY ?? current.URUC_DEPLOYMENT_MODE;
+  if (value === 'local' || value === 'lan' || value === 'server') return value;
+  return fallback;
 }

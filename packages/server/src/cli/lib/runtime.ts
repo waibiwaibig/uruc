@@ -5,6 +5,7 @@ import path from 'path';
 
 import { getPackageRoot, getPublicDir, getDbPath, getPluginConfigPath } from '../../runtime-paths.js';
 import { commandExists, exec, isPidAlive, killPid, openUrl, runOrThrow } from './process.js';
+import { buildHealthUrl, buildPublicWsUrl } from './network.js';
 import {
   clearManagedProcess,
   ensureCliDirs,
@@ -12,7 +13,6 @@ import {
   getServerEnvPath,
   readCliMeta,
   readManagedProcess,
-  writeCliMeta,
   writeManagedProcess,
 } from './state.js';
 import { loadServerEnv } from './env.js';
@@ -27,6 +27,8 @@ export interface RuntimeStatus {
   mode: 'stopped' | 'background' | 'systemd' | 'unmanaged';
   serviceName: string;
   envPath: string;
+  reachability: 'local' | 'lan' | 'server';
+  bindHost: string;
   siteUrl: string;
   healthUrl: string;
   wsUrl: string;
@@ -80,13 +82,15 @@ export async function getRuntimeStatus(): Promise<RuntimeStatus> {
 
   const httpPort = process.env.PORT ?? '3000';
   const wsPort = process.env.WS_PORT ?? '3001';
+  const bindHost = process.env.BIND_HOST ?? '127.0.0.1';
+  const reachability = process.env.URUC_CITY_REACHABILITY === 'lan' || process.env.URUC_CITY_REACHABILITY === 'server'
+    ? process.env.URUC_CITY_REACHABILITY
+    : 'local';
   const baseUrl = process.env.BASE_URL && process.env.BASE_URL.trim() !== ''
     ? process.env.BASE_URL
     : `http://127.0.0.1:${httpPort}`;
-  const wsUrl = baseUrl.startsWith('https://')
-    ? `${baseUrl.replace(/^https:/, 'wss:')}/ws`
-    : `ws://127.0.0.1:${wsPort}`;
-  const healthUrl = `${baseUrl.replace(/\/$/, '')}/api/health`;
+  const wsUrl = buildPublicWsUrl(baseUrl, wsPort);
+  const healthUrl = buildHealthUrl(bindHost, httpPort);
   const managed = getLiveManagedProcess();
   const localUnmanaged = managed ? null : findLocalUnmanagedProcess();
   const systemd = isSystemdActive();
@@ -102,6 +106,8 @@ export async function getRuntimeStatus(): Promise<RuntimeStatus> {
     mode,
     serviceName: getServiceName(),
     envPath: getServerEnvPath(),
+    reachability,
+    bindHost,
     siteUrl: baseUrl,
     healthUrl,
     wsUrl,
@@ -363,22 +369,4 @@ export async function openDashboard(): Promise<boolean> {
   const status = await getRuntimeStatus();
   if (!status.health.ok) return false;
   return openUrl(status.siteUrl);
-}
-
-export function rememberInstall(details: RuntimeStatus): void {
-  const meta = readCliMeta();
-  writeCliMeta({
-    ...meta,
-    serviceName: details.serviceName,
-    install: {
-      completedAt: new Date().toISOString(),
-      publicHost: new URL(details.siteUrl).host,
-      siteUrl: details.siteUrl,
-      healthUrl: details.healthUrl,
-      wsUrl: details.wsUrl,
-      systemdInstalled: isSystemdInstalled(),
-      nginxConfigured: isSystemdInstalled(),
-      sslEnabled: details.siteUrl.startsWith('https://'),
-    },
-  });
 }

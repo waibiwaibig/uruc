@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseCommandContext } from '../lib/argv.js';
-import { getSetupActions, getSetupSummaryLines } from '../lib/server-install.js';
-import type { SetupAnswers } from '../lib/types.js';
+import { getConfigureActions, getConfigureSummaryLines } from '../lib/configure.js';
+import type { ConfigureAnswers } from '../lib/types.js';
 
-function makeAnswers(overrides: Partial<SetupAnswers> = {}): SetupAnswers {
+function makeAnswers(overrides: Partial<ConfigureAnswers> = {}): ConfigureAnswers {
   return {
     lang: 'zh-CN',
-    mode: 'local',
+    reachability: 'local',
     purpose: 'test',
+    bindHost: '127.0.0.1',
     publicHost: '127.0.0.1',
-    enableSsl: false,
-    letsencryptEmail: '',
+    siteProtocol: 'http',
     httpPort: '3000',
     wsPort: '3001',
     adminUsername: 'admin',
@@ -47,22 +47,33 @@ describe('CLI command parsing', () => {
   });
 });
 
-describe('setup summaries', () => {
-  it('keeps local setup actions focused on config and later start', () => {
-    const actions = getSetupActions(makeAnswers());
+describe('configure summaries', () => {
+  it('describes the configure flow in city terms', () => {
+    const actions = getConfigureActions();
     expect(actions).toContain('写入 packages/server/.env');
-    expect(actions).toContain('等待后续通过 `uruc start` 自动构建并启动');
+    expect(actions).toContain('可选立即启动主城');
   });
 
-  it('includes server install steps for server deployments', () => {
-    const actions = getSetupActions(makeAnswers({ mode: 'server', publicHost: 'uruc.life', enableSsl: true, letsencryptEmail: 'ops@example.com', baseUrl: 'https://uruc.life' }));
-    expect(actions).toContain('写入并启动 systemd 服务');
-    expect(actions).toContain('写入 nginx 反向代理配置');
-    expect(actions).toContain('申请并部署 HTTPS 证书');
+  it('summarizes lan share settings', () => {
+    const summary = getConfigureSummaryLines(makeAnswers({
+      reachability: 'lan',
+      bindHost: '0.0.0.0',
+      publicHost: '192.168.1.50',
+      baseUrl: 'http://192.168.1.50:3000',
+      allowRegister: true,
+    }));
+    expect(summary.some((line) => line.includes('局域网'))).toBe(true);
+    expect(summary.some((line) => line.includes('0.0.0.0'))).toBe(true);
   });
 
   it('summarizes the key deployment values', () => {
-    const summary = getSetupSummaryLines(makeAnswers({ mode: 'server', publicHost: 'uruc.life', enableSsl: true, baseUrl: 'https://uruc.life' }));
+    const summary = getConfigureSummaryLines(makeAnswers({
+      reachability: 'server',
+      bindHost: '0.0.0.0',
+      publicHost: 'uruc.life',
+      siteProtocol: 'https',
+      baseUrl: 'https://uruc.life',
+    }));
     expect(summary.some((line) => line.includes('uruc.life'))).toBe(true);
     expect(summary.some((line) => line.includes('管理员: admin'))).toBe(true);
   });

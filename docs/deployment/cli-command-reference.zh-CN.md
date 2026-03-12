@@ -19,13 +19,13 @@
 | 选项 | 作用 |
 | --- | --- |
 | `--json` | 在命令支持时输出机器可读 JSON |
-| `--lang <zh-CN\|en\|ko>` | 覆盖 `help` 和 `setup` 使用的语言 |
+| `--lang <zh-CN\|en\|ko>` | 覆盖 `help` 和 `configure` 使用的语言 |
 
 ## 核心命令
 
 | 命令 | 作用 |
 | --- | --- |
-| `uruc setup` | 运行交互式初始化流程并写入 `packages/server/.env` |
+| `uruc configure` | 运行交互式建城配置流程并写入 `packages/server/.env` |
 | `uruc build [--force]` | 构建 `packages/server` 与 `packages/human-web` |
 | `uruc start [-b\|--background]` | 以前台或后台模式启动运行时 |
 | `uruc stop` | 停止受管理的后台进程或 systemd 服务 |
@@ -66,6 +66,6 @@
 
 ## 备注
 
-- 目前只有 `setup` 和 `help` 会使用 `--lang`。
+- 目前只有 `configure` 和 `help` 会使用 `--lang`。
 - `start`、`stop` 和 `restart` 会区分受管理后台实例、systemd 服务和未受 CLI 管理的本地进程。
-- 新环境启动失败时，优先使用 `doctor` 排查。
+- 新环境 configure 或启动失败时，优先使用 `doctor` 排查。

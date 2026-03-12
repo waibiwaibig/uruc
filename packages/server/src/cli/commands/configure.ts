@@ -8,21 +8,25 @@ import {
   resetAdminPassword,
 } from '../lib/admin.js';
 import {
-  currentSetupDefaults,
+  buildBaseUrl,
+  configureAnswersToEnv,
+  currentConfigureDefaults,
   ensureServerEnvFile,
   getCurrentLanguage,
   getDefaultPluginConfig,
+  inferReachability,
+  inferSiteProtocol,
+  parseEnvFile,
   rootEnvExists,
-  setupAnswersToEnv,
   writeEnvFile,
 } from '../lib/env.js';
 import {
-  getSetupActions,
-  getSetupSummaryLines,
-  installServer,
-  saveLocalSetupMeta,
-} from '../lib/server-install.js';
-import { readCliMeta, writeCliMeta } from '../lib/state.js';
+  getConfigureActions,
+  getConfigureSummaryLines,
+  rememberConfiguration,
+} from '../lib/configure.js';
+import { buildPublicWsUrl } from '../lib/network.js';
+import { readCliMeta } from '../lib/state.js';
 import {
   printBanner,
   printSection,
@@ -30,41 +34,48 @@ import {
   promptChoice,
   promptConfirm,
   promptInput,
-  t,
 } from '../lib/ui.js';
 import type {
+  CityReachability,
   CommandContext,
-  DeploymentMode,
+  ConfigureAnswers,
   InstancePurpose,
-  SetupAnswers,
+  SiteProtocol,
   UiLanguage,
 } from '../lib/types.js';
 
-interface SetupResult {
-  answers: SetupAnswers;
+interface ConfigureResult {
+  answers: ConfigureAnswers;
   adminAction: 'create' | 'keep' | 'reset';
   generatedPassword: boolean;
 }
 
 const copy = {
   'zh-CN': {
-    setupTitle: 'Setup',
+    title: 'Configure',
     invalidRootEnv: '检测到仓库根目录 .env：当前 CLI 不会读取它，真正生效的是 packages/server/.env。',
-    languagePrompt: '请选择语言',
-    modePrompt: '你要把 Uruc 部署在哪里？',
+    reachabilityPrompt: '你要把这座城市建在哪里？',
     purposePrompt: '这个实例的用途是什么？',
-    hostPrompt: '访问地址（本地填 127.0.0.1，服务器填域名或公网 IP）',
+    localMode: '本机',
+    lanMode: '局域网',
+    serverMode: '服务器',
+    localModeDesc: '只允许当前机器访问',
+    lanModeDesc: '同一局域网内的设备都可以进入',
+    serverModeDesc: '对公网地址或域名开放',
+    lanHostPrompt: '局域网分享地址（同网段设备访问它）',
+    serverHostPrompt: '公网地址（域名或公网 IP）',
+    protocolPrompt: '对外分享时使用什么协议？',
+    protocolHttp: 'HTTP（默认直接可用）',
+    protocolHttps: 'HTTPS（需你自己接 TLS / 反向代理）',
     httpPortPrompt: 'HTTP 端口',
     wsPortPrompt: 'WebSocket 端口',
-    sslPrompt: '是否启用 HTTPS（SSL）？',
-    sslEmailPrompt: '申请证书使用的邮箱',
     adminUserPrompt: '管理员用户名',
     adminPasswordPrompt: '管理员密码',
     adminEmailPrompt: '管理员邮箱',
-    allowRegisterPrompt: '是否开放注册？',
+    allowRegisterPrompt: '是否允许他人自行注册进入？',
     noindexPrompt: '是否禁止搜索引擎收录？',
     sitePasswordPrompt: '站点访问密码（可选）',
-    advancedPrompt: '是否配置高级项？',
+    advancedPrompt: '是否配置高级项？（数据库、插件、跨域、JWT、邮件、OAuth）',
     dbPathPrompt: '数据库路径',
     pluginConfigPrompt: '插件配置文件路径',
     allowedOriginsPrompt: '允许访问 API 的前端地址（逗号分隔）',
@@ -86,36 +97,43 @@ const copy = {
     resetAdmin: '重置该账号密码',
     renameAdmin: '换一个新的管理员用户名',
     keepPasswordPrompt: '请输入现有管理员密码（用于验证）',
-    applyPrompt: '选择下一步',
-    applyNow: '立即应用',
+    summaryTitle: '城市配置摘要',
+    actionsTitle: '即将执行',
+    applyPrompt: '配置完成后怎么处理？',
+    startForeground: '保存并前台启动',
+    startBackground: '保存并后台启动',
     saveOnly: '只保存配置',
     editAgain: '返回修改',
-    serverRootHint: '服务器部署需要 root。请改用 `sudo uruc setup`。',
-    localReady: '本地配置已写入。后续直接运行 `uruc start` 即可。',
-    summaryTitle: '配置摘要',
-    actionsTitle: '即将执行',
-    finishedTitle: '完成',
     generatedPassword: '管理员密码未输入，已自动生成。',
-    savedOnly: '配置已保存，未执行系统安装。',
+    finishedTitle: '完成',
+    savedOnly: '配置已保存。稍后可运行 `uruc start` 启动。',
+    httpsNotice: '你选择了 HTTPS 分享地址。Uruc 不会自动配置证书或反向代理；如需真正对外 HTTPS，请自行接入 TLS。',
   },
   en: {
-    setupTitle: 'Setup',
+    title: 'Configure',
     invalidRootEnv: 'A repo-root .env was found. Uruc ignores it; only packages/server/.env is active.',
-    languagePrompt: 'Choose language',
-    modePrompt: 'Where do you want to deploy Uruc?',
+    reachabilityPrompt: 'Where should this city be reachable?',
     purposePrompt: 'What is this instance for?',
-    hostPrompt: 'Public host (127.0.0.1 for local, domain or public IP for server)',
+    localMode: 'Local machine',
+    lanMode: 'LAN',
+    serverMode: 'Server',
+    localModeDesc: 'Only this machine can enter',
+    lanModeDesc: 'Devices on the same LAN can enter',
+    serverModeDesc: 'Expose a public host or domain',
+    lanHostPrompt: 'LAN share host',
+    serverHostPrompt: 'Public host (domain or public IP)',
+    protocolPrompt: 'Which external protocol should people use?',
+    protocolHttp: 'HTTP (works directly by default)',
+    protocolHttps: 'HTTPS (you manage TLS / reverse proxy)',
     httpPortPrompt: 'HTTP port',
     wsPortPrompt: 'WebSocket port',
-    sslPrompt: 'Enable HTTPS (SSL)?',
-    sslEmailPrompt: 'Email for certificate issuance',
     adminUserPrompt: 'Admin username',
     adminPasswordPrompt: 'Admin password',
     adminEmailPrompt: 'Admin email',
-    allowRegisterPrompt: 'Allow public registration?',
+    allowRegisterPrompt: 'Allow other people to self-register?',
     noindexPrompt: 'Block search engine indexing?',
     sitePasswordPrompt: 'Site access password (optional)',
-    advancedPrompt: 'Configure advanced settings?',
+    advancedPrompt: 'Configure advanced settings? (DB, plugins, CORS, JWT, mail, OAuth)',
     dbPathPrompt: 'Database path',
     pluginConfigPrompt: 'Plugin config path',
     allowedOriginsPrompt: 'Allowed frontend origins (comma-separated)',
@@ -131,42 +149,49 @@ const copy = {
     githubPrompt: 'Enable GitHub OAuth?',
     githubIdPrompt: 'GitHub Client ID',
     githubSecretPrompt: 'GitHub Client Secret',
-    existingAdminPrompt: 'This admin username already exists. How should setup handle it?',
+    existingAdminPrompt: 'This admin username already exists. How should configure handle it?',
     existingUserPrompt: 'This username already exists but is not an admin. Pick a new username or promote it later with `uruc admin promote`.',
     keepAdmin: 'Keep the existing admin account',
     resetAdmin: 'Reset that admin password',
     renameAdmin: 'Choose a new admin username',
     keepPasswordPrompt: 'Enter the current admin password for verification',
-    applyPrompt: 'Choose the next step',
-    applyNow: 'Apply now',
+    summaryTitle: 'City configuration summary',
+    actionsTitle: 'Planned actions',
+    applyPrompt: 'What should Uruc do next?',
+    startForeground: 'Save and start in foreground',
+    startBackground: 'Save and start in background',
     saveOnly: 'Save config only',
     editAgain: 'Go back and edit',
-    serverRootHint: 'Server setup requires root. Run `sudo uruc setup`.',
-    localReady: 'Local configuration saved. Run `uruc start` next.',
-    summaryTitle: 'Summary',
-    actionsTitle: 'Planned actions',
-    finishedTitle: 'Done',
     generatedPassword: 'No admin password was entered, so Uruc generated one.',
-    savedOnly: 'Configuration was saved without system installation.',
+    finishedTitle: 'Done',
+    savedOnly: 'Configuration saved. Run `uruc start` later when you want the city online.',
+    httpsNotice: 'You chose an HTTPS share URL. Uruc will not provision certificates or a reverse proxy; you must handle TLS yourself.',
   },
   ko: {
-    setupTitle: '설정',
+    title: 'Configure',
     invalidRootEnv: '저장소 루트의 .env 가 감지되었습니다. Uruc 는 이를 무시하며 packages/server/.env 만 사용합니다.',
-    languagePrompt: '언어를 선택하세요',
-    modePrompt: 'Uruc를 어디에 배포하시겠습니까?',
+    reachabilityPrompt: '이 도시를 어디까지 열어둘까요?',
     purposePrompt: '이 인스턴스의 용도는 무엇입니까?',
-    hostPrompt: '접속 주소 (로컬은 127.0.0.1, 서버는 도메인 또는 공인 IP)',
+    localMode: '로컬',
+    lanMode: 'LAN',
+    serverMode: '서버',
+    localModeDesc: '현재 장치만 접속',
+    lanModeDesc: '같은 LAN 장치가 접속',
+    serverModeDesc: '공개 호스트 또는 도메인으로 노출',
+    lanHostPrompt: 'LAN 공유 호스트',
+    serverHostPrompt: '공개 호스트 (도메인 또는 공인 IP)',
+    protocolPrompt: '외부에서 어떤 프로토콜로 접속합니까?',
+    protocolHttp: 'HTTP (기본적으로 바로 사용 가능)',
+    protocolHttps: 'HTTPS (TLS / 리버스 프록시는 직접 관리)',
     httpPortPrompt: 'HTTP 포트',
     wsPortPrompt: 'WebSocket 포트',
-    sslPrompt: 'HTTPS(SSL)를 사용하시겠습니까?',
-    sslEmailPrompt: '인증서 발급용 이메일',
     adminUserPrompt: '관리자 사용자명',
     adminPasswordPrompt: '관리자 비밀번호',
     adminEmailPrompt: '관리자 이메일',
-    allowRegisterPrompt: '회원가입을 허용하시겠습니까?',
-    noindexPrompt: '검색 엔진 수집을 막으시겠습니까?',
+    allowRegisterPrompt: '다른 사용자가 직접 가입할 수 있게 할까요?',
+    noindexPrompt: '검색 엔진 색인을 차단할까요?',
     sitePasswordPrompt: '사이트 접근 비밀번호 (선택)',
-    advancedPrompt: '고급 설정을 구성하시겠습니까?',
+    advancedPrompt: '고급 설정을 구성하시겠습니까? (DB, 플러그인, CORS, JWT, 메일, OAuth)',
     dbPathPrompt: '데이터베이스 경로',
     pluginConfigPrompt: '플러그인 설정 파일 경로',
     allowedOriginsPrompt: '허용할 프론트엔드 origin (쉼표 구분)',
@@ -188,17 +213,17 @@ const copy = {
     resetAdmin: '해당 관리자 비밀번호 재설정',
     renameAdmin: '새 관리자 사용자명 선택',
     keepPasswordPrompt: '검증을 위해 현재 관리자 비밀번호를 입력하세요',
-    applyPrompt: '다음 동작을 선택하세요',
-    applyNow: '지금 적용',
+    summaryTitle: '도시 설정 요약',
+    actionsTitle: '실행 예정 작업',
+    applyPrompt: '다음으로 무엇을 할까요?',
+    startForeground: '저장 후 포그라운드 시작',
+    startBackground: '저장 후 백그라운드 시작',
     saveOnly: '설정만 저장',
     editAgain: '다시 수정',
-    serverRootHint: '서버 설정에는 root 권한이 필요합니다. `sudo uruc setup` 를 실행하세요.',
-    localReady: '로컬 설정이 저장되었습니다. 다음에 `uruc start` 를 실행하세요.',
-    summaryTitle: '요약',
-    actionsTitle: '실행 예정 작업',
-    finishedTitle: '완료',
     generatedPassword: '관리자 비밀번호가 비어 있어 Uruc가 자동 생성했습니다.',
-    savedOnly: '시스템 설치 없이 설정만 저장했습니다.',
+    finishedTitle: '완료',
+    savedOnly: '설정을 저장했습니다. 나중에 `uruc start` 로 도시를 시작하세요.',
+    httpsNotice: 'HTTPS 공유 주소를 선택했습니다. Uruc 는 인증서나 리버스 프록시를 자동 구성하지 않으므로 TLS 는 직접 처리해야 합니다.',
   },
 } as const;
 
@@ -215,17 +240,19 @@ function safeHostFromBaseUrl(raw: string | undefined, fallback: string): string 
   }
 }
 
-function normalizeBaseUrl(answers: SetupAnswers): string {
-  const scheme = answers.enableSsl ? 'https' : 'http';
-  if (answers.mode === 'server') {
-    return `${scheme}://${answers.publicHost}`;
+function detectLanHost(): string {
+  const interfaces = os.networkInterfaces();
+  for (const items of Object.values(interfaces)) {
+    for (const item of items ?? []) {
+      if (item.internal) continue;
+      if (item.family === 'IPv4') return item.address;
+    }
   }
-  const omitPort = (answers.enableSsl && answers.httpPort === '443') || (!answers.enableSsl && answers.httpPort === '80');
-  return `${scheme}://${answers.publicHost}${omitPort ? '' : `:${answers.httpPort}`}`;
+  return '192.168.1.10';
 }
 
 async function chooseLanguage(defaultLang: UiLanguage): Promise<UiLanguage> {
-  console.log('Uruc Setup');
+  console.log('Uruc Configure');
   return await promptChoice(
     'Choose language / 选择语言 / 언어 선택',
     [
@@ -239,9 +266,9 @@ async function chooseLanguage(defaultLang: UiLanguage): Promise<UiLanguage> {
 }
 
 async function reconcileAdminAccount(
-  answers: SetupAnswers,
+  answers: ConfigureAnswers,
   lang: UiLanguage,
-): Promise<{ action: 'create' | 'keep' | 'reset'; generatedPassword: boolean; answers: SetupAnswers }> {
+): Promise<{ action: 'create' | 'keep' | 'reset'; generatedPassword: boolean; answers: ConfigureAnswers }> {
   let generatedPassword = false;
 
   while (true) {
@@ -299,34 +326,29 @@ async function reconcileAdminAccount(
   }
 }
 
-async function gatherAnswers(context: CommandContext): Promise<SetupResult> {
+async function gatherAnswers(context: CommandContext): Promise<ConfigureResult> {
   ensureServerEnvFile();
   const storedLang = context.lang ?? readCliMeta().language ?? getCurrentLanguage();
   const lang = await chooseLanguage(storedLang);
-  printBanner(lang, text(lang, 'setupTitle'));
+  printBanner(lang, text(lang, 'title'));
 
   if (rootEnvExists()) {
     printStatus('warn', text(lang, 'invalidRootEnv'));
   }
 
+  const env = parseEnvFile();
   const cliMeta = readCliMeta();
-  const existingMode = cliMeta.deploymentMode ?? 'local';
-  const existingPurpose = cliMeta.purpose ?? 'test';
-  const baseDefaults = currentSetupDefaults(
-    existingMode,
-    existingPurpose,
-    existingMode === 'server' ? safeHostFromBaseUrl(process.env.BASE_URL, os.hostname()) : '127.0.0.1',
-    process.env.PORT ?? '3000',
-    process.env.WS_PORT ?? '3001',
-  );
+  const existingReachability = cliMeta.reachability ?? inferReachability(env, 'local');
+  const existingPurpose = cliMeta.purpose ?? ((env.URUC_PURPOSE === 'production' ? 'production' : 'test') as InstancePurpose);
 
-  const mode = await promptChoice<DeploymentMode>(
-    text(lang, 'modePrompt'),
+  const reachability = await promptChoice<CityReachability>(
+    text(lang, 'reachabilityPrompt'),
     [
-      { value: 'local', label: lang === 'zh-CN' ? '本地试用' : lang === 'en' ? 'Local trial' : '로컬 테스트' },
-      { value: 'server', label: lang === 'zh-CN' ? '服务器部署' : lang === 'en' ? 'Server deployment' : '서버 배포' },
+      { value: 'local', label: text(lang, 'localMode'), description: text(lang, 'localModeDesc') },
+      { value: 'lan', label: text(lang, 'lanMode'), description: text(lang, 'lanModeDesc') },
+      { value: 'server', label: text(lang, 'serverMode'), description: text(lang, 'serverModeDesc') },
     ],
-    existingMode,
+    existingReachability,
     lang,
   );
 
@@ -340,51 +362,67 @@ async function gatherAnswers(context: CommandContext): Promise<SetupResult> {
     lang,
   );
 
-  const hostDefault = mode === 'server'
-    ? (cliMeta.deploymentMode === 'server' ? safeHostFromBaseUrl(baseDefaults.baseUrl, os.hostname()) : os.hostname())
-    : '127.0.0.1';
-  const publicHost = await promptInput(text(lang, 'hostPrompt'), hostDefault);
-  const httpPort = await promptInput(text(lang, 'httpPortPrompt'), baseDefaults.httpPort);
-  const wsPort = await promptInput(text(lang, 'wsPortPrompt'), baseDefaults.wsPort);
-  const defaults = currentSetupDefaults(mode, purpose, publicHost, httpPort, wsPort);
+  const currentBaseUrl = env.BASE_URL;
+  const defaultPublicHost = reachability === 'local'
+    ? '127.0.0.1'
+    : reachability === 'lan'
+      ? safeHostFromBaseUrl(currentBaseUrl, detectLanHost())
+      : safeHostFromBaseUrl(currentBaseUrl, os.hostname());
+  const defaultProtocol = reachability === 'server'
+    ? inferSiteProtocol(currentBaseUrl, 'http')
+    : 'http';
 
-  const enableSsl = mode === 'server'
-    ? await promptConfirm(text(lang, 'sslPrompt'), defaults.enableSsl, lang)
-    : false;
-  const letsencryptEmail = enableSsl
-    ? await promptInput(text(lang, 'sslEmailPrompt'), defaults.letsencryptEmail || defaults.adminEmail)
-    : '';
+  const publicHost = reachability === 'local'
+    ? '127.0.0.1'
+    : await promptInput(
+      reachability === 'lan' ? text(lang, 'lanHostPrompt') : text(lang, 'serverHostPrompt'),
+      defaultPublicHost,
+    );
+  const siteProtocol = reachability === 'server'
+    ? await promptChoice<SiteProtocol>(
+      text(lang, 'protocolPrompt'),
+      [
+        { value: 'http', label: text(lang, 'protocolHttp') },
+        { value: 'https', label: text(lang, 'protocolHttps') },
+      ],
+      defaultProtocol,
+      lang,
+    )
+    : 'http';
+  const httpPort = await promptInput(text(lang, 'httpPortPrompt'), env.PORT ?? '3000');
+  const wsPort = await promptInput(text(lang, 'wsPortPrompt'), env.WS_PORT ?? '3001');
+  const defaults = currentConfigureDefaults(reachability, purpose, publicHost, httpPort, wsPort, siteProtocol);
 
   const adminUsername = await promptInput(text(lang, 'adminUserPrompt'), defaults.adminUsername);
-  let adminPassword = await promptInput(text(lang, 'adminPasswordPrompt'), defaults.adminPassword, { secret: true });
+  const adminPassword = await promptInput(text(lang, 'adminPasswordPrompt'), defaults.adminPassword, { secret: true });
   const adminEmail = await promptInput(text(lang, 'adminEmailPrompt'), defaults.adminEmail);
   const allowRegister = await promptConfirm(text(lang, 'allowRegisterPrompt'), defaults.allowRegister, lang);
   const noindex = await promptConfirm(text(lang, 'noindexPrompt'), defaults.noindex, lang);
   const sitePassword = await promptInput(text(lang, 'sitePasswordPrompt'), defaults.sitePassword, { secret: true });
 
-  const answers: SetupAnswers = {
+  const answers: ConfigureAnswers = {
     ...defaults,
     lang,
-    mode,
+    reachability,
     purpose,
+    bindHost: defaults.bindHost,
     publicHost,
+    siteProtocol,
     httpPort,
     wsPort,
-    enableSsl,
-    letsencryptEmail,
     adminUsername,
     adminPassword,
     adminEmail,
     allowRegister,
     noindex,
     sitePassword,
-    baseUrl: defaults.baseUrl,
+    baseUrl: buildBaseUrl(siteProtocol, publicHost, httpPort),
   };
 
   const advanced = await promptConfirm(text(lang, 'advancedPrompt'), false, lang);
   if (advanced) {
     answers.dbPath = await promptInput(text(lang, 'dbPathPrompt'), defaults.dbPath);
-    answers.pluginConfigPath = await promptInput(text(lang, 'pluginConfigPrompt'), defaults.pluginConfigPath || getDefaultPluginConfig(mode));
+    answers.pluginConfigPath = await promptInput(text(lang, 'pluginConfigPrompt'), defaults.pluginConfigPath || getDefaultPluginConfig(purpose));
     answers.allowedOrigins = await promptInput(text(lang, 'allowedOriginsPrompt'), defaults.allowedOrigins);
     answers.jwtSecret = await promptInput(text(lang, 'jwtSecretPrompt'), defaults.jwtSecret);
     answers.publicDir = await promptInput(text(lang, 'publicDirPrompt'), defaults.publicDir);
@@ -417,7 +455,6 @@ async function gatherAnswers(context: CommandContext): Promise<SetupResult> {
     }
   }
 
-  answers.baseUrl = normalizeBaseUrl(answers);
   const adminResolution = await reconcileAdminAccount(answers, lang);
   return {
     answers: adminResolution.answers,
@@ -426,7 +463,7 @@ async function gatherAnswers(context: CommandContext): Promise<SetupResult> {
   };
 }
 
-async function applyAdminPlan(result: SetupResult): Promise<void> {
+async function applyAdminPlan(result: ConfigureResult): Promise<void> {
   if (result.adminAction === 'keep') return;
   if (result.adminAction === 'reset') {
     await resetAdminPassword(result.answers.adminUsername, result.answers.adminPassword);
@@ -439,63 +476,60 @@ async function applyAdminPlan(result: SetupResult): Promise<void> {
   }
 }
 
-function persistEnvAndMeta(result: SetupResult): void {
-  writeEnvFile(setupAnswersToEnv(result.answers));
-  writeCliMeta({
-    ...readCliMeta(),
-    language: result.answers.lang,
-    deploymentMode: result.answers.mode,
-    purpose: result.answers.purpose,
-    serviceName: readCliMeta().serviceName ?? 'uruc',
-  });
+function persistConfiguration(result: ConfigureResult): void {
+  writeEnvFile(configureAnswersToEnv(result.answers));
+  rememberConfiguration(result.answers);
 }
 
-export async function runSetupCommand(context: CommandContext): Promise<void> {
+export async function runConfigureCommand(context: CommandContext): Promise<void> {
   const result = await gatherAnswers(context);
   const { answers } = result;
   const lang = answers.lang;
 
   printSection(text(lang, 'summaryTitle'));
-  for (const line of getSetupSummaryLines(answers)) {
+  for (const line of getConfigureSummaryLines(answers)) {
     console.log(`- ${line}`);
   }
   if (result.generatedPassword) {
     printStatus('info', text(lang, 'generatedPassword'));
   }
+  if (answers.siteProtocol === 'https') {
+    printStatus('warn', text(lang, 'httpsNotice'));
+  }
 
   printSection(text(lang, 'actionsTitle'));
-  for (const action of getSetupActions(answers)) {
+  for (const action of getConfigureActions()) {
     console.log(`- ${action}`);
   }
 
   const nextAction = await promptChoice(
     text(lang, 'applyPrompt'),
     [
-      { value: 'apply', label: text(lang, 'applyNow') },
+      { value: 'start-foreground', label: text(lang, 'startForeground') },
+      { value: 'start-background', label: text(lang, 'startBackground') },
       { value: 'save', label: text(lang, 'saveOnly') },
       { value: 'edit', label: text(lang, 'editAgain') },
     ],
-    'apply',
+    'start-foreground',
     lang,
   );
 
   if (nextAction === 'edit') {
-    await runSetupCommand(context);
+    await runConfigureCommand(context);
     return;
   }
 
-  if (answers.mode === 'server' && nextAction === 'apply' && typeof process.getuid === 'function' && process.getuid() !== 0) {
-    throw new Error(text(lang, 'serverRootHint'));
-  }
-
-  persistEnvAndMeta(result);
+  persistConfiguration(result);
   await applyAdminPlan(result);
 
-  if (answers.mode === 'local' || nextAction === 'save') {
-    saveLocalSetupMeta(answers);
+  const siteUrl = answers.baseUrl;
+  const wsUrl = buildPublicWsUrl(siteUrl, answers.wsPort);
+
+  if (nextAction === 'save') {
     printSection(text(lang, 'finishedTitle'));
-    console.log(nextAction === 'save' ? text(lang, 'savedOnly') : text(lang, 'localReady'));
-    console.log(`packages/server/.env -> ${answers.baseUrl}`);
+    console.log(text(lang, 'savedOnly'));
+    console.log(`Site: ${siteUrl}`);
+    console.log(`WS:   ${wsUrl}`);
     if (result.generatedPassword) {
       console.log(`Admin: ${answers.adminUsername}`);
       console.log(`Password: ${answers.adminPassword}`);
@@ -503,15 +537,9 @@ export async function runSetupCommand(context: CommandContext): Promise<void> {
     return;
   }
 
-  const summary = await installServer(answers);
-  printSection(text(lang, 'finishedTitle'));
-  console.log(`Site:        ${summary.siteUrl}`);
-  console.log(`Health:      ${summary.healthUrl}`);
-  console.log(`WebSocket:   ${summary.wsUrl}`);
-  console.log(`Admin user:  ${summary.adminUsername}`);
-  console.log(`Admin pass:  ${summary.adminPassword}`);
-  console.log(`Service:     ${summary.serviceName}`);
-  if (summary.nginxConfigPath) {
-    console.log(`Nginx conf:  ${summary.nginxConfigPath}`);
-  }
+  const { runStartCommand } = await import('./start.js');
+  await runStartCommand({
+    ...context,
+    args: nextAction === 'start-background' ? ['--background'] : [],
+  });
 }

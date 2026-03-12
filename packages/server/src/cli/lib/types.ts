@@ -1,21 +1,19 @@
 export type UiLanguage = 'zh-CN' | 'en' | 'ko';
-export type DeploymentMode = 'local' | 'server';
+export type CityReachability = 'local' | 'lan' | 'server';
 export type InstancePurpose = 'test' | 'production';
+export type SiteProtocol = 'http' | 'https';
 
 export interface CliMeta {
   language: UiLanguage;
-  deploymentMode?: DeploymentMode;
+  reachability?: CityReachability;
   purpose?: InstancePurpose;
   serviceName?: string;
-  install?: {
+  configure?: {
     completedAt: string;
-    publicHost?: string;
+    reachability?: CityReachability;
     siteUrl?: string;
-    healthUrl?: string;
     wsUrl?: string;
-    systemdInstalled?: boolean;
-    nginxConfigured?: boolean;
-    sslEnabled?: boolean;
+    bindHost?: string;
   };
 }
 
@@ -38,13 +36,13 @@ export interface OutputOptions {
   lang?: UiLanguage;
 }
 
-export interface SetupAnswers {
+export interface ConfigureAnswers {
   lang: UiLanguage;
-  mode: DeploymentMode;
+  reachability: CityReachability;
   purpose: InstancePurpose;
+  bindHost: string;
   publicHost: string;
-  enableSsl: boolean;
-  letsencryptEmail: string;
+  siteProtocol: SiteProtocol;
   httpPort: string;
   wsPort: string;
   adminUsername: string;

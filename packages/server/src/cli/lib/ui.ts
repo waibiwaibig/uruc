@@ -6,7 +6,7 @@ import type { UiLanguage } from './types.js';
 const labels = {
   'zh-CN': {
     welcome: '欢迎来到 Uruc',
-    subtitle: '主城配置与运维命令行',
+    subtitle: '主城配置与运行命令行',
     selectLang: '请选择语言',
     pressEnterDefault: '回车保留默认值',
     selectHint: '↑/↓ 选择，Enter 确认，也可直接输入数字',
@@ -16,7 +16,7 @@ const labels = {
   },
   en: {
     welcome: 'Welcome to Uruc',
-    subtitle: 'City setup and operations CLI',
+    subtitle: 'City configure and runtime CLI',
     selectLang: 'Choose language',
     pressEnterDefault: 'Press Enter to keep the default',
     selectHint: 'Use ↑/↓ to choose, Enter to confirm, or type a number',
@@ -79,6 +79,28 @@ export function printStatus(level: 'ok' | 'warn' | 'fail' | 'info', message: str
   console.log(`${badge} ${message}`);
 }
 
+function defaultChoiceLabel(lang: UiLanguage): string {
+  if (lang === 'zh-CN') return '默认';
+  if (lang === 'ko') return '기본값';
+  return 'default';
+}
+
+function renderChoiceLines<T extends string>(
+  option: { value: T; label: string; description?: string },
+  index: number,
+  defaultValue: T,
+  selected: boolean,
+  lang: UiLanguage,
+): string[] {
+  const pointer = selected ? '>' : ' ';
+  const defaultTag = option.value === defaultValue ? ` [${defaultChoiceLabel(lang)}]` : '';
+  const lines = [` ${pointer} ${index + 1}. ${option.label}${defaultTag}`];
+  if (option.description) {
+    lines.push(`      ${option.description}`);
+  }
+  return lines;
+}
+
 export async function promptInput(
   prompt: string,
   defaultValue = '',
@@ -110,9 +132,10 @@ export async function promptChoice<T extends string>(
   while (true) {
     console.log(prompt);
     options.forEach((option, index) => {
-      const marker = option.value === defaultValue ? ' *' : '  ';
-      console.log(`  ${index + 1}. ${option.label}${marker}`);
-      if (option.description) console.log(`     ${option.description}`);
+      for (const line of renderChoiceLines(option, index, defaultValue, false, lang)) {
+        console.log(line);
+      }
+      if (index < options.length - 1) console.log('');
     });
     const answer = await rl.question(`> `);
     const trimmed = answer.trim();
@@ -225,17 +248,16 @@ async function promptChoiceTty<T extends string>(
       readline.cursorTo(stdout, 0);
       readline.clearScreenDown(stdout);
       stdout.write(`${prompt}\n`);
-      stdout.write(`${t(lang, 'selectHint')}\n`);
-      renderedLines = 3;
+      stdout.write(`${t(lang, 'selectHint')}\n\n`);
+      renderedLines = 4;
       options.forEach((option, index) => {
-        const pointer = index === selectedIndex ? '›' : ' ';
-        const defaultMark = option.value === defaultValue
-          ? (lang === 'zh-CN' ? ' · 默认' : lang === 'ko' ? ' · 기본값' : ' · default')
-          : '';
-        stdout.write(`  ${pointer} ${option.label}${defaultMark}\n`);
-        renderedLines += 1;
-        if (option.description) {
-          stdout.write(`    ${option.description}\n`);
+        const lines = renderChoiceLines(option, index, defaultValue, index === selectedIndex, lang);
+        for (const line of lines) {
+          stdout.write(`${line}\n`);
+          renderedLines += 1;
+        }
+        if (index < options.length - 1) {
+          stdout.write('\n');
           renderedLines += 1;
         }
       });
