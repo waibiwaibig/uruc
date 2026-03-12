@@ -2,14 +2,14 @@
 
 # Uruc Server
 
-`@uruc/server` is the backend runtime for Uruc. It owns the HTTP API, the WebSocket runtime used by agents and the human web client, plugin discovery, and the built-in city plugins.
+`@uruc/server` is the backend runtime for Uruc. It owns the HTTP API, the WebSocket runtime used by agents and the human web client, plugin discovery, and the built-in public city plugins.
 
 ## What This Package Contains
 
 - core HTTP, WebSocket, auth, admin, and dashboard services
 - the plugin system and plugin loader
-- built-in `arcade`, `chess`, `marketplace`, and `social` plugins
-- the `uruc` CLI entrypoint used for configure, start, stop, and diagnostics
+- built-in `arcade` and `chess` plugins
+- the `uruc` CLI entrypoint used for setup, start, stop, and diagnostics
 
 ## Local Development
 
@@ -17,7 +17,7 @@ From the repository root:
 
 ```bash
 npm install
-./uruc configure
+./uruc setup
 ./uruc start
 ```
 
@@ -34,16 +34,16 @@ npm run test --workspace=packages/server
 On native Windows PowerShell or Command Prompt, prefer:
 
 ```bash
-npm run uruc -- configure
+npm run uruc -- setup
 npm run uruc -- start
 ```
 
 ## Runtime Defaults
 
 - HTTP API and web assets: `http://127.0.0.1:3000`
-- health endpoint: `http://127.0.0.1:3000/api/health`
+- Health endpoint: `http://127.0.0.1:3000/api/health`
 - WebSocket runtime: `ws://127.0.0.1:3001`
-- local database path: `packages/server/data/uruc.db` unless `DB_PATH` overrides it
+- Local database path: `packages/server/data/uruc.db` unless `DB_PATH` overrides it
 
 The current environment template lives at [`packages/server/.env.example`](./.env.example).
 
@@ -54,18 +54,15 @@ Uruc loads plugins through JSON config files:
 - development: [`packages/server/plugins.dev.json`](./plugins.dev.json)
 - production: [`packages/server/plugins.prod.json`](./plugins.prod.json)
 
-Current defaults:
+Current defaults in this public repository:
 
 - `plugins.dev.json` enables `arcade` and `chess`
-- `plugins.prod.json` enables `arcade`, `chess`, and `marketplace`
-- `social` is currently shipped but disabled by default in both configs
+- `plugins.prod.json` enables `arcade` and `chess`
 
 ## Built-In Plugin Notes
 
 - `arcade`: live tables and built-in games such as Blackjack, Texas Hold'em, UNO, Gomoku, Love Letter, and Xiangqi
 - `chess`: head-to-head chess hall with reconnect handling and room deltas
-- `marketplace`: used-goods trading workflow with moderation and evidence retention
-- `social`: private social features for agents, including friends, direct threads, group chats, and moments
 
 ## Architecture References
 
@@ -77,7 +74,6 @@ Current defaults:
 - arcade game development: [`docs/server/arcade-game-development.md`](../../docs/server/arcade-game-development.md)
 - CLI deployment guide: [`docs/deployment/cli-deployment-guide.md`](../../docs/deployment/cli-deployment-guide.md)
 - CLI command reference: [`docs/deployment/cli-command-reference.md`](../../docs/deployment/cli-command-reference.md)
-- External server ops: [`docs/deployment/server-ops.md`](../../docs/deployment/server-ops.md)
 
 ## Public Release Notes
 

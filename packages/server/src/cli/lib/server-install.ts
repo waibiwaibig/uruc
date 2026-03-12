@@ -11,17 +11,17 @@ import {
 import os from 'os';
 import path from 'path';
 
-import { getPackageRoot } from '../runtime-paths.js';
-import { buildAll } from '../cli/lib/build.js';
-import { fetchHealth, getRuntimeStatus, rememberInstall } from '../cli/lib/runtime.js';
-import { commandExists, currentNodeMajor, exec, isRootUser, runOrThrow } from '../cli/lib/process.js';
-import { ensureCliDirs, getRepoRoot, getRuntimeDir, readCliMeta, writeCliMeta } from '../cli/lib/state.js';
-import type { ConfigureAnswers } from '../cli/lib/types.js';
+import { getPackageRoot } from '../../runtime-paths.js';
+import { buildAll } from './build.js';
+import { fetchHealth, getRuntimeStatus, rememberInstall } from './runtime.js';
+import { commandExists, currentNodeMajor, exec, isRootUser, runOrThrow } from './process.js';
+import { ensureCliDirs, getRepoRoot, getRuntimeDir, readCliMeta, writeCliMeta } from './state.js';
+import type { SetupAnswers } from './types.js';
 
 const packageRoot = getPackageRoot();
 const repoRoot = getRepoRoot();
 
-export interface ServerInstallSummary {
+export interface SetupSummary {
   siteUrl: string;
   healthUrl: string;
   wsUrl: string;
@@ -139,7 +139,7 @@ async function waitForUrl(url: string, timeoutSeconds: number): Promise<boolean>
   return false;
 }
 
-async function verifyLocalAdmin(answers: ConfigureAnswers): Promise<void> {
+async function verifyLocalAdmin(answers: SetupAnswers): Promise<void> {
   const endpoint = `http://127.0.0.1:${answers.httpPort}/api/auth/login`;
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -167,7 +167,7 @@ function renderNoindexBlock(noindex: boolean): string {
     }`;
 }
 
-function writeSystemdService(answers: ConfigureAnswers, serviceName: string): void {
+function writeSystemdService(answers: SetupAnswers, serviceName: string): void {
   const deployUser = getDeployUser();
   const deployGroup = getDeployGroup(deployUser);
   const servicePath = getSystemdServicePath(serviceName);
@@ -204,7 +204,7 @@ WantedBy=multi-user.target
   }
 }
 
-function writeNginxConfig(answers: ConfigureAnswers, serviceName: string): string {
+function writeNginxConfig(answers: SetupAnswers, serviceName: string): string {
   const noindexBlock = renderNoindexBlock(answers.noindex);
   const sitesAvailable = '/etc/nginx/sites-available';
   const sitesEnabled = '/etc/nginx/sites-enabled';
@@ -259,7 +259,7 @@ async function assertDomainResolves(publicHost: string): Promise<void> {
 }
 
 async function ensureServerPackages(): Promise<void> {
-  requireCommand('apt-get', 'Only Ubuntu/Debian (apt) is supported for the companion server installer.');
+  requireCommand('apt-get', 'Only Ubuntu/Debian (apt) is supported for server setup.');
   await runOrThrow('apt-get', ['update']);
   await runOrThrow('apt-get', [
     'install', '-y',
@@ -301,9 +301,9 @@ async function ensureBetterSqlite3Ready(): Promise<'ready' | 'rebuilt'> {
     return 'ready';
   }
 
-  console.log('[uruc server-install] better-sqlite3 is not ready yet; rebuilding native module from source.');
+  console.log('[uruc setup] better-sqlite3 is not ready yet; rebuilding native module from source.');
   if (initialProbe.detail) {
-    console.log(`[uruc server-install] probe detail: ${initialProbe.detail}`);
+    console.log(`[uruc setup] probe detail: ${initialProbe.detail}`);
   }
 
   await runOrThrow('npm', ['rebuild', 'better-sqlite3', '--build-from-source'], { cwd: repoRoot });
@@ -321,35 +321,37 @@ async function installDependenciesAndBuild(): Promise<void> {
   await runOrThrow('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: repoRoot });
   const sqliteStatus = await ensureBetterSqlite3Ready();
   if (sqliteStatus === 'ready') {
-    console.log('[uruc server-install] better-sqlite3 is already usable; skipping native rebuild.');
+    console.log('[uruc setup] better-sqlite3 is already usable; skipping native rebuild.');
   }
   await buildAll(true);
 }
 
-function shouldCheckSiteRoot(answers: ConfigureAnswers): boolean {
+function shouldCheckSiteRoot(answers: SetupAnswers): boolean {
   return !answers.sitePassword;
 }
 
-function persistInstallMeta(answers: ConfigureAnswers): void {
+function persistSetupMeta(answers: SetupAnswers): void {
   const serviceName = getServiceName();
   writeCliMeta({
     ...readCliMeta(),
     language: answers.lang,
-    exposure: answers.exposure,
-    deploymentMode: undefined,
+    deploymentMode: answers.mode,
     purpose: answers.purpose,
     serviceName,
   });
 }
 
-export async function installServer(answers: ConfigureAnswers): Promise<ServerInstallSummary> {
+export async function installServer(answers: SetupAnswers): Promise<SetupSummary> {
   if (!isRootUser()) {
-    throw new Error('The companion server installer requires root.');
+    throw new Error('Server setup requires root. Run `sudo uruc setup`.');
+  }
+  if (answers.enableSsl && !answers.letsencryptEmail) {
+    throw new Error('SSL is enabled but no Let\'s Encrypt email was provided.');
   }
 
   const serviceName = getServiceName();
   ensureCliDirs();
-  persistInstallMeta(answers);
+  persistSetupMeta(answers);
 
   assertPortAvailable(answers.httpPort, serviceName);
   assertPortAvailable(answers.wsPort, serviceName);
@@ -385,6 +387,20 @@ export async function installServer(answers: ConfigureAnswers): Promise<ServerIn
   await runOrThrow('systemctl', ['enable', 'nginx']);
   await runOrThrow('systemctl', ['restart', 'nginx']);
 
+  if (answers.enableSsl && !isIpHost(answers.publicHost)) {
+    await assertDomainResolves(answers.publicHost);
+    await runOrThrow('certbot', [
+      '--nginx',
+      '--non-interactive',
+      '--agree-tos',
+      '--redirect',
+      '-m',
+      answers.letsencryptEmail,
+      '-d',
+      answers.publicHost,
+    ]);
+  }
+
   const status = await getRuntimeStatus();
   if (!(await waitForUrl(status.healthUrl, 40))) {
     throw new Error(`Public health check failed: ${status.healthUrl}`);
@@ -405,17 +421,17 @@ export async function installServer(answers: ConfigureAnswers): Promise<ServerIn
   };
 }
 
-export function saveLocalInstallMeta(answers: ConfigureAnswers): void {
-  persistInstallMeta(answers);
+export function saveLocalSetupMeta(answers: SetupAnswers): void {
+  persistSetupMeta(answers);
 }
 
-export function getServerInstallActions(answers: ConfigureAnswers): string[] {
+export function getSetupActions(answers: SetupAnswers): string[] {
   const base = [
     '写入 packages/server/.env',
     '记录 .uruc/cli.json 元数据',
   ];
 
-  if (answers.exposure === 'local-only') {
+  if (answers.mode === 'local') {
     base.push('等待后续通过 `uruc start` 自动构建并启动');
     return base;
   }
@@ -426,15 +442,18 @@ export function getServerInstallActions(answers: ConfigureAnswers): string[] {
   base.push('构建 server 与 human-web');
   base.push('写入并启动 systemd 服务');
   base.push('写入 nginx 反向代理配置');
+  if (answers.enableSsl && !isIpHost(answers.publicHost)) {
+    base.push('申请并部署 HTTPS 证书');
+  }
   base.push('执行健康检查与管理员登录校验');
   return base;
 }
 
-export function getServerInstallSummaryLines(answers: ConfigureAnswers): string[] {
-  const scheme = answers.useHttps ? 'https' : 'http';
+export function getSetupSummaryLines(answers: SetupAnswers): string[] {
+  const scheme = answers.enableSsl ? 'https' : 'http';
   const siteUrl = answers.baseUrl || `${scheme}://${answers.publicHost}`;
   return [
-    `部署位置: ${answers.exposure === 'direct-public' ? '公网直连' : answers.exposure === 'lan-share' ? '局域网共享' : '本地试用'}`,
+    `部署位置: ${answers.mode === 'server' ? '服务器部署' : '本地试用'}`,
     `实例用途: ${answers.purpose === 'production' ? '正式' : '测试'}`,
     `访问地址: ${siteUrl}`,
     `HTTP / WS: ${answers.httpPort} / ${answers.wsPort}`,

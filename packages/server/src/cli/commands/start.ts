@@ -2,7 +2,7 @@ import { rootEnvExists, serverEnvExists } from '../lib/env.js';
 import { assertConfiguredPortsAvailable, getRuntimeStatus, startBackground, startForeground } from '../lib/runtime.js';
 import type { CommandContext } from '../lib/types.js';
 import { ensureFreshBuildIfNeeded } from './build.js';
-import { runConfigureCommand } from './configure.js';
+import { runSetupCommand } from './setup.js';
 import { hasFlag } from '../lib/argv.js';
 
 export function getStartConflictMessage(mode: 'background' | 'systemd' | 'unmanaged'): string {
@@ -14,8 +14,8 @@ export function getStartConflictMessage(mode: 'background' | 'systemd' | 'unmana
 
 export async function runStartCommand(context: CommandContext): Promise<void> {
   if (!serverEnvExists()) {
-    console.log('packages/server/.env is missing. Launching `uruc configure` first.');
-    await runConfigureCommand({ ...context, args: [] });
+    console.log('packages/server/.env is missing. Launching `uruc setup` first.');
+    await runSetupCommand({ ...context, args: [] });
   }
 
   if (rootEnvExists()) {

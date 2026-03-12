@@ -24,7 +24,6 @@ import { getDbPath, getPluginConfigPath } from './runtime-paths.js';
 
 const HTTP_PORT = parseInt(process.env.PORT ?? '3000');
 const WS_PORT = parseInt(process.env.WS_PORT ?? '3001');
-const BIND_HOST = process.env.BIND_HOST ?? '127.0.0.1';
 const DB_PATH = getDbPath();
 
 async function main() {
@@ -43,7 +42,7 @@ async function main() {
   services.register('admin', adminSvc);
   services.register('logger', logger);
 
-  const gateway = new WSGateway({ port: WS_PORT, host: BIND_HOST }, hooks, services, auth);
+  const gateway = new WSGateway({ port: WS_PORT }, hooks, services, auth);
   services.register('ws-gateway', gateway);
 
   console.log('✅ Core services initialized: auth, admin, logger, ws-gateway');
@@ -71,12 +70,12 @@ async function main() {
 
   const httpServer = createHttpServer({ auth, hooks, services, loader });
 
-  httpServer.listen(HTTP_PORT, BIND_HOST, () => {
-    console.log(`🌐 HTTP API on ${BIND_HOST}:${HTTP_PORT}`);
+  httpServer.listen(HTTP_PORT, () => {
+    console.log(`🌐 HTTP API on port ${HTTP_PORT}`);
   });
 
   await gateway.start();
-  console.log(`🔌 WebSocket on ${BIND_HOST}:${WS_PORT}`);
+  console.log(`🔌 WebSocket on port ${WS_PORT}`);
 
   // === Graceful shutdown ===
 

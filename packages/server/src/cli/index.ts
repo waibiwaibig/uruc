@@ -15,9 +15,9 @@ async function main(): Promise<void> {
         await runHelpCommand(context);
         return;
       }
-      case 'configure': {
-        const { runConfigureCommand } = await import('./commands/configure.js');
-        await runConfigureCommand(context);
+      case 'setup': {
+        const { runSetupCommand } = await import('./commands/setup.js');
+        await runSetupCommand(context);
         return;
       }
       case 'build': {

@@ -17,7 +17,7 @@
 
 ```bash
 npm install
-./uruc configure
+./uruc setup
 ./uruc start
 ```
 
@@ -34,7 +34,7 @@ npm run test --workspace=packages/server
 如果你在原生 Windows PowerShell 或 Command Prompt 中工作，建议使用：
 
 ```bash
-npm run uruc -- configure
+npm run uruc -- setup
 npm run uruc -- start
 ```
 

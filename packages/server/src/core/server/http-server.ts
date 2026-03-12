@@ -39,20 +39,6 @@ const MIME_TYPES: Record<string, string> = {
   '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf',
 };
 
-function normalizeAppBasePath(raw: string | undefined): string {
-  const trimmed = raw?.trim() ?? '';
-  if (trimmed === '' || trimmed === '/') return '';
-  const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-  return withLeadingSlash.replace(/\/+$/, '');
-}
-
-function resolveStaticRequestPath(requestPath: string, appBasePath: string): string | null {
-  if (appBasePath === '') return requestPath;
-  if (requestPath === appBasePath || requestPath === `${appBasePath}/`) return '/';
-  if (!requestPath.startsWith(`${appBasePath}/`)) return null;
-  return requestPath.slice(appBasePath.length);
-}
-
 // === Rate limiter ===
 
 const rateBuckets = new Map<string, number[]>();
@@ -134,8 +120,6 @@ async function handleRequest(
   const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
   const path = url.pathname;
   const method = req.method ?? 'GET';
-  const appBasePath = normalizeAppBasePath(process.env.APP_BASE_PATH);
-  const staticRequestPath = resolveStaticRequestPath(path, appBasePath);
 
   // === Basic Auth gate for non-API routes (site password) ===
   const sitePassword = process.env.SITE_PASSWORD;
@@ -196,22 +180,13 @@ async function handleRequest(
 
   // === Static file serving + SPA fallback ===
   if (!path.startsWith('/api')) {
-    if (appBasePath !== '' && path === '/') {
-      setSecurityHeaders(res, req);
-      res.writeHead(302, { Location: appBasePath });
-      res.end();
-      return;
-    }
-    if (staticRequestPath === null) {
-      return sendError(res, 404, { error: 'Page not found', code: 'NOT_FOUND' }, req);
-    }
-    if (staticRequestPath === '/favicon.ico') {
+    if (path === '/favicon.ico') {
       setSecurityHeaders(res, req);
       res.writeHead(204);
       res.end();
       return;
     }
-    const filePath = resolve(publicDir, (staticRequestPath === '/' ? 'index.html' : staticRequestPath).replace(/^\//, ''));
+    const filePath = resolve(publicDir, (path === '/' ? 'index.html' : path).replace(/^\//, ''));
     if (!filePath.startsWith(publicDir)) return sendError(res, 403, { error: 'Forbidden', code: 'FORBIDDEN' }, req);
     try {
       const data = await readFile(filePath);

@@ -19,18 +19,6 @@ const resendLimiter = new Map<string, number[]>();
 const RESEND_MAX = 3;
 const RESEND_WINDOW = 10 * 60 * 1000;
 
-function getAppBasePath(): string {
-    const raw = process.env.APP_BASE_PATH?.trim();
-    if (!raw || raw === '/') return '';
-    const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
-    return withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
-}
-
-function appPath(path: string): string {
-    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-    return `${getAppBasePath()}${normalizedPath}`;
-}
-
 function checkResendLimit(key: string): boolean {
     const now = Date.now();
     let timestamps = resendLimiter.get(key);
@@ -50,7 +38,7 @@ setInterval(() => {
 }, 600_000);
 
 function redirectWithError(res: any, code: string, error: string): void {
-    res.writeHead(302, { Location: `${appPath('/login')}?error=${encodeURIComponent(error)}&code=${encodeURIComponent(code)}` });
+    res.writeHead(302, { Location: `/login?error=${encodeURIComponent(error)}&code=${encodeURIComponent(code)}` });
     res.end();
 }
 
@@ -213,7 +201,7 @@ async function handleOAuthCallback(req: IncomingMessage, res: any, auth: AuthSer
         const user = await auth.findOrCreateOAuthUser(info.provider, info.providerId, info.email, info.name);
         const token = signToken(user.id, user.role);
         setAuthSessionCookie(res, req, token);
-        res.writeHead(302, { Location: appPath('/auth/callback') });
+        res.writeHead(302, { Location: '/auth/callback' });
         res.end();
     } catch (error) {
         const resolved = resolveError(error, {

@@ -24,7 +24,7 @@ cd uruc
 
 ```bash
 npm install
-./uruc configure
+./uruc setup
 ./uruc start
 ```
 
@@ -37,7 +37,7 @@ npm install
 如果你使用原生 Windows PowerShell 或 Command Prompt，请改用：
 
 ```bash
-npm run uruc -- configure
+npm run uruc -- setup
 npm run uruc -- start
 ```
 

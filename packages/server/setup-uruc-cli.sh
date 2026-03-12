@@ -25,8 +25,8 @@ fi
 
 echo ""
 echo "[uruc-cli] ready. You can now use either:"
-echo "  ./uruc configure"
-echo "  npm run uruc -- configure"
+echo "  ./uruc setup"
+echo "  npm run uruc -- setup"
 if [ -x "$GLOBAL_LINK" ]; then
-  echo "  uruc configure"
+  echo "  uruc setup"
 fi

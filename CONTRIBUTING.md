@@ -24,7 +24,7 @@ cd uruc
 
 ```bash
 npm install
-./uruc configure
+./uruc setup
 ./uruc start
 ```
 
@@ -37,7 +37,7 @@ The default local endpoints are:
 If you are on native Windows PowerShell or Command Prompt, use:
 
 ```bash
-npm run uruc -- configure
+npm run uruc -- setup
 npm run uruc -- start
 ```
 

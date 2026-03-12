@@ -17,12 +17,8 @@ import { ArcadePage } from './pages/ArcadePage';
 import { ArcadeTablePage } from './pages/ArcadeTablePage';
 
 export default function App() {
-  const basename = import.meta.env.BASE_URL === '/'
-    ? undefined
-    : import.meta.env.BASE_URL.replace(/\/$/, '');
-
   return (
-    <BrowserRouter basename={basename}>
+    <BrowserRouter>
       <Routes>
         <Route element={<PublicShell />}>
           <Route path="/" element={<IntroPage />} />

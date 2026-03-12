@@ -55,10 +55,6 @@ export async function createAdmin(username: string, password: string, email: str
   const db = openDb();
   const [existing] = await db.select().from(schema.users).where(eq(schema.users.username, username));
   if (existing) return { created: false, reason: '用户名已存在' };
-  if (email.trim() !== '') {
-    const [existingEmail] = await db.select().from(schema.users).where(eq(schema.users.email, email));
-    if (existingEmail) return { created: false, reason: '邮箱已存在' };
-  }
   const passwordHash = await bcrypt.hash(password, 10);
   await db.insert(schema.users).values({
     id: nanoid(),
@@ -70,29 +66,6 @@ export async function createAdmin(username: string, password: string, email: str
     createdAt: new Date(),
   });
   return { created: true };
-}
-
-export async function assignUserEmail(target: string, email: string, dbPath?: string): Promise<void> {
-  const db = openDb(dbPath);
-  const user = await resolveUser(target, dbPath);
-  const normalized = email.trim();
-  await db.update(schema.users).set({
-    email: normalized === '' ? null : normalized,
-    emailVerified: normalized === '' ? false : true,
-    verificationCode: null,
-    verificationCodeExpiresAt: null,
-  }).where(eq(schema.users.id, user.id));
-}
-
-export async function clearUserEmail(target: string, dbPath?: string): Promise<void> {
-  const db = openDb(dbPath);
-  const user = await resolveUser(target, dbPath);
-  await db.update(schema.users).set({
-    email: null,
-    emailVerified: false,
-    verificationCode: null,
-    verificationCodeExpiresAt: null,
-  }).where(eq(schema.users.id, user.id));
 }
 
 export async function promoteUser(target: string): Promise<{ id: string; username: string }> {
@@ -157,16 +130,6 @@ export async function getUserRole(username: string, dbPath?: string): Promise<st
   const db = openDb(dbPath);
   const [user] = await db.select({ role: schema.users.role }).from(schema.users).where(eq(schema.users.username, username));
   return user?.role ?? null;
-}
-
-export async function findUserByEmail(email: string, dbPath?: string): Promise<{ username: string; role: string } | null> {
-  if (email.trim() === '') return null;
-  const db = openDb(dbPath);
-  const [user] = await db.select({
-    username: schema.users.username,
-    role: schema.users.role,
-  }).from(schema.users).where(eq(schema.users.email, email));
-  return user ?? null;
 }
 
 export async function resolveAdminPasswordState(username: string, password: string, dbPath?: string): Promise<'missing' | 'match' | 'mismatch'> {

@@ -2,23 +2,26 @@
 
 # Uruc
 
-Uruc is an experimental real-time city runtime for humans and AI agents. It combines account management, agent control, city navigation, and location-specific interactions on a shared HTTP + WebSocket foundation, then extends the city through plugins so people can create their own cities for AI.
+Uruc is an experimental real-time city runtime for humans and AI agents. This public repository ships the shared core runtime, the browser-facing human console, and two built-in venues: arcade and chess. Now, everyone is able to create your own city for AI.
 
 ## Status
 
-Uruc is pre-1.0 software. The core runtime is usable, but APIs, plugin contracts, and operational conventions may still change.
+Uruc is pre-1.0 software. Interfaces, plugin contracts, and operational conventions may still change.
 
-The repository currently includes four built-in plugins:
+## Public Scope
 
-- `arcade` — live tables and built-in games such as Blackjack and Texas Hold'em
-- `chess` — head-to-head chess with reconnect support
-- `marketplace` — used-goods trading workflow
-- `social` — private social features for agents
+This public repository includes:
 
-Default plugin configs differ by environment:
+- the TypeScript server runtime with HTTP APIs, WebSocket orchestration, auth, admin, and plugin loading
+- the React-based human web client
+- built-in `arcade` and `chess` plugins
+- the `uruc` CLI for setup, runtime management, diagnostics, and admin tasks
+- the optional [`skills/uruc-skill`](skills/uruc-skill) companion pack for openclaw or other agents
 
-- `packages/server/plugins.dev.json` enables `arcade` and `chess`
-- `packages/server/plugins.prod.json` enables `arcade`, `chess`, and `marketplace`
+Both default plugin configs enable the same built-in venues:
+
+- `packages/server/plugins.dev.json`: `arcade`, `chess`
+- `packages/server/plugins.prod.json`: `arcade`, `chess`
 
 ## Quick Start
 
@@ -29,38 +32,30 @@ Requirements:
 
 ```bash
 npm install
-./uruc configure
+./uruc setup
 ./uruc start
 ```
 
-On Windows (native PowerShell / Command Prompt), use:
+On native Windows PowerShell or Command Prompt, use:
 
 ```bash
-npm run uruc -- configure
+npm run uruc -- setup
 npm run uruc -- start
 ```
 
-Once running, the default endpoints are:
+Default local endpoints:
 
 - Web: `http://127.0.0.1:3000`
 - Health: `http://127.0.0.1:3000/api/health`
 - WebSocket runtime: `ws://127.0.0.1:3001`
 
-## What Uruc Includes
-
-- A TypeScript server runtime with HTTP APIs, a WebSocket command bus, auth, admin, and plugin discovery
-- A React-based human web client
-- A plugin system for city locations and runtime extensions
-- Built-in arcade, chess, marketplace, and social plugins
-- A CLI for city runtime configuration, lifecycle management, diagnostics, and admin tasks
-
 ## Repository Layout
 
 - `packages/server` — backend runtime, CLI, plugin system, and built-in plugins
-- `packages/human-web` — human-facing web UI
+- `packages/human-web` — browser-facing human console
 - `docs/server` — architecture and plugin development docs
-- `docs/deployment` — runtime CLI and external ops docs
-- `skills/uruc-skill` — optional companion skill pack for agent toolchains
+- `docs/deployment` — setup, CLI, and operations docs
+- `skills/uruc-skill` — optional skill pack for agent toolchains
 
 ## Documentation
 
@@ -72,16 +67,14 @@ Once running, the default endpoints are:
 - Arcade game development: [`docs/server/arcade-game-development.md`](docs/server/arcade-game-development.md)
 - CLI deployment guide: [`docs/deployment/cli-deployment-guide.md`](docs/deployment/cli-deployment-guide.md)
 - CLI command reference: [`docs/deployment/cli-command-reference.md`](docs/deployment/cli-command-reference.md)
-- External server ops: [`docs/deployment/server-ops.md`](docs/deployment/server-ops.md)
 - Security policy: [`SECURITY.md`](SECURITY.md)
 - Contribution guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
-- Current progress summary: [`progress.md`](progress.md)
+- Progress summary: [`progress.md`](progress.md)
 
 ## Maintainer Tooling
 
-This repository keeps the optional companion skill pack [`skills/uruc-skill`](skills/uruc-skill) in source control.
-The runtime does not require it, but contributors integrating Uruc with agent toolchains may find it useful.
+The runtime does not require any external skill pack, but contributors who integrate Uruc with agent toolchains may find [`skills/uruc-skill`](skills/uruc-skill) useful.
 
 ## License
 
