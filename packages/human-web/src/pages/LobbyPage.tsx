@@ -21,7 +21,7 @@ function statusLabel(t: (key: string) => string, status: string): string {
 
 export function LobbyPage() {
   const { t } = useTranslation(['dashboard', 'common']);
-  const { selectedAgent, shadowAgent } = useAgents();
+  const { shadowAgent } = useAgents();
   const runtime = useAgentRuntime();
   const navigate = useNavigate();
 
@@ -54,15 +54,12 @@ export function LobbyPage() {
 
   const enterGame = () => run(t('dashboard:lobby.actionOpenGame'), async () => {
     if (!shadowAgent) {
-      throw new Error(t('dashboard:lobby.chooseAgentError'));
+      throw new Error(t('runtime:websocket.missingShadowAgent'));
     }
 
     const targetPath = '/play?autostart=1';
     setFallbackPath(null);
-    const opened = await openPreparedGame(targetPath);
-    if (opened && runtime.isConnected) {
-      runtime.disconnect();
-    }
+    await openPreparedGame(targetPath);
   });
 
   const refreshRuntime = () => run(t('dashboard:lobby.actionRefresh'), async () => {
@@ -122,18 +119,18 @@ export function LobbyPage() {
           <div className="stack-md">
             <div className="panel-head lobby-assignment-head">
               <div className="panel-copy">
-                <p className="section-label">current assignment</p>
-                <h2 className="title-card">{t('dashboard:lobby.currentAssignmentTitle')}</h2>
+                <p className="section-label">owner identity</p>
+                <h2 className="title-card">{t('dashboard:lobby.ownerIdentityTitle')}</h2>
               </div>
-              {selectedAgent ? (
+              {shadowAgent ? (
                 <div className="lobby-assignment-head__meta">
-                  <strong>{selectedAgent.name}</strong>
-                  <span className="info-pill mono" title={selectedAgent.id}>{selectedAgent.id.slice(0, 8)}</span>
+                  <strong>{shadowAgent.name}</strong>
+                  <span className="info-pill mono" title={shadowAgent.id}>{shadowAgent.id.slice(0, 8)}</span>
                 </div>
               ) : null}
             </div>
 
-            {selectedAgent ? (
+            {shadowAgent ? (
               <div className="stack-sm">
                 <div className="lobby-agent-actions">
                   <button className="app-btn" disabled={!!busyAction} onClick={enterGame}>

@@ -1,0 +1,1262 @@
+import { existsSync } from 'fs';
+import { execFile } from 'child_process';
+import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
+import os from 'os';
+import path from 'path';
+import { Readable } from 'stream';
+import { promisify } from 'util';
+
+import { afterEach, describe, expect, it } from 'vitest';
+import { sql } from 'drizzle-orm';
+
+import { createDb } from '../../database/index.js';
+import { registerCityCommands } from '../../city/commands.js';
+import { HookRegistry } from '../../plugin-system/hook-registry.js';
+import { ServiceRegistry } from '../../plugin-system/service-registry.js';
+import { PluginPlatformHost } from '../host.js';
+import { readCityLock, writeCityConfig, writeCityLock } from '../config.js';
+
+const tempDirs: string[] = [];
+const execFileAsync = promisify(execFile);
+
+async function createPluginPackage(root: string, options: {
+  pluginId: string;
+  packageName: string;
+  version: string;
+  publisher: string;
+  body?: string;
+}): Promise<void> {
+  await mkdir(root, { recursive: true });
+  await writeFile(path.join(root, 'package.json'), `${JSON.stringify({
+    name: options.packageName,
+    version: options.version,
+    type: 'module',
+    urucPlugin: {
+      pluginId: options.pluginId,
+      apiVersion: 2,
+      kind: 'backend',
+      entry: './index.mjs',
+      publisher: options.publisher,
+      displayName: options.pluginId,
+      permissions: [],
+      dependencies: [],
+      activation: ['startup'],
+    },
+  }, null, 2)}\n`, 'utf8');
+  await writeFile(path.join(root, 'index.mjs'), options.body ?? `export default {
+    kind: 'uruc.backend-plugin@v2',
+    pluginId: '${options.pluginId}',
+    apiVersion: 2,
+    async setup() {},
+  };\n`, 'utf8');
+}
+
+async function createExampleVenuePluginPackage(root: string): Promise<void> {
+  await createPluginPackage(root, {
+    pluginId: 'uruc.example',
+    packageName: '@uruc/plugin-example-venue',
+    version: '0.1.0',
+    publisher: 'uruc',
+    body: `import { defineBackendPlugin } from '@uruc/plugin-sdk/backend';
+
+const PLUGIN_ID = 'uruc.example';
+const LOCATION_ID = 'sunny-plaza';
+const FULL_LOCATION_ID = 'uruc.example.sunny-plaza';
+
+export default defineBackendPlugin({
+  pluginId: PLUGIN_ID,
+  async setup(ctx) {
+    await ctx.locations.register({
+      id: LOCATION_ID,
+      name: 'Sunny Plaza',
+      description: 'A lightweight fixture venue for plugin host tests.',
+    });
+
+    await ctx.commands.register({
+      id: 'wave',
+      description: 'Return a friendly response from Sunny Plaza.',
+      inputSchema: {},
+      locationPolicy: {
+        scope: 'location',
+        locations: [FULL_LOCATION_ID],
+      },
+      handler: async () => ({
+        ok: true,
+        pluginId: PLUGIN_ID,
+        message: 'hello from sunny plaza',
+      }),
+    });
+
+    await ctx.commands.register({
+      id: 'announce',
+      description: 'A fixture command that requires confirmation.',
+      inputSchema: {},
+      locationPolicy: {
+        scope: 'location',
+        locations: [FULL_LOCATION_ID],
+      },
+      confirmationPolicy: {
+        required: true,
+      },
+      handler: async () => ({
+        ok: true,
+        pluginId: PLUGIN_ID,
+        message: 'announcement sent',
+      }),
+    });
+  },
+});
+`,
+  });
+}
+
+async function writeRegistry(
+  registryDir: string,
+  packages: Array<{
+    pluginId: string;
+    packageName: string;
+    version: string;
+    publisher: string;
+    path: string;
+    integrity?: string;
+  }>,
+): Promise<void> {
+  await mkdir(registryDir, { recursive: true });
+  await writeFile(path.join(registryDir, 'uruc-registry.json'), `${JSON.stringify({
+    apiVersion: 1,
+    packages,
+  }, null, 2)}\n`, 'utf8');
+}
+
+function createGateway(sent: unknown[], agentPushes: Array<{ agentId: string; message: unknown }> = []) {
+  return {
+    send(_ws: unknown, message: unknown) {
+      sent.push(message);
+    },
+    broadcast() {},
+    sendToAgent(agentId: string, message: unknown) {
+      agentPushes.push({ agentId, message });
+    },
+    pushToOwner() {},
+    getOnlineAgentIds() {
+      return [];
+    },
+  };
+}
+
+function createHttpRequest(
+  method: string,
+  url: string,
+  options: {
+    headers?: Record<string, string>;
+    body?: Buffer | string;
+  } = {},
+) {
+  const body = options.body ?? Buffer.alloc(0);
+  const stream = Readable.from(body.length > 0 ? [body] : []) as Readable & {
+    method: string;
+    url: string;
+    headers: Record<string, string>;
+    socket: { encrypted: boolean; remoteAddress: string };
+  };
+  stream.method = method;
+  stream.url = url;
+  stream.headers = {
+    host: 'localhost',
+    ...options.headers,
+  };
+  stream.socket = {
+    encrypted: false,
+    remoteAddress: '127.0.0.1',
+  };
+  return stream;
+}
+
+function createHttpResponse() {
+  const headers: Record<string, string> = {};
+  const chunks: Buffer[] = [];
+  let statusCode = 200;
+
+  return {
+    setHeader(name: string, value: string) {
+      headers[name] = value;
+    },
+    writeHead(code: number, nextHeaders?: Record<string, string>) {
+      statusCode = code;
+      for (const [name, value] of Object.entries(nextHeaders ?? {})) {
+        headers[name] = String(value);
+      }
+    },
+    end(chunk?: Buffer | string) {
+      if (!chunk) return;
+      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    },
+    get statusCode() {
+      return statusCode;
+    },
+    get headers() {
+      return headers;
+    },
+    get bodyBuffer() {
+      return Buffer.concat(chunks);
+    },
+    get bodyText() {
+      return Buffer.concat(chunks).toString('utf8');
+    },
+  };
+}
+
+async function startSinglePluginHost(
+  pluginId: string,
+  packageName: string,
+  pluginPath: string,
+  configureServices?: (services: ServiceRegistry) => void,
+) {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), `uruc-plugin-host-${pluginId.replace(/\W+/g, '-')}-`));
+  tempDirs.push(tempRoot);
+
+  const configPath = path.join(tempRoot, 'uruc.city.json');
+  const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+  const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+  await writeCityConfig(configPath, {
+    apiVersion: 2,
+    approvedPublishers: ['uruc'],
+    pluginStoreDir,
+    sources: [],
+    plugins: {
+      [pluginId]: {
+        pluginId,
+        packageName,
+        enabled: true,
+        permissionsGranted: [],
+        devOverridePath: pluginPath,
+      },
+    },
+  });
+
+  const host = new PluginPlatformHost({
+    configPath,
+    lockPath,
+    packageRoot: process.cwd(),
+    pluginStoreDir,
+  });
+  await host.syncLockFile();
+
+  const hooks = new HookRegistry();
+  const services = new ServiceRegistry();
+  configureServices?.(services);
+  const db = createDb(':memory:');
+  await host.startAll({ db, hooks, services });
+
+  return { host, hooks, services, db };
+}
+
+afterEach(async () => {
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+});
+
+describe('PluginPlatformHost', () => {
+  it('reuses the same revision for unchanged dev override plugins across syncs', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-lock-dev-'));
+    tempDirs.push(tempRoot);
+
+    const pluginPath = path.join(tempRoot, 'plugins', 'echo');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'acme.echo',
+      packageName: '@acme/plugin-echo',
+      version: '1.0.0',
+      publisher: 'acme',
+    });
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.echo': {
+          pluginId: 'acme.echo',
+          packageName: '@acme/plugin-echo',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginPath,
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await host.syncLockFile();
+    const firstLock = await readCityLock(lockPath);
+    await host.syncLockFile();
+    const secondLock = await readCityLock(lockPath);
+
+    expect(secondLock.plugins['acme.echo']?.revision).toBe(firstLock.plugins['acme.echo']?.revision);
+    expect(secondLock.plugins['acme.echo']?.history ?? []).toHaveLength(0);
+  });
+
+  it('keeps resolving healthy plugins when one configured plugin cannot be locked', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-lock-partial-'));
+    tempDirs.push(tempRoot);
+
+    const healthyPath = path.join(tempRoot, 'plugins', 'healthy');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await createPluginPackage(healthyPath, {
+      pluginId: 'acme.healthy',
+      packageName: '@acme/plugin-healthy',
+      version: '1.0.0',
+      publisher: 'acme',
+    });
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.broken': {
+          pluginId: 'acme.broken',
+          packageName: '@acme/plugin-broken',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: './plugins/missing-broken',
+        },
+        'acme.healthy': {
+          pluginId: 'acme.healthy',
+          packageName: '@acme/plugin-healthy',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: healthyPath,
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await host.syncLockFile();
+    const lock = await readCityLock(lockPath);
+
+    expect(lock.plugins['acme.healthy']?.packageName).toBe('@acme/plugin-healthy');
+    expect(lock.plugins['acme.broken']).toBeUndefined();
+    expect(host.getPluginDiagnostics()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          pluginId: 'acme.broken',
+          state: 'failed',
+        }),
+      ]),
+    );
+  });
+
+  it('creates a new revision when dev override plugin source contents change without a version bump', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-lock-dev-change-'));
+    tempDirs.push(tempRoot);
+
+    const pluginPath = path.join(tempRoot, 'plugins', 'echo');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'acme.echo',
+      packageName: '@acme/plugin-echo',
+      version: '1.0.0',
+      publisher: 'acme',
+    });
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.echo': {
+          pluginId: 'acme.echo',
+          packageName: '@acme/plugin-echo',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginPath,
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await host.syncLockFile();
+    const firstLock = await readCityLock(lockPath);
+
+    await writeFile(path.join(pluginPath, 'index.mjs'), `export default {
+      kind: 'uruc.backend-plugin@v2',
+      pluginId: 'acme.echo',
+      apiVersion: 2,
+      async setup() {
+        return {
+          async dispose() {},
+        };
+      },
+    };\n`, 'utf8');
+
+    await host.syncLockFile();
+    const secondLock = await readCityLock(lockPath);
+
+    expect(secondLock.plugins['acme.echo']?.revision).not.toBe(firstLock.plugins['acme.echo']?.revision);
+    expect(secondLock.plugins['acme.echo']?.history[0]?.revision).toBe(firstLock.plugins['acme.echo']?.revision);
+    expect(secondLock.plugins['acme.echo']?.history[0]?.version).toBe(firstLock.plugins['acme.echo']?.version);
+  });
+
+  it('reuses the same revision for unchanged source-backed plugins across syncs', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-lock-package-'));
+    tempDirs.push(tempRoot);
+
+    const packagePath = path.join(tempRoot, 'packages', 'echo-v1');
+    const registryDir = path.join(tempRoot, 'registry');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await createPluginPackage(packagePath, {
+      pluginId: 'acme.echo',
+      packageName: '@acme/plugin-echo',
+      version: '1.0.0',
+      publisher: 'acme',
+    });
+    await writeRegistry(registryDir, [
+      {
+        pluginId: 'acme.echo',
+        packageName: '@acme/plugin-echo',
+        version: '1.0.0',
+        publisher: 'acme',
+        path: packagePath,
+        integrity: 'sha512-echo-v1',
+      },
+    ]);
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [
+        {
+          id: 'local',
+          type: 'npm',
+          registry: registryDir,
+        },
+      ],
+      plugins: {
+        'acme.echo': {
+          pluginId: 'acme.echo',
+          packageName: '@acme/plugin-echo',
+          enabled: true,
+          permissionsGranted: [],
+          source: 'local',
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await host.syncLockFile();
+    const firstLock = await readCityLock(lockPath);
+    await host.syncLockFile();
+    const secondLock = await readCityLock(lockPath);
+
+    expect(secondLock.plugins['acme.echo']?.revision).toBe(firstLock.plugins['acme.echo']?.revision);
+    expect(secondLock.plugins['acme.echo']?.history ?? []).toHaveLength(0);
+  });
+
+  it('re-materializes unchanged plugins when a previous lock points at a missing host path', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-rematerialize-'));
+    tempDirs.push(tempRoot);
+
+    const pluginPath = path.join(tempRoot, 'plugins', 'echo');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'acme.echo',
+      packageName: '@acme/plugin-echo',
+      version: '1.0.0',
+      publisher: 'acme',
+    });
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.echo': {
+          pluginId: 'acme.echo',
+          packageName: '@acme/plugin-echo',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginPath,
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await host.syncLockFile();
+    const firstLock = await readCityLock(lockPath);
+    const firstEntry = firstLock.plugins['acme.echo'];
+    expect(firstEntry).toBeDefined();
+
+    const stalePackageRoot = path.join(tempRoot, 'stale-host', 'plugins', 'acme.echo', firstEntry!.revision);
+    await writeCityLock(lockPath, {
+      ...firstLock,
+      plugins: {
+        ...firstLock.plugins,
+        'acme.echo': {
+          ...firstEntry!,
+          packageRoot: stalePackageRoot,
+          entryPath: path.join(stalePackageRoot, 'index.mjs'),
+        },
+      },
+    });
+
+    await host.syncLockFile();
+    const secondLock = await readCityLock(lockPath);
+    const secondEntry = secondLock.plugins['acme.echo'];
+
+    expect(secondEntry?.revision).toBe(firstEntry?.revision);
+    expect(secondEntry?.packageRoot).toBe(path.join(pluginStoreDir, 'acme.echo', firstEntry!.revision));
+    expect(secondEntry?.entryPath).toBe(path.join(pluginStoreDir, 'acme.echo', firstEntry!.revision, 'index.mjs'));
+    expect(existsSync(secondEntry!.entryPath)).toBe(true);
+    expect(secondEntry?.history ?? []).toHaveLength(0);
+  });
+
+  it('makes plugin-sdk backend importable in a plain Node runtime after the server build', async () => {
+    const repoRoot = path.resolve(process.cwd(), '..', '..');
+
+    await execFileAsync('npm', ['run', 'build', '--workspace=packages/server'], {
+      cwd: repoRoot,
+    });
+
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      ['--no-experimental-strip-types', '-e', "import('@uruc/plugin-sdk/backend').then(() => console.log('ok'))"],
+      { cwd: repoRoot },
+    );
+
+    expect(stdout.trim()).toBe('ok');
+  }, 15000);
+
+  it('keeps starting healthy plugins when one startup plugin fails', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-isolation-'));
+    tempDirs.push(tempRoot);
+
+    const brokenPath = path.join(tempRoot, 'plugins', 'broken');
+    const healthyPath = path.join(tempRoot, 'plugins', 'healthy');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await createPluginPackage(brokenPath, {
+      pluginId: 'acme.broken',
+      packageName: '@acme/plugin-broken',
+      version: '1.0.0',
+      publisher: 'acme',
+      body: `export default {
+        kind: 'uruc.backend-plugin@v2',
+        pluginId: 'acme.broken',
+        apiVersion: 2,
+        async setup() {
+          throw new Error('boom');
+        },
+      };\n`,
+    });
+
+    await createPluginPackage(healthyPath, {
+      pluginId: 'acme.healthy',
+      packageName: '@acme/plugin-healthy',
+      version: '1.0.0',
+      publisher: 'acme',
+      body: `export default {
+        kind: 'uruc.backend-plugin@v2',
+        pluginId: 'acme.healthy',
+        apiVersion: 2,
+        async setup(ctx) {
+          await ctx.commands.register({
+            id: 'ping',
+            description: 'ping',
+            inputSchema: {},
+            handler: async () => ({ ok: true }),
+          });
+        },
+      };\n`,
+    });
+
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.broken': {
+          pluginId: 'acme.broken',
+          packageName: '@acme/plugin-broken',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: brokenPath,
+        },
+        'acme.healthy': {
+          pluginId: 'acme.healthy',
+          packageName: '@acme/plugin-healthy',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: healthyPath,
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+    await host.syncLockFile();
+
+    const hooks = new HookRegistry();
+    const services = new ServiceRegistry();
+    const db = createDb(':memory:');
+
+    await host.startAll({ db, hooks, services });
+
+    const diagnostics = host.getPluginDiagnostics();
+    expect(diagnostics.find((item) => item.pluginId === 'acme.broken')?.state).toBe('failed');
+    expect(diagnostics.find((item) => item.pluginId === 'acme.healthy')?.state).toBe('active');
+    expect(host.listPlugins().find((item) => item.name === 'acme.healthy')?.started).toBe(true);
+
+    await host.stopAll();
+  });
+
+  it('cleans up partial registrations when plugin setup fails after registering commands', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-partial-plugin-'));
+    tempDirs.push(tempRoot);
+
+    const pluginPath = path.join(tempRoot, 'plugin');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'uruc.partial',
+      packageName: '@uruc/plugin-partial',
+      version: '1.0.0',
+      publisher: 'uruc',
+      body: `export default {
+        kind: 'uruc.backend-plugin@v2',
+        pluginId: 'uruc.partial',
+        apiVersion: 2,
+        async setup(ctx) {
+          await ctx.commands.register({
+            id: 'leak',
+            description: 'leak',
+            inputSchema: {},
+            handler: async () => ({ leaked: true }),
+          });
+          throw new Error('after-register');
+        },
+      };\n`,
+    });
+
+    const hooks = new HookRegistry();
+    const services = new ServiceRegistry();
+    const sent: unknown[] = [];
+    services.register('ws-gateway' as never, createGateway(sent) as never);
+    const db = createDb(':memory:');
+
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['uruc'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'uruc.partial': {
+          pluginId: 'uruc.partial',
+          packageName: '@uruc/plugin-partial',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginPath,
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+    await host.syncLockFile();
+
+    await host.startAll({ db, hooks, services });
+
+    expect(host.getPluginDiagnostics().find((item) => item.pluginId === 'uruc.partial')?.state).toBe('failed');
+    expect(hooks.getAvailableWSCommandSchemas({ inCity: false, currentLocation: null, hasSession: true } as any)
+      .some((schema: any) => schema.type === 'uruc.partial.leak@v1')).toBe(false);
+  });
+
+  it('runs lifecycle cleanup handlers when plugin setup fails after registering onStop hooks', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-lifecycle-plugin-'));
+    tempDirs.push(tempRoot);
+    (globalThis as any).__urucLifecycleCleaned = false;
+
+    const pluginPath = path.join(tempRoot, 'plugin');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'acme.lifecycle',
+      packageName: '@acme/plugin-lifecycle',
+      version: '1.0.0',
+      publisher: 'acme',
+      body: `export default {
+        kind: 'uruc.backend-plugin@v2',
+        pluginId: 'acme.lifecycle',
+        apiVersion: 2,
+        async setup(ctx) {
+          ctx.lifecycle.onStop(() => {
+            globalThis.__urucLifecycleCleaned = true;
+          });
+          throw new Error('lifecycle-boom');
+        },
+      };\n`,
+    });
+
+    const hooks = new HookRegistry();
+    const services = new ServiceRegistry();
+    const db = createDb(':memory:');
+
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.lifecycle': {
+          pluginId: 'acme.lifecycle',
+          packageName: '@acme/plugin-lifecycle',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginPath,
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+    await host.syncLockFile();
+
+    await host.startAll({ db, hooks, services });
+
+    expect(host.getPluginDiagnostics().find((item) => item.pluginId === 'acme.lifecycle')?.state).toBe('failed');
+    expect((globalThis as any).__urucLifecycleCleaned).toBe(true);
+  });
+
+  it('boots an empty city without any plugins installed', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-empty-'));
+    tempDirs.push(tempRoot);
+
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: [],
+      pluginStoreDir,
+      sources: [],
+      plugins: {},
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+    await host.syncLockFile();
+
+    const hooks = new HookRegistry();
+    registerCityCommands(hooks);
+    const services = new ServiceRegistry();
+    const db = createDb(':memory:');
+
+    await host.startAll({ db, hooks, services });
+
+    expect(host.getPluginDiagnostics()).toEqual([]);
+    expect(hooks.hasWSCommand('enter_city')).toBe(true);
+    expect(hooks.hasWSCommand('what_commands')).toBe(true);
+
+    await host.stopAll();
+  });
+
+  it('loads a native V2 plugin from the city lock, filters commands, and disposes registrations', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-'));
+    tempDirs.push(tempRoot);
+
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+    const examplePluginPath = path.join(tempRoot, 'plugins', 'example-venue');
+
+    await createExampleVenuePluginPackage(examplePluginPath);
+
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['uruc'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'uruc.example': {
+          pluginId: 'uruc.example',
+          packageName: '@uruc/plugin-example-venue',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: examplePluginPath,
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+    await host.syncLockFile();
+
+    const hooks = new HookRegistry();
+    const services = new ServiceRegistry();
+    const db = createDb(':memory:');
+    await host.startAll({ db, hooks, services });
+
+    expect(hooks.hasLocation('uruc.example.sunny-plaza')).toBe(true);
+    expect(hooks.hasWSCommand('uruc.example.wave@v1')).toBe(true);
+    expect(hooks.hasWSCommand('uruc.example.announce@v1')).toBe(true);
+
+    const availableForConfirm = hooks.getAvailableWSCommandSchemas({
+      session: {
+        userId: 'user-1',
+        agentId: 'agent-1',
+        agentName: 'Agent One',
+        role: 'agent',
+        trustMode: 'confirm',
+      },
+      inCity: true,
+      currentLocation: 'uruc.example.sunny-plaza',
+      isController: true,
+      hasController: true,
+    });
+
+    expect(availableForConfirm.some((command) => command.type === 'uruc.example.wave@v1')).toBe(true);
+    expect(availableForConfirm.some((command) => command.type === 'uruc.example.announce@v1')).toBe(false);
+
+    const sent: unknown[] = [];
+    const wsCtx = {
+      ws: {},
+      session: {
+        userId: 'user-1',
+        agentId: 'agent-1',
+        agentName: 'Agent One',
+        role: 'agent' as const,
+        trustMode: 'full' as const,
+      },
+      inCity: true,
+      currentLocation: 'uruc.example.sunny-plaza',
+      isController: true,
+      hasController: true,
+      currentTable: null,
+      gateway: createGateway(sent),
+      setLocation() {},
+      setInCity() {},
+    } as any;
+
+    await hooks.handleWSCommand('uruc.example.wave@v1', wsCtx, {
+      id: 'wave-1',
+      type: 'uruc.example.wave@v1',
+      payload: {},
+    });
+
+    expect(sent).toContainEqual({
+      id: 'wave-1',
+      type: 'result',
+      payload: {
+        ok: true,
+        pluginId: 'uruc.example',
+        message: 'hello from sunny plaza',
+      },
+    });
+
+    await host.disablePlugin('uruc.example');
+
+    expect(hooks.hasLocation('uruc.example.sunny-plaza')).toBe(false);
+    expect(hooks.hasWSCommand('uruc.example.wave@v1')).toBe(false);
+
+    await host.enablePlugin('uruc.example');
+
+    expect(hooks.hasLocation('uruc.example.sunny-plaza')).toBe(true);
+    expect(hooks.hasWSCommand('uruc.example.wave@v1')).toBe(true);
+
+    await host.stopAll();
+  });
+
+  it('loads the native V2 social package and serves asset upload/download routes', async () => {
+    const socialPluginPath = path.resolve(process.cwd(), '..', 'plugins', 'social');
+    const { host, hooks, services, db } = await startSinglePluginHost(
+      'uruc.social',
+      '@uruc/plugin-social',
+      socialPluginPath,
+    );
+
+    db.run(sql`
+      INSERT INTO users (id, username, password_hash, email, role, banned, created_at)
+      VALUES ('user-social', 'social-user', 'hash', 'social@example.com', 'user', 0, ${Date.now()})
+    `);
+    db.run(sql`
+      INSERT INTO agents (
+        id, user_id, name, token, is_shadow, trust_mode, allowed_locations,
+        is_online, description, avatar_path, frozen, searchable, created_at
+      ) VALUES (
+        'agent-shadow', 'user-social', 'social-user', 'token-shadow', 1, 'full', '[]',
+        0, NULL, NULL, 0, 1, ${Date.now() - 1}
+      )
+    `);
+    db.run(sql`
+      INSERT INTO agents (
+        id, user_id, name, token, is_shadow, trust_mode, allowed_locations,
+        is_online, description, avatar_path, frozen, searchable, created_at
+      ) VALUES (
+        'agent-social', 'user-social', 'Social Agent', 'token-social', 0, 'full', '[]',
+        0, NULL, NULL, 0, 1, ${Date.now()}
+      )
+    `);
+
+    const ownedAgentsReq = createHttpRequest(
+      'GET',
+      '/api/plugins/uruc.social/v1/owned-agents',
+    );
+    const ownedAgentsRes = createHttpResponse();
+    const ownedAgentsHandled = await hooks.handleHttpRequest({
+      req: ownedAgentsReq as any,
+      res: ownedAgentsRes as any,
+      path: '/api/plugins/uruc.social/v1/owned-agents',
+      method: 'GET',
+      session: { userId: 'user-social', role: 'user' },
+      services: services as any,
+    });
+
+    expect(ownedAgentsHandled).toBe(true);
+    expect(ownedAgentsRes.statusCode).toBe(200);
+    expect(JSON.parse(ownedAgentsRes.bodyText)).toMatchObject({
+      agents: [
+        {
+          agentId: 'agent-shadow',
+          agentName: 'social-user',
+          isShadow: true,
+          frozen: false,
+        },
+        {
+          agentId: 'agent-social',
+          agentName: 'Social Agent',
+          isShadow: false,
+          frozen: false,
+        },
+      ],
+    });
+
+    const boundary = '----uruc-social-upload';
+    const imageBytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    const uploadBody = Buffer.concat([
+      Buffer.from(`--${boundary}\r\n`),
+      Buffer.from('Content-Disposition: form-data; name="file"; filename="moment.png"\r\n'),
+      Buffer.from('Content-Type: image/png\r\n\r\n'),
+      imageBytes,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+
+    const uploadReq = createHttpRequest(
+      'POST',
+      '/api/plugins/uruc.social/v1/assets/moments?agentId=agent-social',
+      {
+        headers: {
+          'content-type': `multipart/form-data; boundary=${boundary}`,
+        },
+        body: uploadBody,
+      },
+    );
+    const uploadRes = createHttpResponse();
+    const uploadHandled = await hooks.handleHttpRequest({
+      req: uploadReq as any,
+      res: uploadRes as any,
+      path: '/api/plugins/uruc.social/v1/assets/moments',
+      method: 'POST',
+      session: { userId: 'user-social', role: 'user' },
+      services: services as any,
+    });
+
+    expect(uploadHandled).toBe(true);
+    expect(uploadRes.statusCode).toBe(200);
+    const uploadPayload = JSON.parse(uploadRes.bodyText);
+    expect(uploadPayload.asset.assetId).toEqual(expect.any(String));
+    expect(uploadPayload.asset.url).toContain('/api/plugins/uruc.social/v1/assets/');
+
+    const assetReq = createHttpRequest(
+      'GET',
+      `/api/plugins/uruc.social/v1/assets/${uploadPayload.asset.assetId}?agentId=agent-social`,
+    );
+    const assetRes = createHttpResponse();
+    const assetHandled = await hooks.handleHttpRequest({
+      req: assetReq as any,
+      res: assetRes as any,
+      path: `/api/plugins/uruc.social/v1/assets/${uploadPayload.asset.assetId}`,
+      method: 'GET',
+      session: { userId: 'user-social', role: 'user' },
+      services: services as any,
+    });
+
+    expect(assetHandled).toBe(true);
+    expect(assetRes.statusCode).toBe(200);
+    expect(assetRes.headers['Content-Type']).toBe('image/png');
+    expect(assetRes.bodyBuffer.equals(imageBytes)).toBe(true);
+
+    await host.stopAll();
+  });
+
+  it('exposes agent-friendly command discovery for the locationless social plugin', async () => {
+    const socialPluginPath = path.resolve(process.cwd(), '..', 'plugins', 'social');
+    const sent: unknown[] = [];
+    const agentPushes: Array<{ agentId: string; message: any }> = [];
+    const gateway = createGateway(sent, agentPushes);
+
+    const { host, hooks, db } = await startSinglePluginHost(
+      'uruc.social',
+      '@uruc/plugin-social',
+      socialPluginPath,
+      (services) => {
+        services.register('ws-gateway', gateway as any);
+      },
+    );
+
+    db.run(sql`
+      INSERT INTO users (id, username, password_hash, email, role, banned, created_at)
+      VALUES ('user-social-guide', 'social-guide-user', 'hash', 'social-guide@example.com', 'user', 0, ${Date.now()})
+    `);
+    db.run(sql`
+      INSERT INTO agents (
+        id, user_id, name, token, is_shadow, trust_mode, allowed_locations,
+        is_online, description, avatar_path, frozen, searchable, created_at
+      ) VALUES (
+        'agent-social-guide', 'user-social-guide', 'Social Guide Agent', 'token-social-guide', 1, 'full', '[]',
+        1, 'guide runner', NULL, 0, 1, ${Date.now()}
+      )
+    `);
+
+    const wsCtx = {
+      ws: {},
+      session: {
+        userId: 'user-social-guide',
+        agentId: 'agent-social-guide',
+        agentName: 'Social Guide Agent',
+        role: 'agent' as const,
+        trustMode: 'full' as const,
+      },
+      inCity: true,
+      currentLocation: null,
+      isController: true,
+      hasController: true,
+      currentTable: null,
+      gateway,
+      setLocation() {},
+      setInCity() {},
+    } as any;
+
+    await hooks.runAfterHook('agent.authenticated', {
+      session: wsCtx.session,
+      ctx: wsCtx,
+      bootstrapData: {},
+    });
+
+    expect(agentPushes.find((entry) => entry.agentId === 'agent-social-guide' && entry.message.type === 'social_welcome')).toBeUndefined();
+
+    const availableCommands = hooks.getAvailableWSCommandSchemas(wsCtx);
+    expect(availableCommands.find((command) => command.type === 'uruc.social.get_usage_guide@v1')).toBeTruthy();
+    expect(availableCommands.find((command) => command.type === 'uruc.social.send_request@v1')).toMatchObject({
+      locationPolicy: {
+        scope: 'any',
+      },
+      params: {
+        agentId: expect.objectContaining({
+          required: true,
+          description: expect.stringContaining('friend'),
+        }),
+      },
+    });
+    expect(availableCommands.find((command) => command.type === 'uruc.social.list_moment_comments@v1')).toBeTruthy();
+    expect(availableCommands.find((command) => command.type === 'uruc.social.set_moment_like@v1')).toBeTruthy();
+    expect(availableCommands.find((command) => command.type === 'uruc.social.create_moment_comment@v1')).toBeTruthy();
+    expect(availableCommands.find((command) => command.type === 'uruc.social.delete_moment_comment@v1')).toBeTruthy();
+    expect(availableCommands.find((command) => command.type === 'uruc.social.list_moment_notifications@v1')).toBeTruthy();
+    expect(availableCommands.find((command) => command.type === 'uruc.social.mark_moment_notifications_read@v1')).toBeTruthy();
+
+    await hooks.handleWSCommand('uruc.social.get_usage_guide@v1', wsCtx, {
+      id: 'guide-1',
+      type: 'uruc.social.get_usage_guide@v1',
+      payload: {},
+    });
+
+    expect(sent.at(-1)).toMatchObject({
+      id: 'guide-1',
+      type: 'result',
+      payload: {
+        pluginId: 'uruc.social',
+        guide: expect.objectContaining({
+          summary: expect.stringContaining('Uruc Social'),
+          coreRules: expect.arrayContaining([
+            expect.stringContaining('Direct threads'),
+          ]),
+          firstSteps: expect.arrayContaining([
+            expect.stringContaining('uruc.social.list_relationships@v1'),
+          ]),
+        }),
+      },
+    });
+
+    await host.stopAll();
+  });
+
+  it('searches discoverable social contacts by agentId through the real host search pipeline', async () => {
+    const socialPluginPath = path.resolve(process.cwd(), '..', 'plugins', 'social');
+    const sent: any[] = [];
+    const gateway = createGateway(sent);
+
+    const { host, hooks, db } = await startSinglePluginHost(
+      'uruc.social',
+      '@uruc/plugin-social',
+      socialPluginPath,
+      (services) => {
+        services.register('ws-gateway', gateway as any);
+      },
+    );
+
+    db.run(sql`
+      INSERT INTO users (id, username, password_hash, email, role, banned, created_at)
+      VALUES ('user-searcher', 'searcher', 'hash', 'searcher@example.com', 'user', 0, ${Date.now() - 3})
+    `);
+    db.run(sql`
+      INSERT INTO users (id, username, password_hash, email, role, banned, created_at)
+      VALUES ('user-alpha', 'alpha', 'hash', 'alpha@example.com', 'user', 0, ${Date.now() - 2})
+    `);
+    db.run(sql`
+      INSERT INTO users (id, username, password_hash, email, role, banned, created_at)
+      VALUES ('user-beta', 'beta', 'hash', 'beta@example.com', 'user', 0, ${Date.now() - 1})
+    `);
+
+    db.run(sql`
+      INSERT INTO agents (
+        id, user_id, name, token, is_shadow, trust_mode, allowed_locations,
+        is_online, description, avatar_path, frozen, searchable, created_at
+      ) VALUES (
+        'agent-searcher', 'user-searcher', 'Searcher', 'token-searcher', 1, 'full', '[]',
+        1, 'search runner', NULL, 0, 1, ${Date.now() - 3}
+      )
+    `);
+    db.run(sql`
+      INSERT INTO agents (
+        id, user_id, name, token, is_shadow, trust_mode, allowed_locations,
+        is_online, description, avatar_path, frozen, searchable, created_at
+      ) VALUES (
+        'agent-duplicate-alpha', 'user-alpha', 'Mirror', 'token-alpha', 1, 'full', '[]',
+        0, 'first mirror', NULL, 0, 1, ${Date.now() - 2}
+      )
+    `);
+    db.run(sql`
+      INSERT INTO agents (
+        id, user_id, name, token, is_shadow, trust_mode, allowed_locations,
+        is_online, description, avatar_path, frozen, searchable, created_at
+      ) VALUES (
+        'agent-duplicate-beta', 'user-beta', 'Mirror', 'token-beta', 1, 'full', '[]',
+        0, 'second mirror', NULL, 0, 1, ${Date.now() - 1}
+      )
+    `);
+
+    const wsCtx = {
+      ws: {},
+      session: {
+        userId: 'user-searcher',
+        agentId: 'agent-searcher',
+        agentName: 'Searcher',
+        role: 'agent' as const,
+        trustMode: 'full' as const,
+      },
+      inCity: true,
+      currentLocation: null,
+      isController: true,
+      hasController: true,
+      currentTable: null,
+      gateway,
+      setLocation() {},
+      setInCity() {},
+    } as any;
+
+    await hooks.handleWSCommand('uruc.social.search_contacts@v1', wsCtx, {
+      id: 'search-1',
+      type: 'uruc.social.search_contacts@v1',
+      payload: { query: 'agent-duplicate-beta', limit: 10 },
+    });
+
+    expect(sent.at(-1)).toMatchObject({
+      id: 'search-1',
+      type: 'result',
+      payload: {
+        results: [
+          expect.objectContaining({
+            agentId: 'agent-duplicate-beta',
+            agentName: 'Mirror',
+            description: 'second mirror',
+          }),
+        ],
+      },
+    });
+
+    await host.stopAll();
+  });
+
+});

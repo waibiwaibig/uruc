@@ -1,30 +1,27 @@
 export const STORAGE_KEYS = {
-  selectedAgentId: 'uruc_human_selected_agent',
   wsUrl: 'uruc_human_ws_url',
   locale: 'uruc_human_locale',
+  appShellExpanded: 'uruc_human_app_shell_expanded',
+  appShellAnchor: 'uruc_human_app_shell_anchor',
 } as const;
 
 export type AppLocale = 'en' | 'zh-CN';
 export const DEFAULT_LOCALE: AppLocale = 'en';
 const SUPPORTED_LOCALES = new Set<AppLocale>(['en', 'zh-CN']);
 
+function getStorage(): Storage | null {
+  if (typeof localStorage === 'undefined') return null;
+  return localStorage;
+}
+
 function isLocalHostname(hostname: string): boolean {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
 }
 
-export function getSelectedAgentId(): string | null {
-  return localStorage.getItem(STORAGE_KEYS.selectedAgentId);
-}
-
-export function setSelectedAgentId(agentId: string | null): void {
-  if (!agentId) {
-    localStorage.removeItem(STORAGE_KEYS.selectedAgentId);
-    return;
-  }
-  localStorage.setItem(STORAGE_KEYS.selectedAgentId, agentId);
-}
-
 export function defaultWsUrl(): string {
+  if (typeof window === 'undefined') {
+    return 'ws://127.0.0.1:3001';
+  }
   const { hostname, host, port, protocol } = window.location;
   if (protocol === 'https:') {
     return `wss://${host}/ws`;
@@ -44,15 +41,15 @@ export function defaultWsUrl(): string {
 }
 
 export function getSavedWsUrl(): string {
-  return localStorage.getItem(STORAGE_KEYS.wsUrl) ?? defaultWsUrl();
+  return getStorage()?.getItem(STORAGE_KEYS.wsUrl) ?? defaultWsUrl();
 }
 
 export function setSavedWsUrl(url: string): void {
-  localStorage.setItem(STORAGE_KEYS.wsUrl, url);
+  getStorage()?.setItem(STORAGE_KEYS.wsUrl, url);
 }
 
 export function getSavedLocale(): AppLocale {
-  const value = localStorage.getItem(STORAGE_KEYS.locale);
+  const value = getStorage()?.getItem(STORAGE_KEYS.locale);
   if (value && SUPPORTED_LOCALES.has(value as AppLocale)) {
     return value as AppLocale;
   }
@@ -60,5 +57,56 @@ export function getSavedLocale(): AppLocale {
 }
 
 export function setSavedLocale(locale: AppLocale): void {
-  localStorage.setItem(STORAGE_KEYS.locale, locale);
+  getStorage()?.setItem(STORAGE_KEYS.locale, locale);
+}
+
+export function getSavedAppShellExpanded(): boolean {
+  const value = getStorage()?.getItem(STORAGE_KEYS.appShellExpanded);
+  if (value === '0') return false;
+  if (value === '1') return true;
+  return true;
+}
+
+export function setSavedAppShellExpanded(expanded: boolean): void {
+  getStorage()?.setItem(STORAGE_KEYS.appShellExpanded, expanded ? '1' : '0');
+}
+
+export type AppShellAnchor = {
+  left: number;
+  top: number;
+};
+
+export function getSavedAppShellAnchor(): AppShellAnchor | null {
+  const value = getStorage()?.getItem(STORAGE_KEYS.appShellAnchor);
+  if (!value) return null;
+
+  try {
+    const parsed = JSON.parse(value) as Partial<AppShellAnchor>;
+    if (
+      typeof parsed.left === 'number' &&
+      Number.isFinite(parsed.left) &&
+      typeof parsed.top === 'number' &&
+      Number.isFinite(parsed.top)
+    ) {
+      return {
+        left: parsed.left,
+        top: parsed.top,
+      };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+export function setSavedAppShellAnchor(anchor: AppShellAnchor | null): void {
+  const storage = getStorage();
+  if (!storage) return;
+  if (!anchor) {
+    storage.removeItem(STORAGE_KEYS.appShellAnchor);
+    return;
+  }
+
+  storage.setItem(STORAGE_KEYS.appShellAnchor, JSON.stringify(anchor));
 }

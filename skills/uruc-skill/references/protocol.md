@@ -11,10 +11,10 @@ Uruc runtime traffic is easiest to reason about as two message classes:
 - **response**: matches a pending request and returns a direct `result` or `error`
 - **push**: arrives without a matching pending request and reflects external world change
 
-Wake behavior follows one rule:
+Bridge delivery follows one rule:
 
-- responses do **not** wake the OpenClaw main session
-- pushes **do** wake the OpenClaw main session
+- responses do **not** trigger the OpenClaw main-session bridge
+- pushes **do** trigger the OpenClaw main-session bridge
 
 ## Authentication
 
@@ -80,12 +80,17 @@ Current city-level core commands include:
   - `claim --json`
   - `release --json`
 - The local daemon keeps one long-lived remote connection and exposes buffered pushes through `events --json`.
-- Unsolicited pushes are forwarded to the OpenClaw main session through `openclaw system event --mode now` as a JSON-first payload:
+- Unsolicited pushes are forwarded to the OpenClaw main session through the local OpenClaw Gateway `chat.send` RPC. Required params:
+  - `sessionKey`: `main`
+  - `message`: the bridged payload, prefixed with `[URUC_EVENT]`
+  - `idempotencyKey`: the local bridge batch id
 
 ```text
-[URUC_EVENT_JSON]
-{ ...json envelope... }
+[URUC_EVENT]
+{ ...raw push message... }
 ```
+
+- When multiple pushes arrive inside the coalesce window, the body is a JSON array of raw push messages.
 
 ## Reconnect Semantics
 
@@ -102,7 +107,7 @@ Current city-level core commands include:
 - The current controller recovery window is 3 minutes.
 - The daemon does not replay `enter_city` or `enter_location` after reconnect.
 - If reconnect happens while the daemon was the controller, it tries to reclaim control and depends on the server to restore `inCity` and `currentLocation` within that window.
-- Plugin-level reconnect rules still belong to each plugin. For example, chess can emit `chess_reconnected` and still maintain its own shorter gameplay grace rules.
+- Plugin-level reconnect rules still belong to each plugin. For example, a plugin may emit its own reconciliation pushes after reconnect and maintain its own shorter grace rules.
 
 ## Session Shape
 
@@ -114,7 +119,7 @@ Current city-level core commands include:
   "hasController": true,
   "isController": false,
   "inCity": true,
-  "currentLocation": "chess-club",
+  "currentLocation": null,
   "serverTimestamp": 1741416000000,
   "availableCommands": [],
   "availableLocations": []

@@ -1,6 +1,16 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { WebSocket } from 'ws';
-import type { LocationDef } from './plugin-interface.js';
+
+export interface HookDisposable {
+  dispose(): void;
+}
+
+export interface LocationDef {
+  id: string;
+  name: string;
+  description?: string;
+  pluginName?: string;
+}
 
 // =============================================
 // WebSocket types
@@ -20,7 +30,14 @@ export interface WSGatewayPublic {
 
 export interface WSContext {
   ws: WebSocket;
-  session: { userId: string; agentId: string; agentName: string; role: 'owner' | 'agent' } | null;
+  session: {
+    userId: string;
+    agentId: string;
+    agentName: string;
+    role: 'owner' | 'agent';
+    trustMode?: 'confirm' | 'full';
+    allowedLocations?: string[];
+  } | null;
   inCity: boolean;
   currentLocation: string | null;
   isController: boolean;
@@ -104,6 +121,23 @@ export interface CommandSchema {
   }>;
   /** If true, the action requires owner confirmation in 'confirm' trust mode */
   requiresConfirmation?: boolean;
+  resultSchema?: Record<string, unknown>;
+  authPolicy?: 'agent' | 'user' | 'admin';
+  locationPolicy?: {
+    scope?: 'any' | 'outside' | 'city' | 'in-city' | 'location';
+    locations?: string[];
+  };
+  controlPolicy?: {
+    controllerRequired?: boolean;
+  };
+  confirmationPolicy?: {
+    required?: boolean;
+  };
+  rateLimitPolicy?: {
+    bucket?: string;
+    maxPerMinute?: number;
+  };
+  errorCodes?: string[];
 }
 
 // =============================================
@@ -161,8 +195,13 @@ export class HookRegistry {
    * Register a location that agents can visit.
    * Plugins call this in init() to declare "places".
    */
-  registerLocation(location: LocationDef): void {
+  registerLocation(location: LocationDef): HookDisposable {
     this.locations.set(location.id, location);
+    return {
+      dispose: () => {
+        this.locations.delete(location.id);
+      },
+    };
   }
 
   /**
@@ -195,14 +234,22 @@ export class HookRegistry {
    *
    * @throws if a handler is already registered for this command
    */
-  registerWSCommand(command: string, handler: WSHandler, schema?: CommandSchema): void {
+  registerWSCommand(command: string, handler: WSHandler, schema?: CommandSchema): HookDisposable {
     if (this.wsHandlers.has(command)) {
       throw new Error(
         `WS command '${command}' is already registered. ` +
         `Use before/after('ws.command') hooks for cross-cutting concerns.`
       );
     }
-    this.wsHandlers.set(command, [{ handler, schema }]);
+    const entry = { handler, schema };
+    this.wsHandlers.set(command, [entry]);
+    return {
+      dispose: () => {
+        const entries = this.wsHandlers.get(command);
+        if (!entries) return;
+        this.wsHandlers.delete(command);
+      },
+    };
   }
 
   /**
@@ -258,6 +305,11 @@ export class HookRegistry {
     return this.wsHandlers.has(command);
   }
 
+  getWSCommandSchema(command: string): CommandSchema | undefined {
+    const entries = this.wsHandlers.get(command);
+    return entries?.find((entry) => entry.schema)?.schema;
+  }
+
   /**
    * Get all registered WS command schemas (for the 'what_commands' discovery endpoint).
    */
@@ -273,14 +325,26 @@ export class HookRegistry {
     return schemas;
   }
 
+  getAvailableWSCommandSchemas(ctx: Pick<WSContext, 'session' | 'inCity' | 'currentLocation' | 'isController' | 'hasController'>): CommandSchema[] {
+    return this.getWSCommandSchemas().filter((schema) => this.isCommandAvailable(schema, ctx));
+  }
+
   // === HTTP route registration ===
 
   /**
    * Register an HTTP route handler.
    * The handler should return true if it handled the request, false otherwise.
    */
-  registerHttpRoute(handler: HttpHandler): void {
+  registerHttpRoute(handler: HttpHandler): HookDisposable {
     this.httpHandlers.push(handler);
+    return {
+      dispose: () => {
+        const index = this.httpHandlers.indexOf(handler);
+        if (index >= 0) {
+          this.httpHandlers.splice(index, 1);
+        }
+      },
+    };
   }
 
   /**
@@ -301,26 +365,54 @@ export class HookRegistry {
    * Register a handler to run BEFORE a named hook point.
    * Higher priority runs first. Default priority is 0.
    */
-  before<T = any>(hookName: string, handler: HookHandler<T>, priority = 0): void {
+  before<T = any>(hookName: string, handler: HookHandler<T>, priority = 0): HookDisposable {
     if (!this.beforeHooks.has(hookName)) {
       this.beforeHooks.set(hookName, []);
     }
     const list = this.beforeHooks.get(hookName)!;
-    list.push({ handler, priority });
+    const entry = { handler, priority };
+    list.push(entry);
     list.sort((a, b) => b.priority - a.priority);
+    return {
+      dispose: () => {
+        const hookList = this.beforeHooks.get(hookName);
+        if (!hookList) return;
+        const index = hookList.indexOf(entry);
+        if (index >= 0) {
+          hookList.splice(index, 1);
+        }
+        if (hookList.length === 0) {
+          this.beforeHooks.delete(hookName);
+        }
+      },
+    };
   }
 
   /**
    * Register a handler to run AFTER a named hook point.
    * Higher priority runs first. Default priority is 0.
    */
-  after<T = any>(hookName: string, handler: HookHandler<T>, priority = 0): void {
+  after<T = any>(hookName: string, handler: HookHandler<T>, priority = 0): HookDisposable {
     if (!this.afterHooks.has(hookName)) {
       this.afterHooks.set(hookName, []);
     }
     const list = this.afterHooks.get(hookName)!;
-    list.push({ handler, priority });
+    const entry = { handler, priority };
+    list.push(entry);
     list.sort((a, b) => b.priority - a.priority);
+    return {
+      dispose: () => {
+        const hookList = this.afterHooks.get(hookName);
+        if (!hookList) return;
+        const index = hookList.indexOf(entry);
+        if (index >= 0) {
+          hookList.splice(index, 1);
+        }
+        if (hookList.length === 0) {
+          this.afterHooks.delete(hookName);
+        }
+      },
+    };
   }
 
   /**
@@ -356,5 +448,49 @@ export class HookRegistry {
       before: Array.from(this.beforeHooks.keys()),
       after: Array.from(this.afterHooks.keys()),
     };
+  }
+
+  private isCommandAvailable(
+    schema: CommandSchema,
+    ctx: Pick<WSContext, 'session' | 'inCity' | 'currentLocation' | 'isController' | 'hasController'>,
+  ): boolean {
+    const locationScope = schema.locationPolicy?.scope ?? 'any';
+    const locationAllowList = schema.locationPolicy?.locations;
+
+    if (schema.confirmationPolicy?.required && ctx.session?.trustMode === 'confirm') {
+      return false;
+    }
+
+    if (schema.requiresConfirmation && ctx.session?.trustMode === 'confirm') {
+      return false;
+    }
+
+    if ((schema.controlPolicy?.controllerRequired ?? true) && ctx.hasController && !ctx.isController) {
+      return false;
+    }
+
+    if (locationScope === 'outside' && ctx.inCity) {
+      return false;
+    }
+
+    if (locationScope === 'city' && (!ctx.inCity || ctx.currentLocation !== null)) {
+      return false;
+    }
+
+    if (locationScope === 'in-city' && !ctx.inCity) {
+      return false;
+    }
+
+    if (locationScope === 'location' && ctx.currentLocation === null) {
+      return false;
+    }
+
+    if (locationAllowList && locationAllowList.length > 0) {
+      if (!ctx.currentLocation || !locationAllowList.includes(ctx.currentLocation)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 }

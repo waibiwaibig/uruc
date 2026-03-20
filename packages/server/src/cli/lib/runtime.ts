@@ -3,7 +3,7 @@ import net from 'net';
 import { spawn } from 'child_process';
 import path from 'path';
 
-import { getPackageRoot, getPublicDir, getDbPath, getPluginConfigPath } from '../../runtime-paths.js';
+import { getPackageRoot, getPublicDir, getDbPath, getCityConfigPath } from '../../runtime-paths.js';
 import { commandExists, exec, isPidAlive, killPid, openUrl, runOrThrow } from './process.js';
 import { buildHealthUrl, buildPublicWsUrl } from './network.js';
 import {
@@ -33,12 +33,14 @@ export interface RuntimeStatus {
   healthUrl: string;
   wsUrl: string;
   dbPath: string;
-  pluginConfigPath: string;
+  cityConfigPath: string;
   publicDir: string;
   adminUsername: string;
   managedProcess: ManagedProcessState | null;
   health: HealthStatus;
 }
+
+export type ManagedRuntimeMode = 'background' | 'systemd';
 
 export function getServiceName(): string {
   return readCliMeta().serviceName ?? 'uruc';
@@ -112,7 +114,7 @@ export async function getRuntimeStatus(): Promise<RuntimeStatus> {
     healthUrl,
     wsUrl,
     dbPath: getDbPath(),
-    pluginConfigPath: getPluginConfigPath(),
+    cityConfigPath: getCityConfigPath(),
     publicDir: getPublicDir(),
     adminUsername: process.env.ADMIN_USERNAME ?? '',
     managedProcess: managed,
@@ -275,13 +277,13 @@ export async function startForeground(): Promise<void> {
   });
 }
 
-export async function startBackground(): Promise<void> {
+export async function startBackground(): Promise<ManagedRuntimeMode> {
   loadServerEnv();
   ensureCliDirs();
 
   if (isSystemdInstalled()) {
     await runOrThrow('systemctl', ['start', getServiceName()]);
-    return;
+    return 'systemd';
   }
 
   const logPath = getManagedLogPath();
@@ -309,6 +311,7 @@ export async function startBackground(): Promise<void> {
     startedAt: new Date().toISOString(),
     command: [process.execPath, 'dist/index.js'],
   });
+  return 'background';
 }
 
 export async function stopRuntime(): Promise<void> {

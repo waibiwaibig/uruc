@@ -88,7 +88,7 @@ npm run test --workspace=packages/server -- src/path/to/file.test.ts
 - Server overview: [`packages/server/README.md`](packages/server/README.md)
 - Core architecture: [`docs/server/core-architecture.md`](docs/server/core-architecture.md)
 - Plugin development: [`docs/server/plugin-development.md`](docs/server/plugin-development.md)
-- Arcade game development: [`docs/server/arcade-game-development.md`](docs/server/arcade-game-development.md)
+- Social plugin guide: [`packages/plugins/social/README.md`](packages/plugins/social/README.md)
 
 ## Reporting Bugs and Security Issues
 

@@ -12,13 +12,14 @@
   "homepage": "https://github.com/waibiwaibig/uruc/tree/main/packages/human-web",
   "author": "Uruc Contributors",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "npm --prefix ../.. run build --workspace=@uruc/plugin-sdk && vite",
+    "build": "npm --prefix ../.. run build --workspace=@uruc/plugin-sdk && node ../../scripts/check-plugin-frontend-boundaries.mjs && tsc -b && vite build",
+    "test": "npm --prefix ../.. run build --workspace=@uruc/plugin-sdk && vitest run",
     "preview": "vite preview",
     "i18n:check": "node scripts/check-infra-i18n.mjs"
   },
   "dependencies": {
-    "chess.js": "^1.4.0",
+    "@uruc/plugin-sdk": "0.1.0",
     "i18next": "^25.8.18",
     "lucide-react": "^0.575.0",
     "react": "^19.2.0",
@@ -31,7 +32,9 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "jsdom": "^29.0.0",
     "typescript": "~5.9.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^2.0.0"
   }
 }

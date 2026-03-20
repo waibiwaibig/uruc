@@ -1,3 +1,4 @@
+import { PluginCommandError } from '@uruc/plugin-sdk/frontend';
 import type { WsConnectionStatus, WsEnvelope, WsErrorPayload } from './types';
 import i18n from '../i18n';
 import { localizeCoreError } from './error-text';
@@ -21,19 +22,10 @@ function normalizeError(payload: unknown): WsErrorPayload {
   return { error: i18n.t('errors:fallback.unknown') };
 }
 
-export class WsCommandError extends Error {
-  code?: string;
-  action?: string;
-  retryable?: boolean;
-  details?: Record<string, unknown>;
-
+export class WsCommandError extends PluginCommandError {
   constructor(payload: WsErrorPayload) {
-    super(payload.error);
+    super(payload);
     this.name = 'WsCommandError';
-    this.code = payload.code;
-    this.action = payload.action;
-    this.retryable = payload.retryable;
-    this.details = payload.details;
   }
 }
 

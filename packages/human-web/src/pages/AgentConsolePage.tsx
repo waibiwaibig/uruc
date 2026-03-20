@@ -6,13 +6,7 @@ import { formatDate, formatDateTime } from '../i18n';
 import type { ActionLog, LocationDef } from '../lib/types';
 import { useAgents } from '../context/AgentsContext';
 import { useAgentRuntime } from '../context/AgentRuntimeContext';
-
-function getBuiltinLocationOptions(t: (key: string) => string): LocationDef[] {
-  return [
-    { id: 'chess-club', name: t('play:playPage.builtinChess') },
-    { id: 'arcade', name: t('play:playPage.builtinArcade') },
-  ];
-}
+import { usePluginHost } from '../plugins/context';
 
 export function AgentConsolePage() {
   const { t } = useTranslation(['dashboard', 'common', 'play']);
@@ -20,9 +14,6 @@ export function AgentConsolePage() {
     loading,
     error,
     agents,
-    selectedAgent,
-    selectedAgentId,
-    setSelectedAgentId,
     reloadAgents,
     createAgent,
     updateAgent,
@@ -31,6 +22,7 @@ export function AgentConsolePage() {
     setAllowedLocations,
   } = useAgents();
   const runtime = useAgentRuntime();
+  const { enabledLocationPages } = usePluginHost();
 
   const [createName, setCreateName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -50,7 +42,14 @@ export function AgentConsolePage() {
   const [locationSelectionDirty, setLocationSelectionDirty] = useState(false);
   const [avatarRefreshKey, setAvatarRefreshKey] = useState<Record<string, number>>({});
   const [locationPickerOpen, setLocationPickerOpen] = useState(false);
-  const builtinLocationOptions = useMemo(() => getBuiltinLocationOptions(t), [t]);
+  const [managedAgentId, setManagedAgentId] = useState<string | null>(null);
+  const builtinLocationOptions = useMemo(() => (
+    enabledLocationPages.map((location) => ({
+      id: location.locationId,
+      name: t(location.titleKey),
+      description: location.descriptionKey ? t(location.descriptionKey) : undefined,
+    }))
+  ), [enabledLocationPages, t]);
 
   const locationOptions = useMemo(() => {
     const map = new Map<string, LocationDef>();
@@ -68,10 +67,24 @@ export function AgentConsolePage() {
     () => new Map(locationOptions.map((location) => [location.id, location])),
     [locationOptions],
   );
+  const managedAgent = useMemo(
+    () => agents.find((agent) => agent.id === managedAgentId) ?? null,
+    [agents, managedAgentId],
+  );
 
   useEffect(() => () => {
     Object.values(avatarPreviewUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
   }, []);
+
+  useEffect(() => {
+    if (agents.length === 0) {
+      setManagedAgentId(null);
+      return;
+    }
+    if (!managedAgentId || !agents.some((agent) => agent.id === managedAgentId)) {
+      setManagedAgentId(agents[0].id);
+    }
+  }, [agents, managedAgentId]);
 
   useEffect(() => {
     if (!locationPickerOpen) return undefined;
@@ -96,7 +109,7 @@ export function AgentConsolePage() {
   }, [locationPickerOpen]);
 
   useEffect(() => {
-    if (!selectedAgent) {
+    if (!managedAgent) {
       setName('');
       setDescription('');
       setTrustMode('confirm');
@@ -109,16 +122,16 @@ export function AgentConsolePage() {
       return;
     }
 
-    setName(selectedAgent.name);
-    setDescription(selectedAgent.description ?? '');
-    setTrustMode(selectedAgent.trustMode);
+    setName(managedAgent.name);
+    setDescription(managedAgent.description ?? '');
+    setTrustMode(managedAgent.trustMode);
     setStoredAllowedLocationIds([]);
     setBlockedLocationIds([]);
     setLocationSelectionDirty(false);
     setLocationPickerOpen(false);
     setTokenVisible(false);
 
-    void getAllowedLocations(selectedAgent.id)
+    void getAllowedLocations(managedAgent.id)
       .then((locations) => {
         setStoredAllowedLocationIds(locations);
       })
@@ -127,7 +140,7 @@ export function AgentConsolePage() {
       });
 
     setLogsLoading(true);
-    void DashboardApi.listLogs(selectedAgent.id)
+    void DashboardApi.listLogs(managedAgent.id)
       .then((res) => {
         setLogs(res.logs);
       })
@@ -137,10 +150,10 @@ export function AgentConsolePage() {
       .finally(() => {
         setLogsLoading(false);
       });
-  }, [selectedAgent, getAllowedLocations, t]);
+  }, [managedAgent, getAllowedLocations, t]);
 
   useEffect(() => {
-    if (!selectedAgent || locationSelectionDirty) return;
+    if (!managedAgent || locationSelectionDirty) return;
     setBlockedLocationIds(
       storedAllowedLocationIds.length === 0
         ? []
@@ -148,7 +161,7 @@ export function AgentConsolePage() {
           .map((location) => location.id)
           .filter((locationId) => !storedAllowedLocationIds.includes(locationId)),
     );
-  }, [selectedAgent, storedAllowedLocationIds, locationOptions, locationSelectionDirty]);
+  }, [managedAgent, storedAllowedLocationIds, locationOptions, locationSelectionDirty]);
 
   const onCreateAgent = async () => {
     const trimmed = createName.trim();
@@ -159,6 +172,7 @@ export function AgentConsolePage() {
     try {
       const next = await createAgent(trimmed);
       setCreateName('');
+      setManagedAgentId(next.id);
       setMessage(t('dashboard:agents.createSuccess', { name: next.name }));
     } catch (err) {
       setMessage(err instanceof Error ? err.message : t('dashboard:agents.createFailure'));
@@ -168,7 +182,7 @@ export function AgentConsolePage() {
   };
 
   const onSaveSettings = async () => {
-    if (!selectedAgentId) return;
+    if (!managedAgentId) return;
     setSaving(true);
     setMessage('');
     try {
@@ -176,10 +190,10 @@ export function AgentConsolePage() {
         name: name.trim(),
         description: description.trim(),
       };
-      if (!selectedAgentIsShadow) {
+      if (!managedAgentIsShadow) {
         nextFields.trustMode = trustMode;
       }
-      await updateAgent(selectedAgentId, nextFields);
+      await updateAgent(managedAgentId, nextFields);
       setMessage(t('dashboard:agents.updateSuccess'));
     } catch (err) {
       setMessage(err instanceof Error ? err.message : t('dashboard:agents.updateFailure'));
@@ -189,8 +203,8 @@ export function AgentConsolePage() {
   };
 
   const onSaveLocations = async () => {
-    if (!selectedAgentId) return;
-    if (selectedAgentIsShadow) {
+    if (!managedAgentId) return;
+    if (managedAgentIsShadow) {
       setMessage(t('dashboard:agents.shadowNoLocationConfig'));
       return;
     }
@@ -202,7 +216,7 @@ export function AgentConsolePage() {
         : locationOptions
           .map((location) => location.id)
           .filter((locationId) => !blockedLocationIds.includes(locationId));
-      await setAllowedLocations(selectedAgentId, nextAllowedLocations);
+      await setAllowedLocations(managedAgentId, nextAllowedLocations);
       setStoredAllowedLocationIds(nextAllowedLocations);
       setLocationSelectionDirty(false);
       setLocationPickerOpen(false);
@@ -224,8 +238,8 @@ export function AgentConsolePage() {
   };
 
   const onDeleteAgent = async () => {
-    if (!selectedAgentId) return;
-    if (selectedAgentIsShadow) {
+    if (!managedAgentId) return;
+    if (managedAgentIsShadow) {
       setMessage(t('dashboard:agents.deleteBlocked'));
       return;
     }
@@ -234,7 +248,7 @@ export function AgentConsolePage() {
     setSaving(true);
     setMessage('');
     try {
-      await deleteAgent(selectedAgentId);
+      await deleteAgent(managedAgentId);
       setMessage(t('dashboard:agents.deleteSuccess'));
     } catch (err) {
       setMessage(err instanceof Error ? err.message : t('dashboard:agents.deleteFailure'));
@@ -244,29 +258,29 @@ export function AgentConsolePage() {
   };
 
   const copyToken = async () => {
-    if (!selectedAgent?.token) return;
-    await navigator.clipboard.writeText(selectedAgent.token);
+    if (!managedAgent?.token) return;
+    await navigator.clipboard.writeText(managedAgent.token);
     setMessage(t('dashboard:agents.tokenCopied'));
   };
 
   const uploadAvatar = async (file: File | null) => {
-    if (!selectedAgentId || !file) return;
+    if (!managedAgentId || !file) return;
     const localPreviewUrl = URL.createObjectURL(file);
-    const previousPreviewUrl = avatarPreviewUrlsRef.current[selectedAgentId];
+    const previousPreviewUrl = avatarPreviewUrlsRef.current[managedAgentId];
     if (previousPreviewUrl) URL.revokeObjectURL(previousPreviewUrl);
-    avatarPreviewUrlsRef.current[selectedAgentId] = localPreviewUrl;
-    setAvatarRefreshKey((prev) => ({ ...prev, [selectedAgentId]: Date.now() }));
+    avatarPreviewUrlsRef.current[managedAgentId] = localPreviewUrl;
+    setAvatarRefreshKey((prev) => ({ ...prev, [managedAgentId]: Date.now() }));
     setSaving(true);
     setMessage('');
     try {
-      await DashboardApi.uploadAgentAvatar(selectedAgentId, file);
+      await DashboardApi.uploadAgentAvatar(managedAgentId, file);
       await reloadAgents();
-      setAvatarRefreshKey((prev) => ({ ...prev, [selectedAgentId]: Date.now() }));
+      setAvatarRefreshKey((prev) => ({ ...prev, [managedAgentId]: Date.now() }));
       setMessage(t('dashboard:agents.uploadSuccess'));
     } catch (err) {
       URL.revokeObjectURL(localPreviewUrl);
-      delete avatarPreviewUrlsRef.current[selectedAgentId];
-      setAvatarRefreshKey((prev) => ({ ...prev, [selectedAgentId]: Date.now() }));
+      delete avatarPreviewUrlsRef.current[managedAgentId];
+      setAvatarRefreshKey((prev) => ({ ...prev, [managedAgentId]: Date.now() }));
       setMessage(err instanceof Error ? err.message : t('dashboard:agents.uploadFailure'));
     } finally {
       setSaving(false);
@@ -274,13 +288,14 @@ export function AgentConsolePage() {
     }
   };
 
-  const selectedAgentIsShadow = Boolean(selectedAgent?.isShadow);
+  const managedAgentIsShadow = Boolean(managedAgent?.isShadow);
   const recentLogPreview = logs.slice(0, 3);
-  const avatarInitial = (selectedAgent?.name ?? '?').slice(0, 1).toUpperCase();
-  const avatarSrc = selectedAgent
-    ? avatarPreviewUrlsRef.current[selectedAgent.id]
-      ?? (selectedAgent.avatarPath
-        ? `${selectedAgent.avatarPath}${selectedAgent.avatarPath.includes('?') ? '&' : '?'}v=${avatarRefreshKey[selectedAgent.id] ?? 0}`
+  const latestLog = recentLogPreview[0] ?? null;
+  const avatarInitial = (managedAgent?.name ?? '?').slice(0, 1).toUpperCase();
+  const avatarSrc = managedAgent
+    ? avatarPreviewUrlsRef.current[managedAgent.id]
+      ?? (managedAgent.avatarPath
+        ? `${managedAgent.avatarPath}${managedAgent.avatarPath.includes('?') ? '&' : '?'}v=${avatarRefreshKey[managedAgent.id] ?? 0}`
         : null)
     : null;
   const blockedLocationSummary = blockedLocationIds.length === 0
@@ -289,85 +304,139 @@ export function AgentConsolePage() {
 
   return (
     <div className="page-wrap main-grid agent-console-page">
-      <section className="console-grid">
-        <aside className="card control-section agent-console-registry">
-          <div className="panel-head">
-            <div className="panel-copy">
-              <p className="section-label">registry</p>
-              <h2 className="title-card">{t('dashboard:agents.title')}</h2>
-            </div>
-            <span className="info-pill">{t('dashboard:agents.countLabel', { count: agents.length })}</span>
-          </div>
+      <section className="agent-console-shell">
+        {managedAgent ? (
+          <section className="card control-section selected-agent-banner">
+            <div className="selected-agent-banner__main">
+              <div className="agent-avatar-field__preview selected-agent-banner__avatar">
+                {avatarSrc ? (
+                  <img src={avatarSrc} alt={`${managedAgent.name} ${t('common:labels.avatar')}`} />
+                ) : (
+                  <span>{avatarInitial}</span>
+                )}
+              </div>
 
-          <div className="agent-create-strip">
-            <label>
-              <span className="label">{t('common:labels.agentName')}</span>
-              <input
-                className="app-input"
-                value={createName}
-                onChange={(e) => setCreateName(e.target.value)}
-                placeholder={t('common:placeholders.agentName')}
-              />
-            </label>
-            <button className="app-btn" onClick={onCreateAgent} disabled={saving}>
-              <span className="row"><Plus size={14} /> {t('common:actions.createAgent')}</span>
-            </button>
-          </div>
-
-          {loading ? <div className="notice info">{t('dashboard:agents.loading')}</div> : null}
-          {error ? <div className="notice error">{error}</div> : null}
-
-          <div className="registry-list">
-            {agents.map((agent) => (
-              <button
-                key={agent.id}
-                className={`list-item registry-card ${agent.id === selectedAgentId ? 'active' : ''}`}
-                onClick={() => setSelectedAgentId(agent.id)}
-              >
-                <div className="registry-card__row">
-                  <div className="registry-card__copy">
-                    <strong>{agent.name}</strong>
-                    <span className="tiny muted mono">{formatDate(agent.createdAt)}</span>
-                  </div>
-                  <div className="registry-card__meta">
-                    {agent.isShadow ? <span className="info-pill">{t('dashboard:agents.primaryIdentity')}</span> : null}
-                    <span className="info-pill">{agent.trustMode}</span>
-                    <span className="row tiny muted">
-                      <span className={`status-dot ${agent.isOnline ? 'online' : 'offline'}`} />
-                      {agent.isOnline ? t('common:status.online') : t('common:status.offline')}
-                    </span>
-                  </div>
+              <div className="selected-agent-banner__copy">
+                <div className="row wrap">
+                  <h2 className="selected-agent-banner__name">{managedAgent.name}</h2>
+                  {managedAgent.isShadow ? <span className="info-pill">{t('dashboard:agents.primaryIdentity')}</span> : null}
+                  <span className="info-pill">{managedAgent.trustMode}</span>
+                  <span className="info-pill">
+                    <span className={`status-dot ${managedAgent.isOnline ? 'online' : 'offline'}`} />
+                    {managedAgent.isOnline ? t('common:status.online') : t('common:status.offline')}
+                  </span>
                 </div>
-              </button>
-            ))}
-          </div>
-        </aside>
 
-        {!selectedAgent ? (
-          <section className="card control-section empty-state agent-console-main">
-            <p className="section-label">no active agent</p>
-            <h2 className="title-card">{t('dashboard:agents.emptyTitle')}</h2>
-            <p className="section-sub">{t('dashboard:agents.emptyBody')}</p>
+                <p className="selected-agent-banner__meta tiny muted">
+                  {t('dashboard:agents.created')} {formatDate(managedAgent.createdAt)}
+                </p>
+
+                {tokenVisible && !managedAgentIsShadow ? (
+                  <div className="code-block mask-token selected-agent-banner__token">{managedAgent.token}</div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="selected-agent-banner__actions">
+              {!managedAgentIsShadow ? (
+                <>
+                  <button className="app-btn secondary" onClick={() => setTokenVisible((value) => !value)}>
+                    {tokenVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+                    {tokenVisible ? t('common:actions.hide') : t('common:actions.show')}
+                  </button>
+                  <button className="app-btn" onClick={copyToken}>
+                    <Copy size={14} />
+                    {t('common:actions.copyToken')}
+                  </button>
+                </>
+              ) : null}
+              <button className="app-btn secondary" onClick={onDeleteAgent} disabled={saving || managedAgentIsShadow}>
+                <Trash2 size={14} />
+                {t('common:actions.delete')}
+              </button>
+            </div>
           </section>
-        ) : (
-          <div className="agent-console-main">
-            <div className={`split-panel${selectedAgentIsShadow ? ' split-panel--single' : ''}`}>
-              <section className="card control-section">
+        ) : null}
+
+        {message ? <div className="notice info agent-console-message">{message}</div> : null}
+
+        <div className="console-grid agent-console-body">
+          <aside className="card control-section agent-console-registry">
+            <div className="panel-head">
+              <div className="panel-copy">
+                <h2 className="title-card">{t('dashboard:agents.title')}</h2>
+              </div>
+              <span className="info-pill">{t('dashboard:agents.countLabel', { count: agents.length })}</span>
+            </div>
+
+            <div className="agent-create-strip">
+              <label>
+                <span className="label">{t('common:labels.agentName')}</span>
+                <input
+                  className="app-input"
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                  placeholder={t('common:placeholders.agentName')}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void onCreateAgent();
+                    }
+                  }}
+                />
+              </label>
+              <button className="app-btn" onClick={onCreateAgent} disabled={saving}>
+                <span className="row"><Plus size={14} /> {t('common:actions.createAgent')}</span>
+              </button>
+            </div>
+
+            {loading ? <div className="notice info">{t('dashboard:agents.loading')}</div> : null}
+            {error ? <div className="notice error">{error}</div> : null}
+
+            <div className="registry-list">
+              {agents.map((agent) => (
+                <button
+                  key={agent.id}
+                  className={`list-item registry-card ${agent.id === managedAgentId ? 'active' : ''}`}
+                  onClick={() => setManagedAgentId(agent.id)}
+                >
+                  <div className="registry-card__row">
+                    <div className="registry-card__copy">
+                      <strong>{agent.name}</strong>
+                    </div>
+                    <div className="registry-card__meta">
+                      {agent.isShadow ? <span className="info-pill">{t('dashboard:agents.primaryIdentity')}</span> : null}
+                      <span className="info-pill">{agent.trustMode}</span>
+                      <span className="row tiny muted">
+                        <span className={`status-dot ${agent.isOnline ? 'online' : 'offline'}`} />
+                        {agent.isOnline ? t('common:status.online') : t('common:status.offline')}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </aside>
+
+          {!managedAgent ? (
+            <section className="card control-section empty-state agent-console-main">
+              <h2 className="title-card">{t('dashboard:agents.emptyTitle')}</h2>
+              <p className="section-sub">{t('dashboard:agents.emptyBody')}</p>
+            </section>
+          ) : (
+            <div className="agent-console-main stack-lg">
+              <section className="card control-section agent-console-primary">
                 <div className="panel-head">
                   <div className="panel-copy">
-                    <p className="section-label">identity and doctrine</p>
                     <h3 className="title-panel">{t('dashboard:agents.sectionBase')}</h3>
                   </div>
-                  <button className="app-btn secondary" onClick={onDeleteAgent} disabled={saving || selectedAgentIsShadow}>
-                    <span className="row"><Trash2 size={14} /> {t('common:actions.delete')}</span>
-                  </button>
                 </div>
 
                 <div className="field-grid">
                   <div className="agent-avatar-field">
                     <div className="agent-avatar-field__preview">
                       {avatarSrc ? (
-                        <img src={avatarSrc} alt={`${selectedAgent.name} ${t('common:labels.avatar')}`} />
+                        <img src={avatarSrc} alt={`${managedAgent.name} ${t('common:labels.avatar')}`} />
                       ) : (
                         <span>{avatarInitial}</span>
                       )}
@@ -410,66 +479,40 @@ export function AgentConsolePage() {
                     />
                   </label>
 
-                  {!selectedAgentIsShadow ? (
-                      <label>
-                        <span className="label">{t('common:labels.trustMode')}</span>
-                        <select
-                          className="app-select agent-console-select"
-                          value={trustMode}
-                          onChange={(e) => setTrustMode(e.target.value as 'confirm' | 'full')}
-                        >
+                  {!managedAgentIsShadow ? (
+                    <label>
+                      <span className="label">{t('common:labels.trustMode')}</span>
+                      <select
+                        className="app-select agent-console-select"
+                        value={trustMode}
+                        onChange={(e) => setTrustMode(e.target.value as 'confirm' | 'full')}
+                      >
                         <option value="confirm">confirm</option>
                         <option value="full">full</option>
                       </select>
                     </label>
-                  ) : null}
+                  ) : (
+                    <p className="tiny muted agent-console-primary__note">{t('common:status.noTokenConfigNeeded')}</p>
+                  )}
+                </div>
 
+                <div className="agent-console-primary__footer">
                   <button className="app-btn" onClick={onSaveSettings} disabled={saving}>
                     <span className="row"><Save size={14} /> {t('common:actions.saveSettings')}</span>
                   </button>
                 </div>
-
-                {selectedAgentIsShadow ? (
-                  <div className="notice info">
-                    {t('common:status.noTokenConfigNeeded')}
-                  </div>
-                ) : null}
               </section>
 
-                {!selectedAgentIsShadow ? (
-                  <div className="stack-lg agent-console-side">
-                  <section className="card control-section agent-token-card">
-                    <div className="agent-token-card__head">
-                      <h3 className="title-panel">{t('dashboard:agents.sectionToken')}</h3>
-                      <p className="agent-token-card__hint">{t('common:labels.tokenCredentials')}</p>
-                    </div>
-
-                    <div className="agent-token-card__actions">
-                      <button className="app-btn secondary" onClick={() => setTokenVisible((value) => !value)}>
-                        {tokenVisible ? <EyeOff size={14} /> : <Eye size={14} />}
-                        {tokenVisible ? t('common:actions.hide') : t('common:actions.show')}
-                      </button>
-                      <button className="app-btn" onClick={copyToken}>
-                        <Copy size={14} />
-                        {t('common:actions.copyToken')}
-                      </button>
-                    </div>
-
-                    <div className="code-block mask-token">
-                      {tokenVisible ? selectedAgent.token : t('dashboard:agents.hiddenToken')}
-                    </div>
-                  </section>
-
+              <div className={`agent-console-secondary${managedAgentIsShadow ? ' agent-console-secondary--single' : ''}`}>
+                {!managedAgentIsShadow ? (
                   <section className="card control-section agent-location-card">
                     <div className="panel-head">
                       <div className="panel-copy">
-                        <p className="section-label">allowed locations</p>
                         <h3 className="title-panel">{t('dashboard:agents.sectionLocations')}</h3>
+                        <p className="agent-location-card__summary">{blockedLocationSummary}</p>
                       </div>
                       <span className="info-pill">{blockedLocationIds.length}</span>
                     </div>
-
-                    <p className="agent-location-card__hint">{t('dashboard:agents.blockedHint')}</p>
 
                     <div
                       ref={locationPickerRef}
@@ -482,35 +525,34 @@ export function AgentConsolePage() {
                         aria-expanded={locationPickerOpen}
                         aria-haspopup="listbox"
                       >
-                        <span>{blockedLocationSummary}</span>
+                        <span>{t('dashboard:agents.openPicker')}</span>
                         <span className="agent-location-picker__summary-meta">
-                          <span className="tiny muted">{t('dashboard:agents.openPicker')}</span>
                           <ChevronDown className="agent-location-picker__chevron" size={14} />
                         </span>
                       </button>
 
                       {locationPickerOpen ? (
                         <div className="agent-location-picker__menu" role="listbox" aria-label={t('common:labels.blockedLocations')}>
-                        {locationOptions.map((location) => {
-                          const checked = blockedLocationIds.includes(location.id);
-                          return (
-                            <button
-                              key={location.id}
-                              type="button"
-                              className={`agent-location-picker__item${checked ? ' is-selected' : ''}`}
-                              onClick={() => toggleBlockedLocation(location.id)}
-                              aria-pressed={checked}
-                            >
-                              <span className="agent-location-picker__mark" aria-hidden="true">
-                                {checked ? <Check size={12} /> : null}
-                              </span>
-                              <div className="agent-location-picker__copy">
-                                <strong>{location.name}</strong>
-                                <span className="tiny muted mono">{location.id}</span>
-                              </div>
-                            </button>
-                          );
-                        })}
+                          {locationOptions.map((location) => {
+                            const checked = blockedLocationIds.includes(location.id);
+                            return (
+                              <button
+                                key={location.id}
+                                type="button"
+                                className={`agent-location-picker__item${checked ? ' is-selected' : ''}`}
+                                onClick={() => toggleBlockedLocation(location.id)}
+                                aria-pressed={checked}
+                              >
+                                <span className="agent-location-picker__mark" aria-hidden="true">
+                                  {checked ? <Check size={12} /> : null}
+                                </span>
+                                <div className="agent-location-picker__copy">
+                                  <strong>{location.name}</strong>
+                                  <span className="tiny muted mono">{location.id}</span>
+                                </div>
+                              </button>
+                            );
+                          })}
                         </div>
                       ) : null}
                     </div>
@@ -524,45 +566,49 @@ export function AgentConsolePage() {
                       })}
                     </div>
 
-                    <button className="app-btn secondary" onClick={onSaveLocations} disabled={saving || selectedAgentIsShadow}>
+                    <button className="app-btn" onClick={onSaveLocations} disabled={saving || managedAgentIsShadow}>
                       {t('common:actions.saveBlockedLocations')}
                     </button>
                   </section>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        )}
+                ) : null}
 
-        {selectedAgent ? (
-          <section className="card control-section agent-activity-strip">
-            <div className="agent-activity-strip__head">
-              <h3 className="title-panel">{t('dashboard:agents.sectionRecent')}</h3>
-              <span className="info-pill">{logs.length}</span>
-            </div>
+                <section className="card control-section agent-activity-panel">
+                  <div className="panel-head">
+                    <div className="panel-copy">
+                      <h3 className="title-panel">{t('dashboard:agents.sectionRecent')}</h3>
+                      {latestLog ? (
+                        <p className="agent-activity-panel__summary">
+                          {t('dashboard:agents.latestLog', { date: formatDateTime(latestLog.createdAt) })}
+                        </p>
+                      ) : null}
+                    </div>
+                    <span className="info-pill">{logs.length}</span>
+                  </div>
 
-            {logsLoading ? <p className="agent-activity-strip__hint">{t('dashboard:agents.logsLoading')}</p> : null}
+                  {logsLoading ? <p className="agent-activity-panel__empty">{t('dashboard:agents.logsLoading')}</p> : null}
 
-            {!logsLoading && logs.length === 0 ? (
-              <p className="agent-activity-strip__hint">{t('dashboard:agents.noLogs')}</p>
-            ) : null}
+                  {!logsLoading && logs.length === 0 ? (
+                    <p className="agent-activity-panel__empty">{t('dashboard:agents.noLogs')}</p>
+                  ) : null}
 
-            {!logsLoading && logs.length > 0 ? (
-              <div className="agent-activity-strip__items">
-                {recentLogPreview.map((log) => (
-                  <span key={log.id} className="info-pill">
-                    {log.actionType}
-                    {log.locationId ? ` · ${log.locationId}` : ''}
-                  </span>
-                ))}
-                {logs.length > recentLogPreview.length ? <span className="info-pill">{t('dashboard:agents.extraLogs', { count: logs.length - recentLogPreview.length })}</span> : null}
-                <span className="agent-activity-strip__hint">{t('dashboard:agents.latestLog', { date: formatDateTime(recentLogPreview[0].createdAt) })}</span>
+                  {!logsLoading && logs.length > 0 ? (
+                    <div className="chip-grid">
+                      {recentLogPreview.map((log) => (
+                        <span key={log.id} className="info-pill">
+                          {log.actionType}
+                          {log.locationId ? ` · ${log.locationId}` : ''}
+                        </span>
+                      ))}
+                      {logs.length > recentLogPreview.length ? (
+                        <span className="info-pill">{t('dashboard:agents.extraLogs', { count: logs.length - recentLogPreview.length })}</span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </section>
               </div>
-            ) : null}
-          </section>
-        ) : null}
-
-        {message ? <div className="notice info agent-console-message">{message}</div> : null}
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );

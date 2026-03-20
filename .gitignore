@@ -12,3 +12,7 @@ dist/
 config/mcporter.json
 .uruc/
 logs/
+.worktrees/
+packages/server/uruc.city.lock.json
+packages/server/data/
+packages/server/uploads/

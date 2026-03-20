@@ -10,6 +10,9 @@ const repoRoot = getRepoRoot();
 const packageRoot = getPackageRoot();
 
 const INPUT_PATHS = [
+  path.join(repoRoot, 'packages', 'plugin-sdk', 'src'),
+  path.join(repoRoot, 'packages', 'plugin-sdk', 'package.json'),
+  path.join(repoRoot, 'packages', 'plugin-sdk', 'tsconfig.json'),
   path.join(packageRoot, 'src'),
   path.join(packageRoot, 'package.json'),
   path.join(packageRoot, 'tsconfig.json'),
@@ -20,6 +23,7 @@ const INPUT_PATHS = [
 ];
 
 const OUTPUT_PATHS = [
+  path.join(repoRoot, 'packages', 'plugin-sdk', 'dist', 'index.js'),
   path.join(packageRoot, 'dist', 'index.js'),
   path.join(repoRoot, 'packages', 'human-web', 'dist', 'index.html'),
 ];
@@ -55,25 +59,23 @@ function oldestOutputMtime(paths: string[]): number {
 
 export function getBuildFreshness(): BuildFreshness {
   const newestInputMtimeMs = Math.max(...INPUT_PATHS.map((targetPath) => newestMtime(targetPath)));
-  const pluginManifestMtime = newestMtime(path.join(packageRoot, 'src', 'plugins'));
-  const combinedInput = Math.max(newestInputMtimeMs, pluginManifestMtime);
   const oldestOutputMtimeMs = oldestOutputMtime(OUTPUT_PATHS);
 
   if (oldestOutputMtimeMs === 0) {
     return {
       stale: true,
       reason: 'build artifacts are missing',
-      newestInputMtimeMs: combinedInput,
+      newestInputMtimeMs,
       oldestOutputMtimeMs,
       outputs: OUTPUT_PATHS,
     };
   }
 
-  if (combinedInput > oldestOutputMtimeMs) {
+  if (newestInputMtimeMs > oldestOutputMtimeMs) {
     return {
       stale: true,
       reason: 'source files are newer than build artifacts',
-      newestInputMtimeMs: combinedInput,
+      newestInputMtimeMs,
       oldestOutputMtimeMs,
       outputs: OUTPUT_PATHS,
     };
@@ -82,7 +84,7 @@ export function getBuildFreshness(): BuildFreshness {
   return {
     stale: false,
     reason: 'build artifacts are current',
-    newestInputMtimeMs: combinedInput,
+    newestInputMtimeMs,
     oldestOutputMtimeMs,
     outputs: OUTPUT_PATHS,
   };
@@ -92,6 +94,7 @@ export async function buildAll(force = false): Promise<BuildFreshness> {
   const freshness = getBuildFreshness();
   if (!force && !freshness.stale) return freshness;
 
+  await runOrThrow('npm', ['run', 'build', '--workspace=@uruc/plugin-sdk'], { cwd: repoRoot });
   await runOrThrow('npm', ['run', 'build', '--workspace=packages/server'], { cwd: repoRoot });
   await runOrThrow('npm', ['run', 'build', '--workspace=packages/human-web'], { cwd: repoRoot });
 

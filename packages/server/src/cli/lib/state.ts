@@ -6,7 +6,9 @@ import type { BuildState, CliMeta, ManagedProcessState } from './types.js';
 
 const packageRoot = getPackageRoot();
 const repoRoot = path.resolve(packageRoot, '..', '..');
-const cliStateDir = path.join(repoRoot, '.uruc');
+const cliStateDir = process.env.URUC_CLI_STATE_DIR?.trim()
+  ? path.resolve(process.env.URUC_CLI_STATE_DIR)
+  : path.join(repoRoot, '.uruc');
 const runtimeDir = path.join(cliStateDir, 'runtime');
 
 export function getRepoRoot(): string {
@@ -14,6 +16,9 @@ export function getRepoRoot(): string {
 }
 
 export function getServerEnvPath(): string {
+  if (process.env.URUC_SERVER_ENV_PATH?.trim()) {
+    return path.resolve(process.env.URUC_SERVER_ENV_PATH);
+  }
   return getEnvPath();
 }
 

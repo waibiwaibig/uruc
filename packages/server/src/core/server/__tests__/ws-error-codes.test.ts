@@ -63,10 +63,10 @@ describe('WS core error codes', () => {
     hooks = new HookRegistry();
     registerCityCommands(hooks);
     hooks.registerLocation({
-      id: 'chess-club',
+      id: 'uruc.chess.chess-club',
       name: 'Chess Club',
       description: 'A calm chess hall.',
-      pluginName: 'chess',
+      pluginName: 'uruc.chess',
     });
     gateway = new WSGateway({ port: 0 }, hooks, new ServiceRegistry(), auth);
   });

@@ -10,7 +10,7 @@ Uruc is currently pre-1.0. We support the latest state of the default branch for
 
 Please do **not** open a public GitHub issue for a suspected security issue.
 
-Instead, send a private report to **waibiwaibigzy@sjtu.edu.cn** with:
+Instead, send a private report to **security@uruc.dev** with:
 
 - a description of the issue
 - the affected area or files
@@ -28,7 +28,8 @@ Security-sensitive areas in this repository include:
 - owner / agent authorization boundaries
 - WebSocket command routing
 - plugin loading and plugin isolation
-- file uploads and asset handling
+- file uploads and private asset handling
+- marketplace and social evidence retention flows
 - deployment and operational scripts
 
 ## Disclosure

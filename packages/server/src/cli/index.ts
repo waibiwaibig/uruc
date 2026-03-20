@@ -70,6 +70,16 @@ async function main(): Promise<void> {
         await runPluginCommand(context.args);
         return;
       }
+      case 'source': {
+        const { runSourceCommand } = await import('./source-manager.js');
+        await runSourceCommand(context.args);
+        return;
+      }
+      case 'city': {
+        const { runCityCommand } = await import('./city-manager.js');
+        await runCityCommand(context.args);
+        return;
+      }
       default:
         throw new Error(`Unknown command: ${command}`);
     }
@@ -84,4 +94,10 @@ async function main(): Promise<void> {
   }
 }
 
-void main();
+void main()
+  .then(() => {
+    process.exit(0);
+  })
+  .catch(() => {
+    process.exit(1);
+  });

@@ -14,26 +14,29 @@
     "uruc": "./dist/cli/index.js"
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc && node scripts/copy-plugin-manifests.mjs",
-    "test": "vitest run",
+    "dev": "npm --prefix ../.. run build --workspace=@uruc/plugin-sdk && tsx watch src/index.ts",
+    "build": "npm --prefix ../.. run build --workspace=@uruc/plugin-sdk && tsc && node scripts/copy-plugin-manifests.mjs",
+    "test": "npm --prefix ../.. run build --workspace=@uruc/plugin-sdk && vitest run --exclude=.uruc/**",
     "cli": "node dist/cli/index.js",
     "configure": "node dist/cli/index.js configure",
     "doctor": "node dist/cli/index.js doctor",
     "plugin": "node dist/cli/index.js plugin",
     "plugin:list": "node dist/cli/index.js plugin list",
-    "plugin:discover": "node dist/cli/index.js plugin discover"
+    "plugin:doctor": "node dist/cli/index.js plugin doctor",
+    "source": "node dist/cli/index.js source",
+    "city": "node dist/cli/index.js city"
   },
   "dependencies": {
+    "@uruc/plugin-sdk": "0.1.0",
     "@types/express": "^5.0.6",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.0.0",
-    "chess.js": "^1.4.0",
     "dotenv": "^17.3.1",
     "drizzle-orm": "^0.36.0",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.0",
     "nanoid": "^5.0.0",
+    "tar": "^7.5.11",
     "ws": "^8.16.0"
   },
   "devDependencies": {

@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '..');
 const srcPluginsDir = path.join(packageRoot, 'src', 'plugins');
 const distPluginsDir = path.join(packageRoot, 'dist', 'plugins');
-const COPIED_FILES = new Set(['plugin.json', 'game.json', 'games.dev.json', 'games.prod.json']);
+const COPIED_FILES = new Set(['game.json', 'games.dev.json', 'games.prod.json']);
 
 await removeStaleManifests(distPluginsDir);
 await copyPluginManifests(srcPluginsDir, distPluginsDir);

@@ -79,4 +79,4 @@ Important current behaviors:
 
 ## What the Core Intentionally Does Not Own
 
-The core runtime does not contain venue-specific business logic such as chess rules or arcade game rules. Those belong in plugins.
+The core runtime does not contain plugin-specific business logic such as social graph rules, venue gameplay rules, or plugin-owned moderation flows. Those belong in plugins.

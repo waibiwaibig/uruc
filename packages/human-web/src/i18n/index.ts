@@ -18,6 +18,7 @@ function normalizeLocale(locale: string | null | undefined): AppLocale {
 }
 
 function syncHtmlLang(locale: AppLocale): void {
+  if (typeof document === 'undefined') return;
   document.documentElement.lang = locale;
 }
 

@@ -61,4 +61,10 @@ describe('security response headers', () => {
     const httpRes = await fetch(`${baseUrl}/api/health`);
     expect(httpRes.headers.get('strict-transport-security')).toBeNull();
   });
+
+  it('marks the health endpoint as non-cacheable', async () => {
+    const res = await fetch(`${baseUrl}/api/health`);
+
+    expect(res.headers.get('cache-control')).toBe('no-store');
+  });
 });

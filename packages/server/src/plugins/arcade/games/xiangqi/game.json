@@ -1,9 +1,0 @@
-{
-  "id": "xiangqi",
-  "name": "中国象棋",
-  "version": "1.0.0",
-  "description": "休闲标准中国象棋，支持和棋提议、观战与断线恢复。",
-  "main": "./index.js",
-  "apiVersion": "1.0.0",
-  "dependencies": []
-}

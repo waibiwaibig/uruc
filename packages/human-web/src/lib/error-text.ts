@@ -33,7 +33,7 @@ export function isKnownCoreErrorCode(code?: string | null): boolean {
 
 export function localizeCoreError(code: string | undefined, fallback?: string, status?: number): string {
   if (isKnownCoreErrorCode(code)) {
-    return i18n.t(`errors.code.${code}`);
+    return i18n.t(`errors:code.${code}`);
   }
   if (fallback) return fallback;
   return i18n.t('errors.fallback.requestFailed', { status: status ?? 500 });

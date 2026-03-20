@@ -1,12 +1,57 @@
+import { existsSync } from 'fs';
+import path from 'path';
+
 import type { CommandContext } from '../lib/types.js';
+import { DEFAULT_PLUGIN_PRESET, prepareCityRuntime } from '../lib/city.js';
+import { parseEnvFile } from '../lib/env.js';
 import { getRuntimeStatus, restartRuntime } from '../lib/runtime.js';
 import { ensureFreshBuildIfNeeded } from './build.js';
+import { getCityLockPath, getPackageRoot, getPluginStoreDir } from '../../runtime-paths.js';
+
+function getRestartSuccessMessage(mode: 'background' | 'systemd', rebuilt: boolean): string {
+  if (mode === 'systemd') {
+    return rebuilt ? 'Uruc rebuilt and restarted via systemd service.' : 'Uruc restarted via systemd service.';
+  }
+  return rebuilt ? 'Uruc rebuilt and restarted in background.' : 'Uruc restarted in background.';
+}
+
+function resolveConfiguredCityPath(): { configPath: string; isDefaultPath: boolean } {
+  const packageRoot = getPackageRoot();
+  const env = parseEnvFile();
+  const defaultCityConfigPath = path.join(packageRoot, 'uruc.city.json');
+  const rawConfigured = env.CITY_CONFIG_PATH?.trim();
+  if (!rawConfigured) {
+    return { configPath: defaultCityConfigPath, isDefaultPath: true };
+  }
+
+  const resolved = path.isAbsolute(rawConfigured)
+    ? rawConfigured
+    : path.resolve(packageRoot, rawConfigured);
+  return {
+    configPath: resolved,
+    isDefaultPath: resolved === defaultCityConfigPath,
+  };
+}
 
 export async function runRestartCommand(context: CommandContext): Promise<void> {
   const status = await getRuntimeStatus();
   if (status.mode === 'stopped' || status.mode === 'unmanaged') {
     throw new Error('Restart only works for managed background or systemd instances. Start Uruc in the background first.');
   }
+
+  const { configPath, isDefaultPath } = resolveConfiguredCityPath();
+  if (!existsSync(configPath) && !isDefaultPath) {
+    throw new Error(`Configured city file does not exist at ${configPath}. Run \`uruc configure --section plugins\` to create or fix it.`);
+  }
+
+  await prepareCityRuntime({
+    configPath,
+    lockPath: getCityLockPath(),
+    packageRoot: getPackageRoot(),
+    pluginStoreDir: getPluginStoreDir(),
+    defaultPreset: DEFAULT_PLUGIN_PRESET,
+    autoCreateDefault: isDefaultPath,
+  });
 
   const rebuilt = await ensureFreshBuildIfNeeded();
   await restartRuntime();
@@ -15,5 +60,5 @@ export async function runRestartCommand(context: CommandContext): Promise<void> 
     console.log(JSON.stringify({ restarted: true, rebuilt, mode: status.mode }, null, 2));
     return;
   }
-  console.log(rebuilt ? 'Uruc rebuilt and restarted.' : 'Uruc restarted.');
+  console.log(getRestartSuccessMessage(status.mode, rebuilt));
 }

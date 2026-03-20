@@ -14,8 +14,10 @@ services:
       - WS_PORT=3001
       - DB_PATH=/data/uruc.db
       - PUBLIC_DIR=/app/public
-      - PLUGIN_CONFIG_PATH=/app/plugins.prod.json
-      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET before running docker compose up}
+      - CITY_CONFIG_PATH=/app/packages/server/uruc.city.json
+      - CITY_LOCK_PATH=/app/packages/server/uruc.city.lock.json
+      - PLUGIN_STORE_DIR=/app/packages/server/.uruc/plugins
+      - JWT_SECRET=${JWT_SECRET:-uruc-dev-secret}
       - ALLOW_REGISTER=${ALLOW_REGISTER:-false}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}

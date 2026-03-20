@@ -3,8 +3,9 @@ import path from 'path';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 
-import { getPackageRoot, getPluginConfigFilename } from '../../runtime-paths.js';
+import { getDefaultDbRelativePath, getPackageRoot } from '../../runtime-paths.js';
 import { getRepoRoot, getRootEnvPath, getServerEnvPath } from './state.js';
+import { DEFAULT_PLUGIN_PRESET, DEFAULT_PLUGIN_STORE_DIR, getBundledPluginPresetState } from './city.js';
 import type { CityReachability, ConfigureAnswers, InstancePurpose, SiteProtocol } from './types.js';
 
 const packageRoot = getPackageRoot();
@@ -74,14 +75,16 @@ export function defaultConfig(
 ): Omit<ConfigureAnswers, 'lang' | 'reachability' | 'purpose' | 'publicHost' | 'httpPort' | 'wsPort'> {
   const bindHost = defaultBindHost(reachability);
   const baseUrl = buildBaseUrl(siteProtocol, publicHost, httpPort);
-  const pluginConfigPath = purpose === 'production' ? './plugins.prod.json' : './plugins.dev.json';
-  const dbPath = purpose === 'production' ? './data/uruc.prod.db' : './data/uruc.local.db';
+  const cityConfigPath = './uruc.city.json';
+  const dbPath = getDefaultDbRelativePath(purpose);
   const allowRegister = reachability !== 'local';
   const defaultOrigins = reachability === 'local'
     ? `http://127.0.0.1:${httpPort},http://localhost:${httpPort},http://localhost:5173`
     : `${baseUrl},http://127.0.0.1:${httpPort},http://localhost:${httpPort},http://localhost:5173`;
 
   return {
+    mode: 'quickstart',
+    section: 'all',
     bindHost,
     siteProtocol,
     adminUsername: 'admin',
@@ -91,7 +94,7 @@ export function defaultConfig(
     noindex: purpose === 'test',
     sitePassword: '',
     dbPath,
-    pluginConfigPath,
+    cityConfigPath,
     allowedOrigins: defaultOrigins,
     jwtSecret: generateSecret(),
     baseUrl,
@@ -103,6 +106,9 @@ export function defaultConfig(
     googleClientSecret: '',
     githubClientId: '',
     githubClientSecret: '',
+    pluginPreset: DEFAULT_PLUGIN_PRESET,
+    pluginStoreDir: DEFAULT_PLUGIN_STORE_DIR,
+    bundledPluginState: getBundledPluginPresetState(DEFAULT_PLUGIN_PRESET),
   };
 }
 
@@ -119,6 +125,8 @@ export function currentConfigureDefaults(
   const activeReachability = inferReachability(current, reachability);
   return {
     lang: getCurrentLanguage(),
+    mode: 'quickstart',
+    section: 'all',
     reachability: activeReachability,
     purpose,
     bindHost: defaults.bindHost,
@@ -133,7 +141,7 @@ export function currentConfigureDefaults(
     noindex: toBool(current.NO_INDEX ?? current.URUC_NOINDEX, defaults.noindex),
     sitePassword: current.SITE_PASSWORD ?? defaults.sitePassword,
     dbPath: current.DB_PATH ?? defaults.dbPath,
-    pluginConfigPath: current.PLUGIN_CONFIG_PATH ?? defaults.pluginConfigPath,
+    cityConfigPath: current.CITY_CONFIG_PATH ?? defaults.cityConfigPath,
     allowedOrigins: current.ALLOWED_ORIGINS ?? defaults.allowedOrigins,
     jwtSecret: current.JWT_SECRET ?? defaults.jwtSecret,
     baseUrl: current.BASE_URL ?? defaults.baseUrl,
@@ -145,6 +153,9 @@ export function currentConfigureDefaults(
     googleClientSecret: current.GOOGLE_CLIENT_SECRET ?? defaults.googleClientSecret,
     githubClientId: current.GITHUB_CLIENT_ID ?? defaults.githubClientId,
     githubClientSecret: current.GITHUB_CLIENT_SECRET ?? defaults.githubClientSecret,
+    pluginPreset: DEFAULT_PLUGIN_PRESET,
+    pluginStoreDir: DEFAULT_PLUGIN_STORE_DIR,
+    bundledPluginState: getBundledPluginPresetState(DEFAULT_PLUGIN_PRESET),
   };
 }
 
@@ -159,7 +170,7 @@ export function configureAnswersToEnv(answers: ConfigureAnswers): Record<string,
     PORT: answers.httpPort,
     WS_PORT: answers.wsPort,
     DB_PATH: answers.dbPath,
-    PLUGIN_CONFIG_PATH: answers.pluginConfigPath,
+    CITY_CONFIG_PATH: answers.cityConfigPath,
     PUBLIC_DIR: answers.publicDir,
     UPLOADS_DIR: answers.uploadsDir,
     JWT_SECRET: answers.jwtSecret,
@@ -193,8 +204,8 @@ export function generateSecret(): string {
   return crypto.randomBytes(24).toString('hex');
 }
 
-export function getDefaultPluginConfig(purpose: InstancePurpose): string {
-  return `./${getPluginConfigFilename(purpose === 'production' ? 'production' : 'development')}`;
+export function getDefaultCityConfig(_purpose: InstancePurpose): string {
+  return './uruc.city.json';
 }
 
 export function getRepoRootPath(): string {

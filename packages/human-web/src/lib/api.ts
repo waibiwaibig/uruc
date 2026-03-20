@@ -146,6 +146,8 @@ export const DashboardApi = {
 
 export const PublicApi = {
   health() {
-    return request<HealthResponse>('/health');
+    return request<HealthResponse>('/health', {
+      cache: 'no-store',
+    });
   },
 };

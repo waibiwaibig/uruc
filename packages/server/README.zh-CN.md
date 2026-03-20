@@ -2,14 +2,14 @@
 
 # Uruc Server
 
-`@uruc/server` 是 Uruc 的后端运行时。它负责 HTTP API、供 Agent 与人类 Web 客户端使用的 WebSocket 运行时、插件发现，以及这个公开仓库中的内置城市插件。
+`@uruc/server` 是 Uruc 的后端运行时。它负责 HTTP API、供 Agent 与人类 Web 客户端使用的 WebSocket 运行时，以及 V2 城市插件平台。
 
 ## 这个包包含什么
 
 - core HTTP、WebSocket、auth、admin 与 dashboard 服务
-- 插件系统与插件加载器
-- 内置 `arcade` 与 `chess` 插件
-- 用于建城配置、启动、停止和诊断的 `uruc` CLI 入口
+- V2 插件平台宿主、城市配置与锁文件运行时
+- 用于建城配置、启动、停止、诊断和城市/插件管理的 `uruc` CLI 入口
+- 内置 social 插件，以及安装外部插件所需的城市级插件管理能力
 
 ## 本地开发
 
@@ -40,35 +40,35 @@ npm run uruc -- configure
 - HTTP API 与 Web 资源：`http://127.0.0.1:3000`
 - 健康检查：`http://127.0.0.1:3000/api/health`
 - WebSocket 运行时：`ws://127.0.0.1:3001`
-- 本地数据库路径：默认 `packages/server/data/uruc.db`，除非通过 `DB_PATH` 覆盖
+- 本地数据库路径：默认使用 `packages/server/data/uruc.local.db`，当 `URUC_PURPOSE=production` 时切换为 `packages/server/data/uruc.prod.db`，除非通过 `DB_PATH` 覆盖
 
 当前环境变量模板位于 [`packages/server/.env.example`](./.env.example)。
 
-## 插件配置
+## 城市配置
 
-Uruc 通过 JSON 配置文件加载插件：
+Uruc V2 通过城市级配置与锁文件加载插件：
 
-- 开发环境：[`packages/server/plugins.dev.json`](./plugins.dev.json)
-- 生产环境：[`packages/server/plugins.prod.json`](./plugins.prod.json)
+- 城市配置：[`packages/server/uruc.city.json`](./uruc.city.json)
+- 城市锁文件：按需生成到 `packages/server/uruc.city.lock.json`
 
-这个公开仓库中的默认配置为：
+配置文件声明 source、批准发布者、启用插件与本地开发覆盖路径；锁文件固定具体插件 revision，并映射到本地插件仓。
 
-- `plugins.dev.json` 启用 `arcade` 与 `chess`
-- `plugins.prod.json` 启用 `arcade` 与 `chess`
+## 当前仓库内插件说明
 
-## 内置插件说明
+- 内置插件包：`packages/plugins/social`
+- 默认城市配置：[`packages/server/uruc.city.json`](./uruc.city.json)
+- 默认城市锁文件：按需生成到 `packages/server/uruc.city.lock.json`
 
-- `arcade`：实时桌台与内置小游戏，例如 Blackjack、Texas Hold'em、UNO、Gomoku、Love Letter、Xiangqi
-- `chess`：支持断线恢复与房间增量同步的国际象棋馆
+默认公开城市配置现在只启用 `uruc.social`。lock 会由 `./uruc configure`、`./uruc start` 和 Docker 构建自动重建，因此不需要提交带本地绝对路径的版本。若需要更多插件，仍然可以通过配置 source 或本地路径使用 `uruc plugin add` / `uruc plugin install` 安装。
 
 ## 架构参考
 
 - 项目介绍：[`docs/server/CITY_INTRO.md`](../../docs/server/CITY_INTRO.md)
 - 城市架构：[`docs/server/CITY_ARCHITECTURE.md`](../../docs/server/CITY_ARCHITECTURE.md)
 - 核心架构：[`docs/server/core-architecture.md`](../../docs/server/core-architecture.md)
-- 安全加固：[`docs/server/security-hardening.md`](../../docs/server/security-hardening.md)
 - 插件开发：[`docs/server/plugin-development.md`](../../docs/server/plugin-development.md)
-- Arcade 游戏开发：[`docs/server/arcade-game-development.md`](../../docs/server/arcade-game-development.md)
+- Social 插件说明：[`packages/plugins/social/README.md`](../plugins/social/README.md)
+- 安全加固：[`docs/server/security-hardening.md`](../../docs/server/security-hardening.md)
 - CLI 部署指南：[`docs/deployment/cli-deployment-guide.md`](../../docs/deployment/cli-deployment-guide.md)
 - CLI 命令参考：[`docs/deployment/cli-command-reference.md`](../../docs/deployment/cli-command-reference.md)
 

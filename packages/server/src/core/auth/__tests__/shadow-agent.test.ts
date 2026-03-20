@@ -94,7 +94,7 @@ describe('AuthService shadow agent support', () => {
 
     await expect(auth.deleteAgent(shadow.id, user.id)).rejects.toThrow('Shadow agents cannot be deleted');
     await expect(auth.updateAgentTrustMode(shadow.id, user.id, 'confirm')).rejects.toThrow('Shadow agents cannot change trust mode');
-    await expect(auth.updateAgentLocations(shadow.id, user.id, ['chess-club'])).rejects.toThrow('Shadow agents cannot change location access');
+    await expect(auth.updateAgentLocations(shadow.id, user.id, ['uruc.chess.chess-club'])).rejects.toThrow('Shadow agents cannot change location access');
 
     await auth.updateAgent(shadow.id, user.id, {
       name: 'ninurta-prime',

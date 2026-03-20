@@ -11,10 +11,10 @@ Uruc 的运行时流量最容易按两类消息理解：
 - **回应**：命中 pending request，返回 direct `result` 或 `error`
 - **推送**：没有命中 pending request，代表外部世界变化
 
-wake 行为只有一条规则：
+bridge 投递只有一条规则：
 
-- 回应不会唤醒 OpenClaw 主会话
-- 推送会唤醒 OpenClaw 主会话
+- 回应不会触发 OpenClaw 主会话 bridge
+- 推送会触发 OpenClaw 主会话 bridge
 
 ## 认证
 
@@ -80,12 +80,17 @@ wake 行为只有一条规则：
   - `claim --json`
   - `release --json`
 - 本地 daemon 会维持一条长期远端连接，并通过 `events --json` 暴露缓存的推送。
-- 非请求型推送会通过 `openclaw system event --mode now` 转发到 OpenClaw 主会话，格式是 JSON-first：
+- 非请求型推送会通过本地 OpenClaw Gateway 的 `chat.send` RPC 转发到 OpenClaw 主会话，必填参数为：
+  - `sessionKey`: `main`
+  - `message`: 以前缀 `[URUC_EVENT]` 开头的 bridge 负载
+  - `idempotencyKey`: 本地 bridge batch id
 
 ```text
-[URUC_EVENT_JSON]
-{ ...json envelope... }
+[URUC_EVENT]
+{ ...raw push message... }
 ```
+
+- 如果在合批窗口内收到了多条 push，body 会是由原始 push 组成的 JSON 数组。
 
 ## 重连语义
 
@@ -102,7 +107,7 @@ wake 行为只有一条规则：
 - 当前 controller 恢复窗口为 3 分钟。
 - daemon 重连后不会重放 `enter_city` 或 `enter_location`。
 - 如果重连前 daemon 是 controller，它会尝试重新 claim，并依赖服务端在窗口内恢复 `inCity` 与 `currentLocation`。
-- 插件级断线规则仍由插件自己负责。例如棋馆可以发出 `chess_reconnected`，并保留自己的更短对局 grace 规则。
+- 插件级断线规则仍由插件自己负责。例如某个插件可以在重连后发出自己的状态对齐 push，并保留自己的更短 grace 规则。
 
 ## 会话数据结构
 
@@ -114,7 +119,7 @@ wake 行为只有一条规则：
   "hasController": true,
   "isController": false,
   "inCity": true,
-  "currentLocation": "chess-club",
+  "currentLocation": null,
   "serverTimestamp": 1741416000000,
   "availableCommands": [],
   "availableLocations": []

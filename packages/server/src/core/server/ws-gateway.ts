@@ -302,9 +302,30 @@ export class WSGateway implements WSGatewayPublic {
       return this.handleReleaseControl(clientId, client, msg);
     }
 
-    if (this.hooks.hasWSCommand(msg.type)) {
-      const claimed = await this.ensureGameplayControl(clientId, client, msg);
-      if (!claimed) return;
+    const schema = this.hooks.getWSCommandSchema(msg.type);
+    if (schema) {
+      const requiresController = schema.controlPolicy?.controllerRequired ?? true;
+      if (requiresController) {
+        const claimed = await this.ensureGameplayControl(clientId, client, msg);
+        if (!claimed) return;
+      }
+
+      const requiresConfirmation = schema.confirmationPolicy?.required ?? schema.requiresConfirmation ?? false;
+      if (requiresConfirmation && client.session.trustMode === 'confirm') {
+        return this.send(client.ws, {
+          id: msg.id,
+          type: 'error',
+          payload: {
+            error: 'This command requires owner confirmation for the current trust mode.',
+            code: 'CONFIRMATION_REQUIRED',
+            action: 'request_confirmation',
+            details: {
+              command: msg.type,
+              trustMode: client.session.trustMode,
+            },
+          },
+        });
+      }
     }
 
     const sessionStateBefore = client.session
@@ -386,7 +407,9 @@ export class WSGateway implements WSGatewayPublic {
 
       const bootstrapData: Record<string, unknown> = {};
       const wsCtx = this.createWSContext(clientId, client);
-      await this.hooks.runHook('agent.authenticated', { session, ctx: wsCtx, bootstrapData });
+      const authContext = { session, ctx: wsCtx, bootstrapData };
+      await this.hooks.runHook('agent.authenticated', authContext);
+      await this.hooks.runAfterHook('agent.authenticated', authContext);
 
       this.send(client.ws, {
         id: msg.id,
@@ -522,9 +545,15 @@ export class WSGateway implements WSGatewayPublic {
     availableCommands: ReturnType<HookRegistry['getWSCommandSchemas']>;
     availableLocations: ReturnType<HookRegistry['getLocations']>;
   } {
+    const snapshot = this.agentSessions.getSnapshot(agentId, connectionId);
+    const client = this.clients.get(connectionId);
+    const availableCommands = client
+      ? this.hooks.getAvailableWSCommandSchemas(this.createWSContext(connectionId, client))
+      : this.hooks.getWSCommandSchemas();
+
     return {
-      ...this.agentSessions.getSnapshot(agentId, connectionId),
-      availableCommands: this.hooks.getWSCommandSchemas(),
+      ...snapshot,
+      availableCommands,
       availableLocations: this.hooks.getLocations(),
     };
   }

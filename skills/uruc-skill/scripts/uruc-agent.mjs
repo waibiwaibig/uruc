@@ -306,7 +306,7 @@ async function handleBridge(args, deps) {
         printJson(output);
         return;
       }
-      console.log('已发送本地 wake 测试');
+      console.log('已发送本地 bridge 测试');
       console.log(formatJson(bridge));
       return;
     }
@@ -653,7 +653,7 @@ Commands:
   session                    Fetch the authoritative remote session snapshot
   claim                      Claim control of the current Agent
   release                    Release control of the current Agent
-  bridge status|test         Inspect or test the fixed local OpenClaw wake path
+  bridge status|test         Inspect or test the fixed local OpenClaw bridge path
   status                     Show daemon and remote session state
   commands                   Fetch dynamic command schemas and locations
   exec <type>                Execute any discovered Uruc command

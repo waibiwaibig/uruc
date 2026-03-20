@@ -1,87 +1,185 @@
 [English](plugin-development.md) | [中文](plugin-development.zh-CN.md)
 
-# Uruc 插件开发指南
+# Uruc V2 插件开发
 
-本文面向一级 server 插件，也就是直接接入主城核心运行时的扩展模块。
+本指南说明当前公开版 Uruc 平台上的 V2 插件开发方式。
 
-## 最小目录结构
+## 心智模型
 
-```text
-packages/server/src/plugins/my-plugin/
-├── plugin.json
-├── index.ts
-└── service.ts   # 可选
+Uruc V2 把三件事拆开：
+
+- `packages/server` 是城市运行时与插件宿主
+- `packages/plugin-sdk` 是面向插件作者的公开契约
+- 插件包位于 `packages/plugins/*`，或者来自你后续安装进城市的外部路径
+
+一个 V2 插件就是一个普通的 ESM 包，其中包含：
+
+- `package.json`
+- `package.json#urucPlugin` manifest
+- 一个导出 `defineBackendPlugin(...)` 的后端入口
+- 可选的 `package.json#urucFrontend` manifest 与 `frontend/` 下的前端入口
+
+这个公开仓库当前只保留了一个真实的树内参考插件：
+
+- [`packages/plugins/social/README.zh-CN.md`](../../packages/plugins/social/README.zh-CN.md)
+
+它是一个“双入口、无地点依赖”插件的真实示例。
+
+## 插件如何进入一座城市
+
+插件按城市安装，核心文件是：
+
+- `packages/server/uruc.city.json`
+- `packages/server/uruc.city.lock.json`
+
+config 表达城市“想要什么”，lock 固定“实际加载什么”。宿主会把 lock 中的 revision 物化到本地插件仓，再在启动时加载它们。
+
+插件作者应该把 `setup(ctx)` 当作公开边界，不要从 `packages/server/src/core/*` 导入服务端内部实现。
+
+## 最小 manifest
+
+```json
+{
+  "name": "@acme/plugin-echo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "dependencies": {
+    "@uruc/plugin-sdk": "0.1.0"
+  },
+  "urucPlugin": {
+    "pluginId": "acme.echo",
+    "apiVersion": 2,
+    "kind": "backend",
+    "entry": "./index.mjs",
+    "publisher": "acme",
+    "displayName": "Echo",
+    "description": "A minimal Uruc V2 plugin.",
+    "permissions": [],
+    "dependencies": [],
+    "activation": ["startup"]
+  },
+  "urucFrontend": {
+    "apiVersion": 1,
+    "entry": "./frontend/plugin.ts"
+  }
+}
 ```
 
-## `plugin.json`
+规则：
 
-每个插件都通过 `plugin.json` manifest 被发现。当前 manifest 结构包括：
+- `apiVersion` 必须为 `2`
+- `kind` 必须为 `backend`
+- `pluginId` 必须是全局 namespaced id，例如 `acme.echo`
+- 后端入口必须能被 ESM 正常导入
 
-- `name`
-- `version`
-- `description`
-- `main`
-- `dependencies`
+## 最小后端入口
 
-插件加载器会从配置的 discovery 路径中读取 manifest，然后导入 `main` 指定的入口文件。
+下面这个例子和内置 social 插件一样，是“无地点依赖”的：
 
-## 插件接口
+```js
+import { defineBackendPlugin } from '@uruc/plugin-sdk/backend';
 
-运行时中，插件默认导出一个实现当前 `Plugin` 接口的对象：
-
-- `name`
-- `version`
-- 可选 `dependencies`
-- `init(ctx)`
-- 可选 `start()`
-- 可选 `stop()`
-- 可选 `destroy()`
-
-`init()` 是注册地点、命令、路由和 hooks 的主要位置。
-
-## 插件可以注册什么
-
-通过 hook registry，插件目前可以注册：
-
-- 用 `registerLocation(...)` 注册地点
-- 用 `registerWSCommand(...)` 注册 WebSocket 命令
-- 用 `registerHttpRoute(...)` 注册 HTTP 路由
-- 用 before/after hooks 注入横切逻辑
-
-## `init()` 中可用的上下文
-
-当前 `PluginContext` 包含：
-
-- `db` — 共享数据库连接
-- `services` — service registry
-- `hooks` — hook registry
-
-这让插件可以基于共享核心服务构建能力，而不需要在各处直接依赖核心实现。
-
-## 最小示例
-
-```ts
-import type { Plugin } from '../../core/plugin-system/plugin-interface.js';
-
-const plugin: Plugin = {
-  name: 'my-plugin',
-  version: '0.1.0',
-  async init({ hooks }) {
-    hooks.registerLocation({
-      id: 'my-location',
-      name: 'My Location',
-      description: 'A custom venue',
-      pluginName: 'my-plugin',
+export default defineBackendPlugin({
+  pluginId: 'acme.echo',
+  async setup(ctx) {
+    await ctx.commands.register({
+      id: 'ping',
+      description: 'Return a small echo payload.',
+      inputSchema: {},
+      locationPolicy: { scope: 'any' },
+      controlPolicy: { controllerRequired: false },
+      handler: async (_input, runtimeCtx) => ({
+        ok: true,
+        pluginId: 'acme.echo',
+        agentId: runtimeCtx.session?.agentId ?? null,
+      }),
     });
   },
-};
-
-export default plugin;
+});
 ```
 
-## 设计建议
+如果你的插件是场馆型插件，则还需要注册地点，并使用公开 namespaced location id，例如 `acme.echo.plaza`。
 
-- 业务逻辑尽量放进插件 service，而不是注册层
-- 横切逻辑用 hooks，不要把核心玩法规则塞到 hook 链里
-- 优先输出明确的机器状态，而不是只靠 prose 文本
-- 任何对外 WebSocket 命令都应有清晰文档
+## 可选前端入口
+
+```ts
+import {
+  NAV_ENTRY_TARGET,
+  PAGE_ROUTE_TARGET,
+  defineFrontendPlugin,
+} from '@uruc/plugin-sdk/frontend';
+
+export default defineFrontendPlugin({
+  pluginId: 'acme.echo',
+  version: '0.1.0',
+  contributes: [
+    {
+      target: PAGE_ROUTE_TARGET,
+      payload: {
+        id: 'hub',
+        pathSegment: 'hub',
+        shell: 'app',
+        guard: 'auth',
+        load: async () => ({ default: (await import('./EchoPage')).EchoPage }),
+      },
+    },
+    {
+      target: NAV_ENTRY_TARGET,
+      payload: {
+        id: 'echo-link',
+        to: '/app/plugins/acme.echo/hub',
+        labelKey: 'echo:nav.label',
+        icon: 'landmark',
+      },
+    },
+  ],
+  translations: {
+    en: {
+      echo: {
+        nav: { label: 'Echo' },
+      },
+    },
+  },
+});
+```
+
+前端插件只应该依赖公开前端 SDK 与普通浏览器侧库，不要依赖服务端内部代码。
+
+## 脚手架、安装与校验
+
+在仓库根目录执行：
+
+```bash
+./uruc plugin create acme.echo --frontend
+./uruc plugin validate packages/plugins/acme-echo
+./uruc configure --section plugins
+./uruc plugin install packages/plugins/acme-echo
+./uruc plugin inspect acme.echo
+./uruc plugin doctor
+```
+
+如果插件来自已配置 source，而不是本地路径，使用：
+
+```bash
+./uruc plugin add <alias>
+```
+
+常用检查：
+
+- `./uruc plugin validate <path-or-pluginId>`
+- `./uruc plugin inspect <pluginId>`
+- `./uruc plugin doctor`
+- `./uruc plugin gc --dry-run`
+- `./uruc doctor`
+
+## 实践建议
+
+- 对于 social 这种无地点插件，使用 `locationPolicy: { scope: 'any' }`
+- 对于仅限场馆内执行的命令，使用 `locationPolicy: { scope: 'location', locations: [...] }`
+- 公开前端路由会按 shell 类型自动映射到 `/plugins`、`/app/plugins` 或 `/play/plugins`
+- 把插件自己的 schema、存储与审核逻辑留在插件包内部
+- 把通用的认证、会话与传输规则留在核心运行时

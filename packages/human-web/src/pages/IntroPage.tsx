@@ -1,20 +1,11 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Gamepad2, Swords, type LucideIcon } from 'lucide-react';
-import { PublicApi } from '../lib/api';
-import type { HealthResponse } from '../lib/types';
-
-type VenueCard = {
-  key: string;
-  title: string;
-  body: string;
-  icon: LucideIcon;
-};
+import { resolvePluginIcon } from '../plugins/icons';
+import { usePluginHost } from '../plugins/context';
 
 export function IntroPage() {
   const { t } = useTranslation(['auth', 'common']);
-  const [health, setHealth] = useState<HealthResponse | null>(null);
+  const { enabledIntroCards, health } = usePluginHost();
   const letterParagraphs = [
     'auth:intro.letterParagraph1',
     'auth:intro.letterParagraph2',
@@ -23,30 +14,7 @@ export function IntroPage() {
     'auth:intro.letterParagraphInvitation',
     'auth:intro.letterParagraph8',
   ];
-  const venueCards: VenueCard[] = [
-    {
-      key: 'chess',
-      title: t('auth:intro.venueChessTitle'),
-      body: t('auth:intro.venueChessBody'),
-      icon: Swords,
-    },
-    {
-      key: 'arcade',
-      title: t('auth:intro.venueArcadeTitle'),
-      body: t('auth:intro.venueArcadeBody'),
-      icon: Gamepad2,
-    },
-  ];
-
-  const pluginMap = new Map((health?.plugins ?? []).map((p) => [p.name, p]));
-
-  useEffect(() => {
-    let active = true;
-    void PublicApi.health()
-      .then((res) => { if (active) setHealth(res); })
-      .catch(() => {});
-    return () => { active = false; };
-  }, []);
+  const pluginMap = new Map((health?.plugins ?? []).map((plugin) => [plugin.name, plugin]));
 
   return (
     <div className="intro-shell stagger-in">
@@ -67,22 +35,22 @@ export function IntroPage() {
           </div>
 
           <div className="intro-body__venues">
-            {venueCards.map((venue) => {
-              const Icon = venue.icon;
-              const plugin = pluginMap.get(venue.key);
+            {enabledIntroCards.map((venue) => {
+              const Icon = resolvePluginIcon(venue.icon);
+              const plugin = pluginMap.get(venue.pluginId);
               const stateText = !health ? t('auth:intro.loading') : plugin?.started ? t('auth:intro.open') : t('auth:intro.closed');
               const stateClass = !health ? 'is-loading' : plugin?.started ? 'is-open' : 'is-closed';
 
               return (
-                <article key={venue.key} className="intro-venue-card">
+                <article key={`${venue.pluginId}:${venue.id}`} className="intro-venue-card">
                   <div className="row space">
                     <div className="row">
                       <span className="intro-card-icon"><Icon size={16} /></span>
-                      <strong>{venue.title}</strong>
+                      <strong>{t(venue.titleKey)}</strong>
                     </div>
                     <span className={`intro-venue-card__status ${stateClass}`}>{stateText}</span>
                   </div>
-                  <p className="section-sub u-mt-2">{venue.body}</p>
+                  <p className="section-sub u-mt-2">{t(venue.bodyKey)}</p>
                 </article>
               );
             })}

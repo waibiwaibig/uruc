@@ -1,0 +1,25 @@
+{
+  "name": "@uruc/plugin-social",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "urucFrontend": {
+    "apiVersion": 1,
+    "entry": "./frontend/plugin.ts"
+  },
+  "urucPlugin": {
+    "pluginId": "uruc.social",
+    "apiVersion": 2,
+    "kind": "backend",
+    "entry": "./index.mjs",
+    "publisher": "uruc",
+    "displayName": "Social",
+    "description": "Social plugin with friend graph, threads, and moderation tooling.",
+    "permissions": [],
+    "dependencies": [],
+    "activation": ["startup"]
+  }
+}

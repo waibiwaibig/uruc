@@ -5,7 +5,6 @@ const root = resolve(process.cwd(), 'src');
 const targets = [
   'components/AppShell.tsx',
   'components/PublicShell.tsx',
-  'components/GameShell.tsx',
   'components/LanguageToggle.tsx',
   'components/ProtectedRoute.tsx',
   'pages/IntroPage.tsx',
@@ -28,13 +27,29 @@ const targets = [
 
 const han = /[\u4e00-\u9fff]/;
 const offenders = [];
+const missingTargets = [];
 
 for (const relativePath of targets) {
   const path = resolve(root, relativePath);
-  const source = await readFile(path, 'utf8');
+  let source;
+  try {
+    source = await readFile(path, 'utf8');
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      missingTargets.push(relativePath);
+      continue;
+    }
+    throw error;
+  }
   if (han.test(source)) {
     offenders.push(relativePath);
   }
+}
+
+if (missingTargets.length > 0) {
+  console.error('Update check-infra-i18n.mjs to match the current infrastructure file set:');
+  missingTargets.forEach((path) => console.error(`- missing target: ${path}`));
+  process.exit(1);
 }
 
 if (offenders.length > 0) {

@@ -70,7 +70,7 @@ describe('startBackground', () => {
   });
 
   it('detaches the child while letting it write logs directly to file descriptors', async () => {
-    await startBackground();
+    await expect(startBackground()).resolves.toBe('background');
 
     expect(mocks.openSync).toHaveBeenNthCalledWith(1, '/tmp/uruc.log', 'a');
     expect(mocks.openSync).toHaveBeenNthCalledWith(2, '/tmp/uruc.log', 'a');
@@ -90,5 +90,16 @@ describe('startBackground', () => {
         logPath: '/tmp/uruc.log',
       }),
     );
+  });
+
+  it('delegates background start to systemd when the service is installed', async () => {
+    mocks.commandExists.mockReturnValue(true);
+    mocks.exec.mockReturnValue({ status: 0, stdout: 'uruc.service loaded', stderr: '' });
+
+    await expect(startBackground()).resolves.toBe('systemd');
+
+    expect(mocks.runOrThrow).toHaveBeenCalledWith('systemctl', ['start', 'uruc']);
+    expect(mocks.spawn).not.toHaveBeenCalled();
+    expect(mocks.writeManagedProcess).not.toHaveBeenCalled();
   });
 });

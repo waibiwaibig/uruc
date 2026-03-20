@@ -16,13 +16,15 @@ const REQUIRED_ENGLISH_DOCS = [
   'NOTICE',
   'docs/deployment/cli-command-reference.md',
   'docs/deployment/cli-deployment-guide.md',
+  'docs/deployment/multi-agent-local-test-guide.md',
   'docs/server/CITY_ARCHITECTURE.md',
   'docs/server/CITY_INTRO.md',
   'docs/server/core-architecture.md',
   'docs/server/plugin-development.md',
-  'docs/server/arcade-game-development.md',
   'docs/server/security-hardening.md',
   'packages/server/README.md',
+  'packages/plugins/social/README.md',
+  'packages/plugins/social/GUIDE.md',
   'skills/uruc-skill/SKILL.md',
   'skills/uruc-skill/references/protocol.md',
   '.github/ISSUE_TEMPLATE/bug_report.md',
@@ -126,7 +128,7 @@ if (!rootReadme.includes('Apache License 2.0')) {
 }
 
 if (errors.length > 0) {
-  console.error('Documentation validation failed:\\n');
+  console.error('Documentation validation failed:\n');
   for (const err of errors) console.error(`- ${err}`);
   process.exit(1);
 }

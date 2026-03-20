@@ -1,0 +1,40 @@
+{
+  "name": "@uruc/plugin-sdk",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./backend": {
+      "types": "./dist/backend.d.ts",
+      "import": "./dist/backend.js"
+    },
+    "./frontend": {
+      "types": "./dist/frontend.d.ts",
+      "import": "./dist/frontend.js"
+    },
+    "./frontend-react": {
+      "types": "./dist/frontend-react.d.ts",
+      "import": "./dist/frontend-react.js"
+    },
+    "./frontend-http": {
+      "types": "./dist/frontend-http.d.ts",
+      "import": "./dist/frontend-http.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "react": "^19.2.0",
+    "zod": "^3.24.1"
+  }
+}

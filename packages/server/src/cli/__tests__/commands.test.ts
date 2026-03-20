@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseCommandContext } from '../lib/argv.js';
+import { DEFAULT_PLUGIN_PRESET, DEFAULT_PLUGIN_STORE_DIR, getBundledPluginPresetState } from '../lib/city.js';
 import { getConfigureActions, getConfigureSummaryLines } from '../lib/configure.js';
 import type { ConfigureAnswers } from '../lib/types.js';
 
 function makeAnswers(overrides: Partial<ConfigureAnswers> = {}): ConfigureAnswers {
   return {
     lang: 'zh-CN',
+    mode: 'quickstart',
+    section: 'all',
     reachability: 'local',
     purpose: 'test',
     bindHost: '127.0.0.1',
@@ -21,7 +24,7 @@ function makeAnswers(overrides: Partial<ConfigureAnswers> = {}): ConfigureAnswer
     noindex: true,
     sitePassword: '',
     dbPath: './data/uruc.local.db',
-    pluginConfigPath: './plugins.dev.json',
+    cityConfigPath: './uruc.city.json',
     allowedOrigins: 'http://127.0.0.1:3000,http://localhost:5173',
     jwtSecret: 'secret',
     baseUrl: 'http://127.0.0.1:3000',
@@ -33,6 +36,9 @@ function makeAnswers(overrides: Partial<ConfigureAnswers> = {}): ConfigureAnswer
     googleClientSecret: '',
     githubClientId: '',
     githubClientSecret: '',
+    pluginPreset: DEFAULT_PLUGIN_PRESET,
+    pluginStoreDir: DEFAULT_PLUGIN_STORE_DIR,
+    bundledPluginState: getBundledPluginPresetState(DEFAULT_PLUGIN_PRESET),
     ...overrides,
   };
 }
@@ -70,11 +76,11 @@ describe('configure summaries', () => {
     const summary = getConfigureSummaryLines(makeAnswers({
       reachability: 'server',
       bindHost: '0.0.0.0',
-      publicHost: 'uruc.life',
+      publicHost: 'uruk.life',
       siteProtocol: 'https',
-      baseUrl: 'https://uruc.life',
+      baseUrl: 'https://uruk.life',
     }));
-    expect(summary.some((line) => line.includes('uruc.life'))).toBe(true);
+    expect(summary.some((line) => line.includes('uruk.life'))).toBe(true);
     expect(summary.some((line) => line.includes('管理员: admin'))).toBe(true);
   });
 });

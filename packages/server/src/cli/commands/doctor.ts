@@ -1,8 +1,14 @@
 import { existsSync } from 'fs';
 import path from 'path';
 
-import { PluginDiscovery } from '../../core/plugin-system/discovery.js';
-import { getPackageRoot, getPluginConfigPath } from '../../runtime-paths.js';
+import { readCityConfig, readCityLock } from '../../core/plugin-platform/config.js';
+import {
+  aggregatePluginCheckLevel,
+  inspectConfiguredPlugins,
+  summarizePluginChecks,
+  type PluginCheck,
+} from '../../core/plugin-platform/inspection.js';
+import { getPackageRoot, getCityConfigPath, getCityLockPath } from '../../runtime-paths.js';
 import { adminExists, resolveAdminPasswordState } from '../lib/admin.js';
 import { getBuildFreshness } from '../lib/build.js';
 import { loadServerEnv, parseEnvFile, rootEnvExists, serverEnvExists } from '../lib/env.js';
@@ -18,13 +24,21 @@ interface DoctorCheck {
 }
 
 interface RuntimePluginDiagnostic {
-  name: string;
+  name?: string;
+  pluginId?: string;
   state?: string;
   reason?: string;
+  lastError?: string;
+}
+
+function resolveDoctorTargetPath(rawPath: string | undefined, fallback: string, packageRoot: string): string {
+  if (!rawPath || rawPath.trim() === '') return fallback;
+  return path.isAbsolute(rawPath) ? rawPath : path.resolve(packageRoot, rawPath);
 }
 
 export async function runDoctorCommand(context: CommandContext): Promise<void> {
   const checks: DoctorCheck[] = [];
+  let pluginChecks: PluginCheck[] = [];
   const envPath = getServerEnvPath();
   const rootEnvPath = getRootEnvPath();
   const env = parseEnvFile(envPath);
@@ -47,7 +61,7 @@ export async function runDoctorCommand(context: CommandContext): Promise<void> {
 
   const runtime = await getRuntimeStatus();
   const resolvedDbPath = runtime.dbPath;
-  const resolvedPluginConfigPath = runtime.pluginConfigPath;
+  const resolvedCityConfigPath = runtime.cityConfigPath;
   const resolvedPublicDir = runtime.publicDir;
 
   checks.push({
@@ -56,9 +70,9 @@ export async function runDoctorCommand(context: CommandContext): Promise<void> {
     detail: `DB=${resolvedDbPath}`,
   });
   checks.push({
-    level: existsSync(resolvedPluginConfigPath) ? 'ok' : 'warn',
-    name: 'plugin-config',
-    detail: `PLUGIN_CONFIG=${resolvedPluginConfigPath}`,
+    level: existsSync(resolvedCityConfigPath) ? 'ok' : 'warn',
+    name: 'city-config',
+    detail: `CITY_CONFIG=${resolvedCityConfigPath}`,
   });
   checks.push({
     level: existsSync(resolvedPublicDir) ? 'ok' : 'warn',
@@ -109,41 +123,34 @@ export async function runDoctorCommand(context: CommandContext): Promise<void> {
     }
   }
 
-  try {
-    const configPath = env.PLUGIN_CONFIG_PATH
-      ? (path.isAbsolute(env.PLUGIN_CONFIG_PATH) ? env.PLUGIN_CONFIG_PATH : path.resolve(packageRoot, env.PLUGIN_CONFIG_PATH))
-      : getPluginConfigPath();
-    const discovery = new PluginDiscovery(configPath, packageRoot);
-    await discovery.loadConfig();
-    const discovered = await discovery.discoverPlugins();
-    const stale = discovery.getStaleConfiguredPlugins(discovered);
-    checks.push({
-      level: stale.length > 0 ? 'warn' : 'ok',
-      name: 'plugins',
-      detail: stale.length > 0
-        ? `Discovered ${discovered.size} plugins; stale config entries: ${stale.join(', ')}`
-        : `Discovered ${discovered.size} plugins from ${discovery.getConfigPath()}`,
-    });
-
-    const enabledAutoLoad = Array.from(discovered.entries()).filter(([name]) => (
-      discovery.isEnabled(name) && discovery.shouldAutoLoad(name)
-    ));
-    const loadFailures: string[] = [];
-    for (const [name, metadata] of enabledAutoLoad) {
-      try {
-        await discovery.loadPluginInstance(metadata);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        loadFailures.push(`${name} (${message})`);
-      }
+  const runtimePluginDiagnostics = readRuntimePluginDiagnostics(runtime.health.body);
+  const runtimePluginCheckDiagnostics = runtimePluginDiagnostics.flatMap((item) => {
+    if (typeof item.pluginId !== 'string' || typeof item.state !== 'string') {
+      return [];
     }
+    return [{
+      pluginId: item.pluginId,
+      state: item.state as NonNullable<PluginCheck['runtimeState']>,
+      lastError: item.lastError,
+    }];
+  });
+  try {
+    const configPath = resolveDoctorTargetPath(env.CITY_CONFIG_PATH, getCityConfigPath(), packageRoot);
+    const lockPath = resolveDoctorTargetPath(env.CITY_LOCK_PATH, getCityLockPath(), packageRoot);
+    const config = await readCityConfig(configPath);
+    const lock = await readCityLock(lockPath);
+    pluginChecks = await inspectConfiguredPlugins({
+      config,
+      lock,
+      configPath,
+      runtimeDiagnostics: runtimePluginCheckDiagnostics,
+    });
+    const pluginsLevel = aggregatePluginCheckLevel(pluginChecks.map((item) => item.status));
 
     checks.push({
-      level: loadFailures.length > 0 ? 'fail' : 'ok',
-      name: 'plugin-load',
-      detail: loadFailures.length > 0
-        ? `Failed to load enabled plugins: ${loadFailures.join('; ')}`
-        : `Validated ${enabledAutoLoad.length} enabled auto-load plugin(s)`,
+      level: pluginsLevel,
+      name: 'plugins',
+      detail: `${summarizePluginChecks(pluginChecks)} from ${configPath}`,
     });
   } catch (error) {
     checks.push({
@@ -153,11 +160,10 @@ export async function runDoctorCommand(context: CommandContext): Promise<void> {
     });
   }
 
-  const runtimePluginDiagnostics = readRuntimePluginDiagnostics(runtime.health.body);
   if (runtime.health.ok && runtimePluginDiagnostics.length > 0) {
     const runtimeFailures = runtimePluginDiagnostics
       .filter((item) => item.state === 'failed')
-      .map((item) => item.reason ? `${item.name} (${item.reason})` : item.name);
+      .map((item) => item.lastError ? `${item.pluginId ?? item.name} (${item.lastError})` : (item.pluginId ?? item.name ?? 'unknown'));
 
     checks.push({
       level: runtimeFailures.length > 0 ? 'fail' : 'ok',
@@ -174,12 +180,13 @@ export async function runDoctorCommand(context: CommandContext): Promise<void> {
     reachability: runtime.reachability,
     bindHost: runtime.bindHost,
     dbPath: runtime.dbPath,
-    pluginConfigPath: runtime.pluginConfigPath,
+    cityConfigPath: runtime.cityConfigPath,
     siteUrl: runtime.siteUrl,
     healthUrl: runtime.healthUrl,
     wsUrl: runtime.wsUrl,
     runtimeMode: runtime.mode,
     checks,
+    pluginChecks,
   };
 
   if (context.json) {
@@ -192,13 +199,26 @@ export async function runDoctorCommand(context: CommandContext): Promise<void> {
   console.log(`Reachability:${report.reachability}`);
   console.log(`Bind host:   ${report.bindHost}`);
   console.log(`DB:          ${report.dbPath}`);
-  console.log(`Plugins:     ${report.pluginConfigPath}`);
+  console.log(`City config: ${report.cityConfigPath}`);
   console.log(`Site:        ${report.siteUrl}`);
   console.log(`Health:      ${report.healthUrl}`);
   console.log(`WS:          ${report.wsUrl}`);
   console.log('');
   for (const check of checks) {
     printStatus(check.level, `${check.name}: ${check.detail}`);
+  }
+  if (pluginChecks.length > 0) {
+    console.log('');
+    console.log('Plugin checks:');
+    for (const pluginCheck of pluginChecks) {
+      const runtimeSuffix = pluginCheck.runtimeState
+        ? `; runtime=${pluginCheck.runtimeState}${pluginCheck.runtimeDetail ? ` (${pluginCheck.runtimeDetail})` : ''}`
+        : '';
+      printStatus(
+        pluginCheck.status,
+        `${pluginCheck.pluginId}: config=${pluginCheck.configStatus} (${pluginCheck.configDetail}); lock=${pluginCheck.lockStatus} (${pluginCheck.lockDetail})${runtimeSuffix}`,
+      );
+    }
   }
 }
 
@@ -210,7 +230,7 @@ function readRuntimePluginDiagnostics(body: unknown): RuntimePluginDiagnostic[] 
   return diagnostics.flatMap((item) => {
     if (!item || typeof item !== 'object') return [];
     const candidate = item as RuntimePluginDiagnostic;
-    if (typeof candidate.name !== 'string') return [];
+    if (typeof candidate.name !== 'string' && typeof candidate.pluginId !== 'string') return [];
     return [candidate];
   });
 }

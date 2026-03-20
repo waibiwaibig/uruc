@@ -1,62 +1,39 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type ComponentType, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, DoorOpen, Gamepad2, Landmark, Map as MapIcon, RefreshCw, ShieldAlert, Sparkles, Swords, TowerControl } from 'lucide-react';
+import { ArrowLeft, DoorOpen, Landmark, Map as MapIcon, RefreshCw, ShieldAlert, Sparkles, TowerControl } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAgents } from '../context/AgentsContext';
 import { useAgentRuntime } from '../context/AgentRuntimeContext';
 import type { LocationDef } from '../lib/types';
+import { prepareVenueWindow } from '../lib/venue-window';
 import { WsCommandError } from '../lib/ws';
+import { usePluginHost } from '../plugins/context';
+import { resolvePluginIcon } from '../plugins/icons';
+import type { RegisteredLocationPage } from '../plugins/registry';
 
 const PENDING_STATUSES = new Set(['connecting', 'authenticating', 'syncing', 'reconnecting']);
-const LOCATION_ROUTE_MAP: Record<string, string> = {
-  arcade: '/play/arcade',
-  'chess-club': '/play/chess',
-};
 
 type Blueprint = {
   id: string;
   name: string;
   shortLabel: string;
   description: string;
-  x: number;
-  y: number;
-  icon: typeof Swords;
+  x?: number;
+  y?: number;
+  icon: ComponentType<{ size?: number }>;
   route?: string;
   accent: string;
+  order: number;
 };
 
 type Destination = Blueprint & {
+  x: number;
+  y: number;
   available: boolean;
   source: LocationDef | null;
   isActive: boolean;
+  order: number;
 };
-
-function buildLocationBlueprints(t: (key: string) => string): Record<string, Blueprint> {
-  return {
-    'chess-club': {
-      id: 'chess-club',
-      name: t('play:playPage.builtinChess'),
-      shortLabel: t('play:playPage.builtinChessShort'),
-      description: t('play:playPage.builtinChessDesc'),
-      x: 20,
-      y: 28,
-      icon: Swords,
-      route: '/play/chess',
-      accent: 'var(--city-node-royal)',
-    },
-    arcade: {
-      id: 'arcade',
-      name: t('play:playPage.builtinArcade'),
-      shortLabel: t('play:playPage.builtinArcadeShort'),
-      description: t('play:playPage.builtinArcadeDesc'),
-      x: 50,
-      y: 72,
-      icon: Gamepad2,
-      route: '/play/arcade',
-      accent: 'var(--city-node-neon)',
-    },
-  };
-}
 
 function statusLabel(t: (key: string) => string, status: string): string {
   switch (status) {
@@ -79,7 +56,12 @@ function statusLabel(t: (key: string) => string, status: string): string {
   }
 }
 
-function fallbackNode(index: number, total: number): Pick<Blueprint, 'x' | 'y' | 'icon' | 'accent'> {
+function fallbackNode(index: number, total: number): {
+  x: number;
+  y: number;
+  icon: ComponentType<{ size?: number }>;
+  accent: string;
+} {
   const base = Math.max(total, 1);
   const angle = (Math.PI * 2 * index) / base - Math.PI / 2;
   const radiusX = 26;
@@ -90,6 +72,29 @@ function fallbackNode(index: number, total: number): Pick<Blueprint, 'x' | 'y' |
     icon: Landmark,
     accent: 'var(--city-node-future)',
   };
+}
+
+function buildLocationBlueprints(
+  contributions: RegisteredLocationPage[],
+  t: (key: string) => string,
+): Record<string, Blueprint> {
+  return Object.fromEntries(
+    contributions.map((entry, index) => [
+      entry.locationId,
+      {
+        id: entry.locationId,
+        name: t(entry.titleKey),
+        shortLabel: t(entry.shortLabelKey ?? entry.titleKey),
+        description: entry.descriptionKey ? t(entry.descriptionKey) : t(entry.titleKey),
+        x: entry.x,
+        y: entry.y,
+        icon: resolvePluginIcon(entry.icon),
+        route: entry.resolvedPath,
+        accent: entry.accent ?? 'var(--city-node-future)',
+        order: entry.order ?? index * 10,
+      } satisfies Blueprint,
+    ]),
+  );
 }
 
 function buildDestinations(
@@ -105,44 +110,38 @@ function buildDestinations(
     const source = availableById.get(id) ?? null;
     const blueprint = locationBlueprints[id];
     const fallback = fallbackNode(index, ids.length);
+    const x = typeof blueprint?.x === 'number' ? blueprint.x : fallback.x;
+    const y = typeof blueprint?.y === 'number' ? blueprint.y : fallback.y;
 
     return {
       id,
       name: source?.name ?? blueprint?.name ?? id,
       shortLabel: blueprint?.shortLabel ?? source?.name ?? id,
       description: source?.description ?? blueprint?.description ?? t('play:playPage.unavailableDescription'),
-      x: blueprint?.x ?? fallback.x,
-      y: blueprint?.y ?? fallback.y,
+      x,
+      y,
       icon: blueprint?.icon ?? fallback.icon,
-      route: blueprint?.route ?? LOCATION_ROUTE_MAP[id],
+      route: blueprint?.route,
       accent: blueprint?.accent ?? fallback.accent,
       available: availableById.has(id),
       source,
       isActive: currentLocation === id,
+      order: blueprint?.order ?? index,
     };
   });
 }
 
 function buildRoads(destinations: Destination[]) {
-  const coreDestinationIds = new Set(['chess-club', 'arcade']);
-  const knownRoads = [
-    ['chess-club', 'arcade'],
-  ];
-  const byId = new Map(destinations.map((destination) => [destination.id, destination]));
+  const sorted = [...destinations].sort((left, right) => left.order - right.order || left.id.localeCompare(right.id));
   const roads: Array<{ id: string; from: Destination; to: Destination }> = [];
 
-  for (const [fromId, toId] of knownRoads) {
-    const from = byId.get(fromId);
-    const to = byId.get(toId);
-    if (from && to) roads.push({ id: `${fromId}-${toId}`, from, to });
+  for (let index = 1; index < sorted.length; index += 1) {
+    roads.push({
+      id: `${sorted[index - 1].id}-${sorted[index].id}`,
+      from: sorted[index - 1],
+      to: sorted[index],
+    });
   }
-
-  const extras = destinations.filter((destination) => !coreDestinationIds.has(destination.id));
-  extras.forEach((destination, index) => {
-    const anchor = index === 0 ? byId.get('arcade') ?? destinations[0] : extras[index - 1];
-    if (!anchor) return;
-    roads.push({ id: `${anchor.id}-${destination.id}`, from: anchor, to: destination });
-  });
 
   return roads;
 }
@@ -156,6 +155,7 @@ export function PlayPage() {
   const { t } = useTranslation(['play', 'common', 'runtime', 'dashboard']);
   const { shadowAgent } = useAgents();
   const runtime = useAgentRuntime();
+  const { enabledLocationPages } = usePluginHost();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -164,7 +164,15 @@ export function PlayPage() {
   const autoConnectAttemptRef = useRef('');
   const isPending = PENDING_STATUSES.has(runtime.status);
   const autoStart = searchParams.get('autostart') === '1';
-  const locationBlueprints = useMemo(() => buildLocationBlueprints(t), [t]);
+  const locationBlueprints = useMemo(
+    () => {
+      const blueprints = buildLocationBlueprints(enabledLocationPages, t);
+      console.log('[PlayPage] Location blueprints:', blueprints);
+      console.log('[PlayPage] Enabled location pages:', enabledLocationPages);
+      return blueprints;
+    },
+    [enabledLocationPages, t],
+  );
 
   const destinations = useMemo(
     () => buildDestinations(runtime.availableLocations, runtime.currentLocation, locationBlueprints, t),
@@ -271,48 +279,73 @@ export function PlayPage() {
   });
 
   const openLocation = (locationId: string) => run(t('play:playPage.enterLocationLabel'), async () => {
-    const route = LOCATION_ROUTE_MAP[locationId];
+    const destination = destinations.find((d) => d.id === locationId);
+    const route = destination?.route;
+    const preparedVenue = route ? prepareVenueWindow() : null;
+
+    if (route && !preparedVenue) {
+      throw new Error(t('play:playPage.venueTabBlocked'));
+    }
+
     if (route && runtime.currentLocation === locationId) {
-      navigate(route);
+      preparedVenue!.navigate(route);
       return;
     }
 
-    if (!runtime.isConnected) {
-      await runtime.connect();
-    }
-    const snapshot = await runtime.refreshSessionState();
-    if (!snapshot.inCity) {
-      await withGameplayControl(runtime.enterCity);
-    }
-    await withGameplayControl(() => runtime.enterLocation(locationId));
-    await runtime.refreshCommands();
+    try {
+      if (!runtime.isConnected) {
+        await runtime.connect();
+      }
+      const snapshot = await runtime.refreshSessionState();
+      if (!snapshot.inCity) {
+        await withGameplayControl(runtime.enterCity);
+      }
+      await withGameplayControl(() => runtime.enterLocation(locationId));
+      await runtime.refreshCommands();
 
-    if (route) {
-      navigate(route);
+      if (route) {
+        preparedVenue!.navigate(route);
+      } else {
+        // Fallback: if route is undefined, log error for debugging
+        console.error(`[PlayPage] No route found for location ${locationId}`, { destination, destinations });
+      }
+    } catch (error) {
+      preparedVenue?.close();
+      throw error;
     }
   });
 
   const leaveLocation = () => run(t('play:playPage.leaveLocationLabel'), async () => {
-    if (!runtime.currentLocation) return;
+    const snapshot = runtime.isConnected ? await runtime.refreshSessionState() : null;
+    const currentLocation = snapshot?.currentLocation ?? runtime.currentLocation;
+    if (!currentLocation) return;
     if (!window.confirm(t('play:playPage.leaveVenueConfirm'))) return;
     await withGameplayControl(runtime.leaveLocation);
     await runtime.refreshCommands();
   });
 
   const leaveCity = () => run(t('play:playPage.leaveCityLabel'), async () => {
-    if (runtime.currentLocation && !window.confirm(t('play:playPage.leaveCityConfirm'))) return;
-    if (runtime.currentLocation) {
+    const snapshot = runtime.isConnected ? await runtime.refreshSessionState() : null;
+    const currentLocation = snapshot?.currentLocation ?? runtime.currentLocation;
+    const inCity = snapshot?.inCity ?? runtime.inCity;
+    if (currentLocation && !window.confirm(t('play:playPage.leaveCityConfirm'))) return;
+    if (currentLocation) {
       await withGameplayControl(runtime.leaveLocation);
     }
-    await withGameplayControl(runtime.leaveCity);
+    if (inCity) {
+      await withGameplayControl(runtime.leaveCity);
+    }
   });
 
   const returnToLobby = () => run(t('play:playPage.returnLobbyLabel'), async () => {
-    if (runtime.currentLocation && !window.confirm(t('play:playPage.returnLobbyConfirm'))) return;
-    if (runtime.currentLocation) {
+    const snapshot = runtime.isConnected ? await runtime.refreshSessionState() : null;
+    const currentLocation = snapshot?.currentLocation ?? runtime.currentLocation;
+    const inCity = snapshot?.inCity ?? runtime.inCity;
+    if (currentLocation && !window.confirm(t('play:playPage.returnLobbyConfirm'))) return;
+    if (currentLocation) {
       await withGameplayControl(runtime.leaveLocation);
     }
-    if (runtime.inCity) {
+    if (inCity) {
       await withGameplayControl(runtime.leaveCity);
     }
     navigate('/lobby');
@@ -421,7 +454,7 @@ export function PlayPage() {
           </div>
 
           {/* hand-drawn ink roads — rendered as absolute-positioned SVG matching container */}
-          <svg className="city-atlas__roads" aria-hidden="true">
+          <svg className="city-atlas__roads" aria-hidden="true" viewBox="0 0 100 100" preserveAspectRatio="none">
             {roads.map((road, index) => {
               /* Use percentage-based coordinates via a viewBox-less SVG
                  that fills the container. Coordinates are in % so we use
@@ -444,14 +477,14 @@ export function PlayPage() {
               return (
                 <g key={road.id}>
                   <path
-                    d={`M ${x1}% ${y1}% Q ${cx}% ${cy}% ${x2}% ${y2}%`}
+                    d={`M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`}
                     className="city-atlas__road city-atlas__road--outline"
                   />
                   <path
-                    d={`M ${x1}% ${y1}% Q ${cx}% ${cy}% ${x2}% ${y2}%`}
+                    d={`M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`}
                     className="city-atlas__road"
                   />
-                  <circle cx={`${mx}%`} cy={`${my}%`} className="city-atlas__road-dot" r="3" />
+                  <circle cx={mx} cy={my} className="city-atlas__road-dot" r="0.3" />
                 </g>
               );
             })}

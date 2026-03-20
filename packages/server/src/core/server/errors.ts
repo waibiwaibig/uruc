@@ -53,6 +53,25 @@ export function isAppError(error: unknown): error is AppError {
   return error instanceof AppError;
 }
 
+type ErrorLikePayload = {
+  code?: string;
+  status?: number;
+  retryable?: boolean;
+  action?: string;
+  details?: Record<string, unknown>;
+};
+
+function isErrorLikePayload(error: unknown): error is Error & ErrorLikePayload {
+  return error instanceof Error
+    && (
+      typeof (error as ErrorLikePayload).code === 'string'
+      || typeof (error as ErrorLikePayload).status === 'number'
+      || typeof (error as ErrorLikePayload).retryable === 'boolean'
+      || typeof (error as ErrorLikePayload).action === 'string'
+      || typeof (error as ErrorLikePayload).details === 'object'
+    );
+}
+
 interface ErrorFallback extends AppErrorOptions {
   status: number;
 }
@@ -92,6 +111,19 @@ export function resolveError(
   }
 
   if (error instanceof Error) {
+    if (isErrorLikePayload(error)) {
+      return {
+        status: typeof error.status === 'number' ? error.status : fallback.status,
+        payload: {
+          error: error.message,
+          code: error.code ?? fallback.code,
+          ...((error.retryable ?? fallback.retryable) !== undefined ? { retryable: error.retryable ?? fallback.retryable } : {}),
+          ...((error.action ?? fallback.action) !== undefined ? { action: error.action ?? fallback.action } : {}),
+          ...((error.details ?? fallback.details) !== undefined ? { details: error.details ?? fallback.details } : {}),
+        },
+      };
+    }
+
     return {
       status: fallback.status,
       payload: {

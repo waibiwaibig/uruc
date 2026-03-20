@@ -27,8 +27,8 @@ import { getPublicDir, getUploadsDir } from '../../runtime-paths.js';
 
 import type { HookRegistry, HttpContext } from '../plugin-system/hook-registry.js';
 import type { ServiceRegistry } from '../plugin-system/service-registry.js';
-import type { PluginLoader } from '../plugin-system/loader.js';
 import type { AuthService } from '../auth/service.js';
+import type { PluginPlatformHealthProvider } from '../plugin-platform/types.js';
 
 // === MIME types ===
 
@@ -75,7 +75,7 @@ interface FrameworkDeps {
   auth: AuthService;
   hooks: HookRegistry;
   services: ServiceRegistry;
-  loader?: PluginLoader;
+  loader?: PluginPlatformHealthProvider;
 }
 
 // === Server ===
@@ -154,9 +154,17 @@ async function handleRequest(
 
   // === Framework: Health ===
   if (path === '/api/health' && method === 'GET') {
+    setSecurityHeaders(res, req);
+    res.setHeader('Cache-Control', 'no-store');
     return sendJson(res, 200, {
       status: 'ok',
-      plugins: deps.loader?.listPlugins().map(p => ({ name: p.name, version: p.version, started: p.started })) ?? [],
+      plugins: deps.loader?.listPlugins().map(p => ({
+        pluginId: p.name,
+        name: p.name,
+        version: p.version,
+        started: p.started,
+        state: p.state,
+      })) ?? [],
       pluginDiagnostics: deps.loader?.getPluginDiagnostics() ?? [],
       services: services.list(),
     }, req);

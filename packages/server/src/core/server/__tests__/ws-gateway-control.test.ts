@@ -56,10 +56,10 @@ describe('WSGateway control connection', () => {
     hooks = new HookRegistry();
     registerCityCommands(hooks);
     hooks.registerLocation({
-      id: 'chess-club',
+      id: 'uruc.chess.chess-club',
       name: '国际象棋馆',
       description: 'A calm chess hall.',
-      pluginName: 'chess',
+      pluginName: 'uruc.chess',
     });
     gateway = new WSGateway({ port: 0 }, hooks, new ServiceRegistry(), auth);
   });
@@ -88,7 +88,11 @@ describe('WSGateway control connection', () => {
     expect(sentA.some((message) => message.type === 'session_state')).toBe(false);
     expect(sentB.some((message) => message.type === 'session_state' && message.payload?.inCity === true)).toBe(true);
 
-    await (gateway as any).handleMessage('client-b', { id: 'location-b', type: 'what_location', payload: {} });
+    await (gateway as any).handleMessage('client-b', {
+      id: 'enter-location-b',
+      type: 'enter_location',
+      payload: { locationId: 'uruc.chess.chess-club' },
+    });
 
     expect(sentB.at(-1)?.type).toBe('error');
     expect(sentB.at(-1)?.payload?.code).toBe('CONTROLLED_ELSEWHERE');
@@ -115,7 +119,7 @@ describe('WSGateway control connection', () => {
     await (gateway as any).handleMessage('client-a', {
       id: 'enter-location-a',
       type: 'enter_location',
-      payload: { locationId: 'chess-club' },
+      payload: { locationId: 'uruc.chess.chess-club' },
     });
 
     (gateway as any).cleanupClient('client-a', clientA);
@@ -128,7 +132,7 @@ describe('WSGateway control connection', () => {
       claimed: true,
       restored: true,
       inCity: true,
-      currentLocation: 'chess-club',
+      currentLocation: 'uruc.chess.chess-club',
     });
   });
 

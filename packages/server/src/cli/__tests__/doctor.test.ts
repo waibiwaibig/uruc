@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   existsSync: vi.fn(() => true),
   getPackageRoot: vi.fn(() => '/tmp/package-root'),
-  getPluginConfigPath: vi.fn(() => '/tmp/package-root/plugins.dev.json'),
+  getCityConfigPath: vi.fn(() => '/tmp/package-root/uruc.city.json'),
+  getCityLockPath: vi.fn(() => '/tmp/package-root/uruc.city.lock.json'),
   adminExists: vi.fn(),
   resolveAdminPasswordState: vi.fn(),
   getBuildFreshness: vi.fn(),
@@ -17,13 +18,10 @@ const mocks = vi.hoisted(() => ({
   getRootEnvPath: vi.fn(() => '/tmp/root/.env'),
   getServerEnvPath: vi.fn(() => '/tmp/package-root/.env'),
   printStatus: vi.fn(),
-  loadConfig: vi.fn(),
-  discoverPlugins: vi.fn(),
-  getStaleConfiguredPlugins: vi.fn(),
-  getConfigPath: vi.fn(),
-  isEnabled: vi.fn(),
-  shouldAutoLoad: vi.fn(),
-  loadPluginInstance: vi.fn(),
+  readCityConfig: vi.fn(),
+  readCityLock: vi.fn(),
+  inspectConfiguredPlugins: vi.fn(),
+  summarizePluginChecks: vi.fn(),
 }));
 
 vi.mock('fs', () => ({
@@ -32,7 +30,8 @@ vi.mock('fs', () => ({
 
 vi.mock('../../runtime-paths.js', () => ({
   getPackageRoot: mocks.getPackageRoot,
-  getPluginConfigPath: mocks.getPluginConfigPath,
+  getCityConfigPath: mocks.getCityConfigPath,
+  getCityLockPath: mocks.getCityLockPath,
 }));
 
 vi.mock('../lib/admin.js', () => ({
@@ -66,16 +65,17 @@ vi.mock('../lib/ui.js', () => ({
   printStatus: mocks.printStatus,
 }));
 
-vi.mock('../../core/plugin-system/discovery.js', () => ({
-  PluginDiscovery: class {
-    loadConfig = mocks.loadConfig;
-    discoverPlugins = mocks.discoverPlugins;
-    getStaleConfiguredPlugins = mocks.getStaleConfiguredPlugins;
-    getConfigPath = mocks.getConfigPath;
-    isEnabled = mocks.isEnabled;
-    shouldAutoLoad = mocks.shouldAutoLoad;
-    loadPluginInstance = mocks.loadPluginInstance;
-  },
+vi.mock('../../core/plugin-platform/config.js', () => ({
+  readCityConfig: mocks.readCityConfig,
+  readCityLock: mocks.readCityLock,
+}));
+
+vi.mock('../../core/plugin-platform/inspection.js', () => ({
+  inspectConfiguredPlugins: mocks.inspectConfiguredPlugins,
+  summarizePluginChecks: mocks.summarizePluginChecks,
+  aggregatePluginCheckLevel: (levels: Array<'ok' | 'warn' | 'fail'>) => (
+    levels.includes('fail') ? 'fail' : levels.includes('warn') ? 'warn' : 'ok'
+  ),
 }));
 
 import { runDoctorCommand } from '../commands/doctor.js';
@@ -87,7 +87,7 @@ describe('runDoctorCommand', () => {
       ADMIN_USERNAME: 'waibiwaibi',
       ADMIN_PASSWORD: 'secret',
       DB_PATH: './data/uruc.local.db',
-      PLUGIN_CONFIG_PATH: './plugins.dev.json',
+      CITY_CONFIG_PATH: './uruc.city.json',
     });
     mocks.rootEnvExists.mockReturnValue(false);
     mocks.serverEnvExists.mockReturnValue(true);
@@ -97,7 +97,7 @@ describe('runDoctorCommand', () => {
     });
     mocks.getRuntimeStatus.mockResolvedValue({
       dbPath: '/tmp/package-root/data.db',
-      pluginConfigPath: '/tmp/package-root/plugins.dev.json',
+      cityConfigPath: '/tmp/package-root/uruc.city.json',
       publicDir: '/tmp/package-root/public',
       siteUrl: 'http://127.0.0.1:3000',
       healthUrl: 'http://127.0.0.1:3000/api/health',
@@ -107,36 +107,56 @@ describe('runDoctorCommand', () => {
     });
     mocks.adminExists.mockResolvedValue(true);
     mocks.resolveAdminPasswordState.mockResolvedValue('match');
-    mocks.loadConfig.mockResolvedValue(undefined);
-    mocks.discoverPlugins.mockResolvedValue(new Map([
-      ['chess', { name: 'chess', version: '0.1.0', main: './index.js', absolutePath: '/tmp/package-root/plugins/chess' }],
-    ]));
-    mocks.getStaleConfiguredPlugins.mockReturnValue([]);
-    mocks.getConfigPath.mockReturnValue('/tmp/package-root/plugins.dev.json');
-    mocks.isEnabled.mockReturnValue(true);
-    mocks.shouldAutoLoad.mockReturnValue(true);
+    mocks.readCityConfig.mockResolvedValue({
+      apiVersion: 2,
+      approvedPublishers: ['uruc'],
+      sources: [],
+      plugins: {
+        'uruc.chess': {
+          pluginId: 'uruc.chess',
+          devOverridePath: '../plugins/chess',
+          enabled: true,
+        },
+      },
+    });
+    mocks.readCityLock.mockResolvedValue({
+      apiVersion: 2,
+      generatedAt: new Date().toISOString(),
+      plugins: {},
+    });
+    mocks.inspectConfiguredPlugins.mockResolvedValue([
+      {
+        pluginId: 'uruc.chess',
+        enabled: true,
+        sourceType: 'package',
+        packageName: '@uruc/plugin-chess',
+        version: '0.1.0',
+        status: 'fail',
+        configStatus: 'fail',
+        configDetail: 'Source local does not provide uruc.chess@0.1.0',
+        lockStatus: 'warn',
+        lockDetail: 'No lock entry is present for this plugin',
+      },
+    ]);
+    mocks.summarizePluginChecks.mockReturnValue('1 plugin(s): 0 ok, 0 warn, 1 fail');
     mocks.isSystemdActive.mockReturnValue(false);
     mocks.isSystemdInstalled.mockReturnValue(false);
   });
 
-  it('reports plugin entrypoint load failures even when the runtime is offline', async () => {
-    mocks.loadPluginInstance.mockRejectedValue(new Error('Cannot find module service.js'));
+  it('includes stable pluginChecks in JSON output', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    await runDoctorCommand({ args: [], json: false });
+    await runDoctorCommand({ args: [], json: true });
 
-    expect(mocks.printStatus).toHaveBeenCalledWith(
-      'fail',
-      expect.stringContaining('plugin-load: Failed to load enabled plugins: chess (Cannot find module service.js)'),
-    );
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('"pluginChecks"'));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('"configDetail": "Source local does not provide uruc.chess@0.1.0"'));
     log.mockRestore();
   });
 
   it('surfaces runtime plugin diagnostics when health is available', async () => {
-    mocks.loadPluginInstance.mockResolvedValue({ name: 'chess', version: '0.1.0', init: async () => undefined });
     mocks.getRuntimeStatus.mockResolvedValue({
       dbPath: '/tmp/package-root/data.db',
-      pluginConfigPath: '/tmp/package-root/plugins.dev.json',
+      cityConfigPath: '/tmp/package-root/uruc.city.json',
       publicDir: '/tmp/package-root/public',
       siteUrl: 'http://127.0.0.1:3000',
       healthUrl: 'http://127.0.0.1:3000/api/health',
@@ -148,7 +168,7 @@ describe('runDoctorCommand', () => {
         statusCode: 200,
         body: {
           pluginDiagnostics: [
-            { name: 'chess', state: 'failed', reason: 'init failed: boom' },
+            { pluginId: 'uruc.chess', state: 'failed', lastError: 'init failed: boom' },
           ],
         },
       },
@@ -159,7 +179,7 @@ describe('runDoctorCommand', () => {
 
     expect(mocks.printStatus).toHaveBeenCalledWith(
       'fail',
-      expect.stringContaining('plugin-runtime: Runtime plugin failures: chess (init failed: boom)'),
+      expect.stringContaining('plugin-runtime: Runtime plugin failures: uruc.chess (init failed: boom)'),
     );
     log.mockRestore();
   });

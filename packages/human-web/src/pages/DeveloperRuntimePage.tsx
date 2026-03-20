@@ -4,11 +4,13 @@ import { RefreshCw, ShieldAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAgents } from '../context/AgentsContext';
 import { useAgentRuntime } from '../context/AgentRuntimeContext';
+import { usePluginHost } from '../plugins/context';
 
 export function DeveloperRuntimePage() {
   const { t } = useTranslation(['dashboard', 'common', 'runtime', 'nav']);
   const { shadowAgent } = useAgents();
   const runtime = useAgentRuntime();
+  const pluginHost = usePluginHost();
   const [busyAction, setBusyAction] = useState('');
   const [errorText, setErrorText] = useState('');
 
@@ -119,6 +121,42 @@ export function DeveloperRuntimePage() {
             <div className="list-pane list-pane-lg scroll-pane">
               {runtime.events.map((item, idx) => (
                 <div key={`${item}-${idx}`} className="code-block">{item}</div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="card control-section">
+          <div className="panel-head">
+            <div className="panel-copy">
+              <p className="section-label">plugins</p>
+              <h2 className="title-panel">Plugin diagnostics</h2>
+            </div>
+            <span className="info-pill">{pluginHost.diagnostics.length + pluginHost.backendDiagnostics.length}</span>
+          </div>
+          {(pluginHost.diagnostics.length + pluginHost.backendDiagnostics.length) === 0 ? (
+            <div className="notice info">No plugin diagnostics reported.</div>
+          ) : (
+            <div className="command-grid">
+              {pluginHost.diagnostics.map((item, index) => (
+                <article key={`${item.pluginId}:${item.state}:${index}`} className="command-card">
+                  <div className="row space">
+                    <strong className="mono">{item.pluginId}</strong>
+                    <span className="tiny muted">{item.state}</span>
+                  </div>
+                  <p className="tiny muted u-mt-1">{item.message}</p>
+                  <div className="code-block u-mt-1">{item.target ? `${item.target} · ${item.source}` : item.source}</div>
+                </article>
+              ))}
+              {pluginHost.backendDiagnostics.map((item) => (
+                <article key={`backend:${item.pluginId ?? item.name}:${item.state}`} className="command-card">
+                  <div className="row space">
+                    <strong className="mono">{item.pluginId ?? item.name ?? 'unknown-plugin'}</strong>
+                    <span className="tiny muted">{item.state}</span>
+                  </div>
+                  <p className="tiny muted u-mt-1">{item.lastError ?? item.reason ?? 'Backend plugin OK'}</p>
+                  <div className="code-block u-mt-1">{item.packageName ?? item.package ?? item.version ?? 'unknown package'}</div>
+                </article>
               ))}
             </div>
           )}

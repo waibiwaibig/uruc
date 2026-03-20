@@ -5,7 +5,7 @@ import path from 'path';
 
 export const DEFAULT_BRIDGE_COALESCE_MS = 500;
 export const BRIDGE_MODE_LOCAL = 'local';
-export const BRIDGE_MESSAGE_PREFIX = '[URUC_EVENT_JSON]';
+export const BRIDGE_MESSAGE_PREFIX = '[URUC_EVENT]';
 
 export function uuid() {
   return randomUUID();
@@ -109,12 +109,51 @@ export function readBridgeQueue() {
     return { batches: [] };
   }
   return {
-    batches: queue.batches,
+    batches: queue.batches
+      .map((batch) => normalizePersistedWakeBatch(batch))
+      .filter((batch) => batch !== null),
   };
 }
 
 export function writeBridgeQueue(queue) {
   writeJsonFile(getBridgeQueuePath(), queue);
+}
+
+function normalizePersistedWakeBatch(batch) {
+  if (!batch || typeof batch !== 'object') return null;
+  if (typeof batch.id !== 'string' || batch.id === '') return null;
+  if (typeof batch.createdAt !== 'string' || batch.createdAt === '') return null;
+  if (!Array.isArray(batch.messages)) return null;
+
+  const messages = batch.messages
+    .map((message) => normalizePersistedWakeMessage(message))
+    .filter((message) => message !== null);
+
+  if (messages.length === 0) return null;
+  return {
+    id: batch.id,
+    createdAt: batch.createdAt,
+    messages,
+  };
+}
+
+function normalizePersistedWakeMessage(message) {
+  if (!message || typeof message !== 'object') return null;
+  if (typeof message.type !== 'string' || message.type === '') return null;
+
+  const normalized = { type: message.type };
+  if (typeof message.id === 'string' && message.id !== '') {
+    normalized.id = message.id;
+  }
+  if (Object.prototype.hasOwnProperty.call(message, 'payload')) {
+    normalized.payload = cloneJsonValue(message.payload);
+  }
+  return normalized;
+}
+
+function cloneJsonValue(value) {
+  if (typeof value === 'undefined') return null;
+  return JSON.parse(JSON.stringify(value));
 }
 
 export function readLogTail(lines = 40) {

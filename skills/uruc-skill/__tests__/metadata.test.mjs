@@ -10,9 +10,14 @@ test('SKILL.md declares OpenClaw metadata requirements', () => {
   const content = readFileSync(path.join(ROOT_DIR, 'SKILL.md'), 'utf8');
   assert.match(content, /skillKey:\s*"uruc-skill"/);
   assert.match(content, /-\s*"node"|-\s*node/);
-  assert.match(content, /-\s*"openclaw"|-\s*openclaw/);
+  assert.doesNotMatch(content, /-\s*"openclaw"|-\s*openclaw/);
   assert.match(content, /URUC_AGENT_BASE_URL/);
   assert.match(content, /URUC_AGENT_AUTH/);
+  assert.match(content, /URUC_AGENT_CONTROL_DIR/);
+  assert.match(content, /OpenClaw Gateway/);
+  assert.match(content, /memory/i);
+  assert.match(content, /TOOLS\.md/);
+  assert.match(content, /restart/i);
 });
 
 test('agents/openai.yaml reflects local bootstrap usage', () => {

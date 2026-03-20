@@ -7,8 +7,7 @@
 import { createDb } from './core/database/index.js';
 import { ServiceRegistry } from './core/plugin-system/service-registry.js';
 import { HookRegistry } from './core/plugin-system/hook-registry.js';
-import { PluginDiscovery } from './core/plugin-system/discovery.js';
-import { PluginLoader } from './core/plugin-system/loader.js';
+import { PluginPlatformHost } from './core/plugin-platform/host.js';
 
 import { AuthService } from './core/auth/service.js';
 import { LogService } from './core/logger/service.js';
@@ -19,18 +18,27 @@ import { AdminService } from './core/admin/service.js';
 import { registerCityCommands } from './core/city/commands.js';
 import { WSGateway } from './core/server/ws-gateway.js';
 import { createHttpServer } from './core/server/http-server.js';
+import { initializeJwtSecretRuntime } from './core/server/middleware.js';
 import { seedAdmin } from './seed.js';
-import { getDbPath, getPluginConfigPath } from './runtime-paths.js';
+import {
+  getActiveEnvPath,
+  getCityConfigPath,
+  getCityLockPath,
+  getDbPath,
+  getPackageRoot,
+  getPluginStoreDir,
+} from './runtime-paths.js';
 
-const HTTP_PORT = parseInt(process.env.PORT ?? '3000');
-const WS_PORT = parseInt(process.env.WS_PORT ?? '3001');
-const BIND_HOST = process.env.BIND_HOST ?? '127.0.0.1';
-const DB_PATH = getDbPath();
+export async function runMain() {
+  const httpPort = parseInt(process.env.PORT ?? '3000');
+  const wsPort = parseInt(process.env.WS_PORT ?? '3001');
+  const bindHost = process.env.BIND_HOST ?? '127.0.0.1';
+  const dbPath = getDbPath();
+  initializeJwtSecretRuntime({ envPath: getActiveEnvPath() });
 
-async function main() {
   console.log('🏙️  Uruc City starting...\n');
 
-  const db = createDb(DB_PATH);
+  const db = createDb(dbPath);
   const services = new ServiceRegistry();
   const hooks = new HookRegistry();
 
@@ -43,7 +51,7 @@ async function main() {
   services.register('admin', adminSvc);
   services.register('logger', logger);
 
-  const gateway = new WSGateway({ port: WS_PORT, host: BIND_HOST }, hooks, services, auth);
+  const gateway = new WSGateway({ port: wsPort, host: bindHost }, hooks, services, auth);
   services.register('ws-gateway', gateway);
 
   console.log('✅ Core services initialized: auth, admin, logger, ws-gateway');
@@ -58,10 +66,22 @@ async function main() {
 
   // === Auto-discover and load all plugins ===
 
-  const discovery = new PluginDiscovery(getPluginConfigPath());
-  const loader = new PluginLoader(discovery);
+  const loader = new PluginPlatformHost({
+    configPath: getCityConfigPath(),
+    lockPath: getCityLockPath(),
+    packageRoot: getPackageRoot(),
+    pluginStoreDir: getPluginStoreDir(),
+  });
 
-  await loader.discoverAndLoadAll({ db, services, hooks });
+  await loader.startAll({ db, services, hooks });
+
+  const failedPlugins = loader.getPluginDiagnostics().filter((plugin) => plugin.state === 'failed');
+  if (failedPlugins.length > 0) {
+    console.warn('Plugin startup completed with failures:');
+    for (const plugin of failedPlugins) {
+      console.warn(`- ${plugin.pluginId}: ${plugin.lastError ?? 'unknown error'}`);
+    }
+  }
 
   // === Seed data ===
 
@@ -71,12 +91,12 @@ async function main() {
 
   const httpServer = createHttpServer({ auth, hooks, services, loader });
 
-  httpServer.listen(HTTP_PORT, BIND_HOST, () => {
-    console.log(`🌐 HTTP API on ${BIND_HOST}:${HTTP_PORT}`);
+  httpServer.listen(httpPort, bindHost, () => {
+    console.log(`🌐 HTTP API on ${bindHost}:${httpPort}`);
   });
 
   await gateway.start();
-  console.log(`🔌 WebSocket on ${BIND_HOST}:${WS_PORT}`);
+  console.log(`🔌 WebSocket on ${bindHost}:${wsPort}`);
 
   // === Graceful shutdown ===
 
@@ -95,7 +115,6 @@ async function main() {
     forceTimer.unref();
 
     try {
-      await loader.stopAll();
       await loader.destroyAll();
       await gateway.stop();
       await new Promise<void>((resolve, reject) => {
@@ -125,8 +144,3 @@ async function main() {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 }
-
-main().catch((err) => {
-  console.error('Fatal error:', err);
-  process.exit(1);
-});

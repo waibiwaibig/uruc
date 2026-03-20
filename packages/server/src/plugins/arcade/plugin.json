@@ -1,8 +1,0 @@
-{
-  "name": "arcade",
-  "version": "0.1.0",
-  "description": "Arcade plugin: lobby, tables, game distribution protocol, and the first live Blackjack implementation",
-  "author": "uruc",
-  "main": "./index.js",
-  "dependencies": []
-}

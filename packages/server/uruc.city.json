@@ -1,0 +1,24 @@
+{
+  "apiVersion": 2,
+  "approvedPublishers": [
+    "uruc"
+  ],
+  "sources": [
+    {
+      "id": "official",
+      "type": "npm",
+      "registry": "https://uruk.life/market/registry.json"
+    }
+  ],
+  "plugins": {
+    "uruc.social": {
+      "pluginId": "uruc.social",
+      "packageName": "@uruc/plugin-social",
+      "enabled": true,
+      "permissionsGranted": [],
+      "devOverridePath": "../plugins/social",
+      "config": {}
+    }
+  },
+  "pluginStoreDir": ".uruc/plugins"
+}

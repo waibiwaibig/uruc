@@ -2,6 +2,11 @@ export type UiLanguage = 'zh-CN' | 'en' | 'ko';
 export type CityReachability = 'local' | 'lan' | 'server';
 export type InstancePurpose = 'test' | 'production';
 export type SiteProtocol = 'http' | 'https';
+export type ConfigureMode = 'quickstart' | 'advanced';
+export type ConfigureSection = 'runtime' | 'access' | 'city' | 'plugins' | 'integrations';
+export type ConfigurePluginPreset = 'social-only' | 'empty-core' | 'custom';
+export type BundledPluginId = 'uruc.social';
+export type BundledPluginState = Record<BundledPluginId, boolean>;
 
 export interface CliMeta {
   language: UiLanguage;
@@ -38,6 +43,8 @@ export interface OutputOptions {
 
 export interface ConfigureAnswers {
   lang: UiLanguage;
+  mode: ConfigureMode;
+  section: ConfigureSection | 'all';
   reachability: CityReachability;
   purpose: InstancePurpose;
   bindHost: string;
@@ -52,7 +59,7 @@ export interface ConfigureAnswers {
   noindex: boolean;
   sitePassword: string;
   dbPath: string;
-  pluginConfigPath: string;
+  cityConfigPath: string;
   allowedOrigins: string;
   jwtSecret: string;
   baseUrl: string;
@@ -64,6 +71,9 @@ export interface ConfigureAnswers {
   googleClientSecret: string;
   githubClientId: string;
   githubClientSecret: string;
+  pluginPreset: ConfigurePluginPreset;
+  pluginStoreDir: string;
+  bundledPluginState: BundledPluginState;
 }
 
 export interface CommandContext {

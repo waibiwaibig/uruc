@@ -1,17 +1,60 @@
 import { IncomingMessage, ServerResponse } from 'http';
 import { randomBytes } from 'crypto';
 import jwt from 'jsonwebtoken';
+
 import { isHttpsRequest, setSecurityHeaders, setCorsHeaders, parseBodyLimited } from './security.js';
 
-// === JWT secret enforcement ===
-if (!process.env.JWT_SECRET) {
-  if (process.env.NODE_ENV === 'production') {
-    console.error('[FATAL] JWT_SECRET must be set in production. Exiting.');
-    process.exit(1);
-  }
-  console.warn('[WARN] JWT_SECRET not set, generating ephemeral secret. Set JWT_SECRET in .env for production.');
+interface JwtSecretState {
+  value: string;
+  source: 'env' | 'ephemeral';
 }
-const JWT_SECRET = process.env.JWT_SECRET ?? randomBytes(32).toString('hex');
+
+let jwtSecretState: JwtSecretState | null = null;
+let jwtWarningEmitted = false;
+
+function resolveJwtSecret(options: {
+  runtime?: boolean;
+  envPath?: string;
+} = {}): string {
+  const configuredSecret = process.env.JWT_SECRET?.trim();
+  if (configuredSecret) {
+    jwtSecretState = {
+      value: configuredSecret,
+      source: 'env',
+    };
+    return configuredSecret;
+  }
+
+  if (options.runtime && process.env.NODE_ENV === 'production') {
+    throw new Error(`JWT_SECRET must be set in production. Active env: ${options.envPath ?? '(unknown env path)'}`);
+  }
+
+  if (!jwtSecretState || jwtSecretState.source !== 'ephemeral') {
+    jwtSecretState = {
+      value: randomBytes(32).toString('hex'),
+      source: 'ephemeral',
+    };
+  }
+
+  if (options.runtime && !jwtWarningEmitted) {
+    console.warn(`[WARN] JWT_SECRET not set in ${options.envPath ?? 'the active env'}, generating an ephemeral secret. Set JWT_SECRET for stable sessions.`);
+    jwtWarningEmitted = true;
+  }
+
+  return jwtSecretState.value;
+}
+
+export function initializeJwtSecretRuntime(options: { envPath?: string } = {}): void {
+  resolveJwtSecret({
+    runtime: true,
+    envPath: options.envPath,
+  });
+}
+
+function getJwtSecret(): string {
+  return resolveJwtSecret();
+}
+
 export const OWNER_SESSION_COOKIE = 'uruc_owner_session';
 const OWNER_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 
@@ -47,11 +90,11 @@ export function parseBody(req: IncomingMessage): Promise<any> {
 }
 
 export function signToken(userId: string, role: string): string {
-  return jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign({ userId, role }, getJwtSecret(), { expiresIn: '7d' });
 }
 
 export function verifyToken(token: string): { userId: string; role: string } | null {
-  try { return jwt.verify(token, JWT_SECRET) as any; }
+  try { return jwt.verify(token, getJwtSecret()) as any; }
   catch { return null; }
 }
 
@@ -75,15 +118,10 @@ export function sendJson(res: ServerResponse, status: number, data: any, req?: I
   if (req) {
     setCorsHeaders(req, res);
   }
-  // When req is not available, skip CORS headers — same-origin requests don't need them.
   res.writeHead(status, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(data));
 }
 
-/**
- * Send a standardized error response with machine-readable code.
- * Use this for all HTTP error responses to ensure consistent format for agent clients.
- */
 export function sendError(
   res: ServerResponse, status: number,
   opts: { error: string; code: string; retryable?: boolean; action?: string; details?: Record<string, unknown> },

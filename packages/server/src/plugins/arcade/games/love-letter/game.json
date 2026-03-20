@@ -1,9 +1,0 @@
-{
-  "id": "love-letter",
-  "name": "Love Letter",
-  "version": "1.0.0",
-  "description": "Modern-standard Love Letter with 2-6 players and multi-round affection-token scoring",
-  "main": "./index.js",
-  "apiVersion": "1.0.0",
-  "dependencies": []
-}

@@ -27,11 +27,13 @@ describe('WSGateway shadow agent auth', () => {
   let db: ReturnType<typeof createDb>;
   let auth: AuthService;
   let gateway: WSGateway;
+  let hooks: HookRegistry;
 
   beforeEach(() => {
     db = createDb(':memory:');
     auth = new AuthService(db);
-    gateway = new WSGateway({ port: 0 }, new HookRegistry(), new ServiceRegistry(), auth);
+    hooks = new HookRegistry();
+    gateway = new WSGateway({ port: 0 }, hooks, new ServiceRegistry(), auth);
   });
 
   it('accepts a user JWT on the existing auth command and maps it to the shadow agent', async () => {
@@ -128,5 +130,34 @@ describe('WSGateway shadow agent auth', () => {
     expect(client.session).toBeDefined();
     expect(client.session.agentId).toBe(shadow.id);
     expect(sent.some((message) => message.type === 'result')).toBe(true);
+  });
+
+  it('runs agent.authenticated after-hooks so auth can include bootstrap data before the auth result is sent', async () => {
+    const user = await auth.register('nabu', 'nabu@example.com', 'secret-123');
+    const sent: Array<{ id?: string; type: string; payload?: any }> = [];
+    const socket = createSocket(sent);
+    const client: any = {
+      ws: socket,
+      inCity: false,
+      msgTimestamps: [],
+      isAlive: true,
+      lastPong: Date.now(),
+    };
+
+    hooks.after('agent.authenticated', async ({ bootstrapData }) => {
+      bootstrapData.description = 'Welcome to Uruc.';
+    });
+
+    (gateway as any).clients.set('client-4', client);
+
+    await (gateway as any).handleAgentAuth('client-4', client, {
+      id: 'auth-4',
+      type: 'auth',
+      payload: signToken(user.id, 'user'),
+    });
+
+    expect(sent.find((message) => message.type === 'result')?.payload).toMatchObject({
+      description: 'Welcome to Uruc.',
+    });
   });
 });

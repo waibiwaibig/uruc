@@ -1,4 +1,6 @@
+import { existsSync } from 'fs';
 import os from 'os';
+import path from 'path';
 
 import {
   adminExists,
@@ -7,24 +9,36 @@ import {
   resolveAdminPasswordState,
   resetAdminPassword,
 } from '../lib/admin.js';
+import { hasFlag, readOption } from '../lib/argv.js';
+import {
+  DEFAULT_PLUGIN_PRESET,
+  DEFAULT_PLUGIN_STORE_DIR,
+  detectBundledPluginState,
+  ensureCityConfig,
+  getBundledPluginPresetState,
+  inferPluginPreset,
+  rebaseCityConfigPaths,
+  syncCityLock,
+} from '../lib/city.js';
+import {
+  getConfigureActions,
+  getConfigureSummaryLines,
+  rememberConfiguration,
+} from '../lib/configure.js';
 import {
   buildBaseUrl,
   configureAnswersToEnv,
   currentConfigureDefaults,
+  defaultBindHost,
+  defaultConfig,
   ensureServerEnvFile,
   getCurrentLanguage,
-  getDefaultPluginConfig,
   inferReachability,
   inferSiteProtocol,
   parseEnvFile,
   rootEnvExists,
   writeEnvFile,
 } from '../lib/env.js';
-import {
-  getConfigureActions,
-  getConfigureSummaryLines,
-  rememberConfiguration,
-} from '../lib/configure.js';
 import { buildPublicWsUrl } from '../lib/network.js';
 import { readCliMeta } from '../lib/state.js';
 import {
@@ -35,25 +49,60 @@ import {
   promptConfirm,
   promptInput,
 } from '../lib/ui.js';
+import { getRuntimeStatus, isSystemdInstalled, type RuntimeStatus } from '../lib/runtime.js';
 import type {
+  BundledPluginId,
+  BundledPluginState,
   CityReachability,
   CommandContext,
   ConfigureAnswers,
+  ConfigureMode,
+  ConfigurePluginPreset,
+  ConfigureSection,
   InstancePurpose,
   SiteProtocol,
   UiLanguage,
 } from '../lib/types.js';
+import { readCityConfig } from '../../core/plugin-platform/config.js';
+import type { CityConfigFile, CityPluginSource } from '../../core/plugin-platform/types.js';
+import { getCityLockPath, getPackageRoot } from '../../runtime-paths.js';
 
 interface ConfigureResult {
   answers: ConfigureAnswers;
   adminAction: 'create' | 'keep' | 'reset';
   generatedPassword: boolean;
+  baseCityConfig: CityConfigFile;
+  cityConfigResolvedPath: string;
 }
+
+const packageRoot = getPackageRoot();
+
+const BUNDLED_PLUGIN_LABELS: Record<BundledPluginId, string> = {
+  'uruc.social': 'Social',
+};
 
 const copy = {
   'zh-CN': {
     title: 'Configure',
     invalidRootEnv: '检测到仓库根目录 .env：当前 CLI 不会读取它，真正生效的是 packages/server/.env。',
+    modePrompt: '这次你想怎么配置主城？',
+    quickstartMode: 'QuickStart',
+    quickstartModeDesc: '更少问题，直接得到一套可启动的城市',
+    advancedMode: 'Advanced',
+    advancedModeDesc: '按分节精细调整运行、访问、城市和插件',
+    sectionPrompt: '这次要改哪一块？',
+    sectionAll: '全部',
+    sectionAllDesc: '完整重配运行、访问、城市、插件和集成',
+    sectionRuntime: 'runtime',
+    sectionRuntimeDesc: '监听地址、分享地址、端口、静态目录',
+    sectionAccess: 'access',
+    sectionAccessDesc: '管理员、注册、收录、站点访问控制',
+    sectionCity: 'city',
+    sectionCityDesc: '数据库与城市配置路径',
+    sectionPlugins: 'plugins',
+    sectionPluginsDesc: '插件预设、启用状态、source、plugin store',
+    sectionIntegrations: 'integrations',
+    sectionIntegrationsDesc: 'CORS、JWT、邮件与 OAuth',
     reachabilityPrompt: '你要把这座城市建在哪里？',
     purposePrompt: '这个实例的用途是什么？',
     localMode: '本机',
@@ -75,9 +124,9 @@ const copy = {
     allowRegisterPrompt: '是否允许他人自行注册进入？',
     noindexPrompt: '是否禁止搜索引擎收录？',
     sitePasswordPrompt: '站点访问密码（可选）',
-    advancedPrompt: '是否配置高级项？（数据库、插件、跨域、JWT、邮件、OAuth）',
     dbPathPrompt: '数据库路径',
-    pluginConfigPrompt: '插件配置文件路径',
+    cityConfigPrompt: '城市配置文件路径',
+    pluginStoreDirPrompt: '插件 store 路径',
     allowedOriginsPrompt: '允许访问 API 的前端地址（逗号分隔）',
     jwtSecretPrompt: 'JWT 密钥',
     publicDirPrompt: '前端静态目录',
@@ -91,6 +140,22 @@ const copy = {
     githubPrompt: '是否启用 GitHub OAuth？',
     githubIdPrompt: 'GitHub Client ID',
     githubSecretPrompt: 'GitHub Client Secret',
+    pluginPresetPrompt: '这座城市想用哪套插件预设？',
+    presetSocial: 'social-only',
+    presetSocialDesc: '启用内置 social 插件',
+    presetEmpty: 'empty-core',
+    presetEmptyDesc: '只启动主城核心，不启用任何 bundled 插件',
+    presetCustom: 'custom',
+    presetCustomDesc: '手动决定是否启用内置 social 插件',
+    editSourcesPrompt: '是否顺手调整插件 source？',
+    sourceActionPrompt: '要怎么处理当前 source？',
+    sourceAdd: '添加 source',
+    sourceRemove: '移除 source',
+    sourceDone: '保持当前 source 并继续',
+    sourceIdPrompt: 'source id',
+    sourceRegistryPrompt: 'source registry（目录或 uruc-registry.json 路径）',
+    sourceRemovePrompt: '要移除哪个 source？',
+    noSources: '当前没有配置 source。',
     existingAdminPrompt: '这个管理员用户名已经存在，你想怎么处理？',
     existingUserPrompt: '这个用户名已经存在，但它不是管理员。请改用新用户名，或稍后用 `uruc admin promote`。',
     keepAdmin: '保持现有账号不变',
@@ -98,6 +163,9 @@ const copy = {
     renameAdmin: '换一个新的管理员用户名',
     keepPasswordPrompt: '请输入现有管理员密码（用于验证）',
     summaryTitle: '城市配置摘要',
+    runtimeSummaryTitle: '运行设置变更',
+    citySummaryTitle: '城市 / 插件变更',
+    adminSummaryTitle: '管理员变更',
     actionsTitle: '即将执行',
     applyPrompt: '配置完成后怎么处理？',
     startForeground: '保存并前台启动',
@@ -106,12 +174,32 @@ const copy = {
     editAgain: '返回修改',
     generatedPassword: '管理员密码未输入，已自动生成。',
     finishedTitle: '完成',
-    savedOnly: '配置已保存。稍后可运行 `uruc start` 启动。',
+    savedOnly: '配置已保存，城市配置和 lock 也已同步。稍后可直接运行 `uruc start`。',
     httpsNotice: '你选择了 HTTPS 分享地址。Uruc 不会自动配置证书或反向代理；如需真正对外 HTTPS，请自行接入 TLS。',
+    enableBundledPrompt: '是否启用 bundled 插件',
+    sourcesSummary: '已配置 source',
   },
   en: {
     title: 'Configure',
     invalidRootEnv: 'A repo-root .env was found. Uruc ignores it; only packages/server/.env is active.',
+    modePrompt: 'How should we configure this city?',
+    quickstartMode: 'QuickStart',
+    quickstartModeDesc: 'Ask fewer questions and leave with a runnable city',
+    advancedMode: 'Advanced',
+    advancedModeDesc: 'Tune runtime, access, city, plugins, and integrations by section',
+    sectionPrompt: 'Which section do you want to change?',
+    sectionAll: 'all',
+    sectionAllDesc: 'Reconfigure runtime, access, city, plugins, and integrations',
+    sectionRuntime: 'runtime',
+    sectionRuntimeDesc: 'Bind host, share URL, ports, static directories',
+    sectionAccess: 'access',
+    sectionAccessDesc: 'Admins, registration, indexing, site access control',
+    sectionCity: 'city',
+    sectionCityDesc: 'Database and city config paths',
+    sectionPlugins: 'plugins',
+    sectionPluginsDesc: 'Plugin presets, enabled state, sources, plugin store',
+    sectionIntegrations: 'integrations',
+    sectionIntegrationsDesc: 'CORS, JWT, email, and OAuth',
     reachabilityPrompt: 'Where should this city be reachable?',
     purposePrompt: 'What is this instance for?',
     localMode: 'Local machine',
@@ -133,9 +221,9 @@ const copy = {
     allowRegisterPrompt: 'Allow other people to self-register?',
     noindexPrompt: 'Block search engine indexing?',
     sitePasswordPrompt: 'Site access password (optional)',
-    advancedPrompt: 'Configure advanced settings? (DB, plugins, CORS, JWT, mail, OAuth)',
     dbPathPrompt: 'Database path',
-    pluginConfigPrompt: 'Plugin config path',
+    cityConfigPrompt: 'City config path',
+    pluginStoreDirPrompt: 'Plugin store path',
     allowedOriginsPrompt: 'Allowed frontend origins (comma-separated)',
     jwtSecretPrompt: 'JWT secret',
     publicDirPrompt: 'Static site directory',
@@ -149,6 +237,22 @@ const copy = {
     githubPrompt: 'Enable GitHub OAuth?',
     githubIdPrompt: 'GitHub Client ID',
     githubSecretPrompt: 'GitHub Client Secret',
+    pluginPresetPrompt: 'Which bundled plugin preset should this city use?',
+    presetSocial: 'social-only',
+    presetSocialDesc: 'Enable the bundled social plugin',
+    presetEmpty: 'empty-core',
+    presetEmptyDesc: 'Run only the city core with no bundled plugins enabled',
+    presetCustom: 'custom',
+    presetCustomDesc: 'Choose whether to enable the bundled social plugin',
+    editSourcesPrompt: 'Adjust plugin sources while we are here?',
+    sourceActionPrompt: 'How should Uruc update the current sources?',
+    sourceAdd: 'Add source',
+    sourceRemove: 'Remove source',
+    sourceDone: 'Keep current sources and continue',
+    sourceIdPrompt: 'Source id',
+    sourceRegistryPrompt: 'Source registry (directory or uruc-registry.json path)',
+    sourceRemovePrompt: 'Which source should be removed?',
+    noSources: 'No plugin sources are configured yet.',
     existingAdminPrompt: 'This admin username already exists. How should configure handle it?',
     existingUserPrompt: 'This username already exists but is not an admin. Pick a new username or promote it later with `uruc admin promote`.',
     keepAdmin: 'Keep the existing admin account',
@@ -156,6 +260,9 @@ const copy = {
     renameAdmin: 'Choose a new admin username',
     keepPasswordPrompt: 'Enter the current admin password for verification',
     summaryTitle: 'City configuration summary',
+    runtimeSummaryTitle: 'Runtime changes',
+    citySummaryTitle: 'City and plugin changes',
+    adminSummaryTitle: 'Admin changes',
     actionsTitle: 'Planned actions',
     applyPrompt: 'What should Uruc do next?',
     startForeground: 'Save and start in foreground',
@@ -164,12 +271,32 @@ const copy = {
     editAgain: 'Go back and edit',
     generatedPassword: 'No admin password was entered, so Uruc generated one.',
     finishedTitle: 'Done',
-    savedOnly: 'Configuration saved. Run `uruc start` later when you want the city online.',
+    savedOnly: 'Configuration saved, and city config plus lock are ready. Run `uruc start` whenever you want the city online.',
     httpsNotice: 'You chose an HTTPS share URL. Uruc will not provision certificates or a reverse proxy; you must handle TLS yourself.',
+    enableBundledPrompt: 'Enable bundled plugin',
+    sourcesSummary: 'Configured sources',
   },
   ko: {
     title: 'Configure',
     invalidRootEnv: '저장소 루트의 .env 가 감지되었습니다. Uruc 는 이를 무시하며 packages/server/.env 만 사용합니다.',
+    modePrompt: '이번에는 어떤 방식으로 도시를 구성할까요?',
+    quickstartMode: 'QuickStart',
+    quickstartModeDesc: '질문을 줄이고 바로 실행 가능한 도시를 만듭니다',
+    advancedMode: 'Advanced',
+    advancedModeDesc: 'runtime, access, city, plugins, integrations 를 섹션별로 조정합니다',
+    sectionPrompt: '이번에 바꿀 섹션은 무엇인가요?',
+    sectionAll: 'all',
+    sectionAllDesc: '모든 섹션을 다시 구성합니다',
+    sectionRuntime: 'runtime',
+    sectionRuntimeDesc: '바인드 주소, 공유 URL, 포트, 정적 디렉터리',
+    sectionAccess: 'access',
+    sectionAccessDesc: '관리자, 가입, 색인, 사이트 접근 제어',
+    sectionCity: 'city',
+    sectionCityDesc: 'DB 와 도시 설정 경로',
+    sectionPlugins: 'plugins',
+    sectionPluginsDesc: '플러그인 프리셋, 활성화 상태, source, store',
+    sectionIntegrations: 'integrations',
+    sectionIntegrationsDesc: 'CORS, JWT, 메일, OAuth',
     reachabilityPrompt: '이 도시를 어디까지 열어둘까요?',
     purposePrompt: '이 인스턴스의 용도는 무엇입니까?',
     localMode: '로컬',
@@ -191,9 +318,9 @@ const copy = {
     allowRegisterPrompt: '다른 사용자가 직접 가입할 수 있게 할까요?',
     noindexPrompt: '검색 엔진 색인을 차단할까요?',
     sitePasswordPrompt: '사이트 접근 비밀번호 (선택)',
-    advancedPrompt: '고급 설정을 구성하시겠습니까? (DB, 플러그인, CORS, JWT, 메일, OAuth)',
     dbPathPrompt: '데이터베이스 경로',
-    pluginConfigPrompt: '플러그인 설정 파일 경로',
+    cityConfigPrompt: '도시 설정 파일 경로',
+    pluginStoreDirPrompt: '플러그인 store 경로',
     allowedOriginsPrompt: '허용할 프론트엔드 origin (쉼표 구분)',
     jwtSecretPrompt: 'JWT 비밀키',
     publicDirPrompt: '정적 사이트 디렉터리',
@@ -207,6 +334,22 @@ const copy = {
     githubPrompt: 'GitHub OAuth를 사용하시겠습니까?',
     githubIdPrompt: 'GitHub Client ID',
     githubSecretPrompt: 'GitHub Client Secret',
+    pluginPresetPrompt: '이 도시는 어떤 bundled 플러그인 프리셋을 사용할까요?',
+    presetSocial: 'social-only',
+    presetSocialDesc: '내장 social 플러그인을 활성화',
+    presetEmpty: 'empty-core',
+    presetEmptyDesc: 'bundled 플러그인 없이 도시 코어만 실행',
+    presetCustom: 'custom',
+    presetCustomDesc: '내장 social 플러그인 활성화를 직접 선택',
+    editSourcesPrompt: '이 자리에서 plugin source 도 조정할까요?',
+    sourceActionPrompt: '현재 source 를 어떻게 처리할까요?',
+    sourceAdd: 'source 추가',
+    sourceRemove: 'source 제거',
+    sourceDone: '현재 source 를 유지하고 계속',
+    sourceIdPrompt: 'source id',
+    sourceRegistryPrompt: 'source registry (디렉터리 또는 uruc-registry.json 경로)',
+    sourceRemovePrompt: '어떤 source 를 제거할까요?',
+    noSources: '설정된 plugin source 가 없습니다.',
     existingAdminPrompt: '이 관리자 사용자명이 이미 존재합니다. 어떻게 처리하시겠습니까?',
     existingUserPrompt: '이 사용자명은 존재하지만 관리자가 아닙니다. 새 이름을 쓰거나 나중에 `uruc admin promote` 를 사용하세요.',
     keepAdmin: '기존 관리자 계정 유지',
@@ -214,6 +357,9 @@ const copy = {
     renameAdmin: '새 관리자 사용자명 선택',
     keepPasswordPrompt: '검증을 위해 현재 관리자 비밀번호를 입력하세요',
     summaryTitle: '도시 설정 요약',
+    runtimeSummaryTitle: '런타임 변경',
+    citySummaryTitle: '도시 및 플러그인 변경',
+    adminSummaryTitle: '관리자 변경',
     actionsTitle: '실행 예정 작업',
     applyPrompt: '다음으로 무엇을 할까요?',
     startForeground: '저장 후 포그라운드 시작',
@@ -222,13 +368,84 @@ const copy = {
     editAgain: '다시 수정',
     generatedPassword: '관리자 비밀번호가 비어 있어 Uruc가 자동 생성했습니다.',
     finishedTitle: '완료',
-    savedOnly: '설정을 저장했습니다. 나중에 `uruc start` 로 도시를 시작하세요.',
+    savedOnly: '설정을 저장했고 도시 설정과 lock 도 준비했습니다. 원할 때 `uruc start` 를 실행하세요.',
     httpsNotice: 'HTTPS 공유 주소를 선택했습니다. Uruc 는 인증서나 리버스 프록시를 자동 구성하지 않으므로 TLS 는 직접 처리해야 합니다.',
+    enableBundledPrompt: 'bundled 플러그인 활성화',
+    sourcesSummary: '설정된 source',
   },
 } as const;
 
 function text(lang: UiLanguage, key: keyof typeof copy['zh-CN']): string {
   return copy[lang][key];
+}
+
+type ConfigureApplyAction = 'start-foreground' | 'start-managed' | 'save' | 'edit';
+
+function managedStartLabel(
+  lang: UiLanguage,
+  runtimeMode: RuntimeStatus['mode'],
+): string {
+  if (runtimeMode === 'background') {
+    if (lang === 'zh-CN') return '保存并重启后台实例';
+    if (lang === 'ko') return '저장 후 백그라운드 인스턴스 재시작';
+    return 'Save and restart background instance';
+  }
+
+  if (runtimeMode === 'systemd') {
+    if (lang === 'zh-CN') return '保存并重启服务';
+    if (lang === 'ko') return '저장 후 서비스 재시작';
+    return 'Save and restart service';
+  }
+
+  if (lang === 'zh-CN') return '保存并启动服务';
+  if (lang === 'ko') return '저장 후 서비스 시작';
+  return 'Save and start service';
+}
+
+function unmanagedSaveWarning(lang: UiLanguage): string {
+  if (lang === 'zh-CN') {
+    return '检测到一个未受 CLI 管理的本地实例。为避免和现有进程抢占端口，configure 这次只提供保存配置。';
+  }
+  if (lang === 'ko') {
+    return 'CLI가 관리하지 않는 로컬 인스턴스가 감지되었습니다. 현재 프로세스와 포트 충돌을 피하기 위해 이번 configure 에서는 저장만 제공합니다.';
+  }
+  return 'A local instance is running outside CLI management. Configure will only offer save-only this time to avoid conflicting with that process.';
+}
+
+function getApplyChoices(
+  lang: UiLanguage,
+  runtimeStatus: RuntimeStatus,
+  systemdInstalled: boolean,
+): Array<{ value: ConfigureApplyAction; label: string }> {
+  if (runtimeStatus.mode === 'unmanaged') {
+    return [
+      { value: 'save', label: text(lang, 'saveOnly') },
+      { value: 'edit', label: text(lang, 'editAgain') },
+    ];
+  }
+
+  if (runtimeStatus.mode === 'background') {
+    return [
+      { value: 'start-managed', label: managedStartLabel(lang, runtimeStatus.mode) },
+      { value: 'save', label: text(lang, 'saveOnly') },
+      { value: 'edit', label: text(lang, 'editAgain') },
+    ];
+  }
+
+  if (systemdInstalled) {
+    return [
+      { value: 'start-managed', label: managedStartLabel(lang, runtimeStatus.mode) },
+      { value: 'save', label: text(lang, 'saveOnly') },
+      { value: 'edit', label: text(lang, 'editAgain') },
+    ];
+  }
+
+  return [
+    { value: 'start-foreground', label: text(lang, 'startForeground') },
+    { value: 'start-managed', label: text(lang, 'startBackground') },
+    { value: 'save', label: text(lang, 'saveOnly') },
+    { value: 'edit', label: text(lang, 'editAgain') },
+  ];
 }
 
 function safeHostFromBaseUrl(raw: string | undefined, fallback: string): string {
@@ -251,7 +468,29 @@ function detectLanHost(): string {
   return '192.168.1.10';
 }
 
-async function chooseLanguage(defaultLang: UiLanguage): Promise<UiLanguage> {
+function resolveCityConfigPath(rawPath: string): string {
+  return path.isAbsolute(rawPath) ? rawPath : path.resolve(packageRoot, rawPath);
+}
+
+function keepConfiguredPath(currentValue: string | undefined, fallbackValue: string): string {
+  if (typeof currentValue === 'string' && currentValue.trim() !== '') {
+    return currentValue;
+  }
+  return fallbackValue;
+}
+
+function validateRequestedSection(value: string | undefined): ConfigureSection | undefined {
+  if (value === undefined) return undefined;
+  if (value === 'runtime' || value === 'access' || value === 'city' || value === 'plugins' || value === 'integrations') {
+    return value;
+  }
+  throw new Error(`Unknown configure section: ${value}`);
+}
+
+async function chooseLanguage(defaultLang: UiLanguage, acceptDefaults: boolean): Promise<UiLanguage> {
+  if (acceptDefaults) {
+    return defaultLang;
+  }
   console.log('Uruc Configure');
   return await promptChoice(
     'Choose language / 选择语言 / 언어 선택',
@@ -263,6 +502,144 @@ async function chooseLanguage(defaultLang: UiLanguage): Promise<UiLanguage> {
     defaultLang,
     defaultLang,
   );
+}
+
+async function chooseConfigureMode(
+  lang: UiLanguage,
+  forcedMode: ConfigureMode | undefined,
+  forcedSection: ConfigureSection | undefined,
+  acceptDefaults: boolean,
+): Promise<{ mode: ConfigureMode; section: ConfigureSection | 'all' }> {
+  if (forcedMode === 'quickstart' && forcedSection) {
+    throw new Error('`uruc configure --quickstart` cannot be combined with `--section`. Use `--advanced --section ...` instead.');
+  }
+  if (acceptDefaults && forcedMode !== 'quickstart') {
+    throw new Error('`uruc configure --accept-defaults` currently requires `--quickstart`.');
+  }
+
+  const mode = forcedMode ?? await promptChoice<ConfigureMode>(
+    text(lang, 'modePrompt'),
+    [
+      { value: 'quickstart', label: text(lang, 'quickstartMode'), description: text(lang, 'quickstartModeDesc') },
+      { value: 'advanced', label: text(lang, 'advancedMode'), description: text(lang, 'advancedModeDesc') },
+    ],
+    'quickstart',
+    lang,
+  );
+
+  if (mode === 'quickstart') {
+    return { mode, section: 'all' };
+  }
+
+  const section = forcedSection ?? await promptChoice<ConfigureSection | 'all'>(
+    text(lang, 'sectionPrompt'),
+    [
+      { value: 'all', label: text(lang, 'sectionAll'), description: text(lang, 'sectionAllDesc') },
+      { value: 'runtime', label: text(lang, 'sectionRuntime'), description: text(lang, 'sectionRuntimeDesc') },
+      { value: 'access', label: text(lang, 'sectionAccess'), description: text(lang, 'sectionAccessDesc') },
+      { value: 'city', label: text(lang, 'sectionCity'), description: text(lang, 'sectionCityDesc') },
+      { value: 'plugins', label: text(lang, 'sectionPlugins'), description: text(lang, 'sectionPluginsDesc') },
+      { value: 'integrations', label: text(lang, 'sectionIntegrations'), description: text(lang, 'sectionIntegrationsDesc') },
+    ],
+    'all',
+    lang,
+  );
+
+  return { mode, section };
+}
+
+function sectionMatches(section: ConfigureSection | 'all', target: ConfigureSection): boolean {
+  return section === 'all' || section === target;
+}
+
+function pluginTogglePrompt(lang: UiLanguage, pluginId: BundledPluginId): string {
+  if (lang === 'zh-CN') {
+    return `是否启用 bundled 插件 ${BUNDLED_PLUGIN_LABELS[pluginId]}？`;
+  }
+  if (lang === 'ko') {
+    return `${BUNDLED_PLUGIN_LABELS[pluginId]} bundled 플러그인을 활성화할까요?`;
+  }
+  return `Enable bundled plugin ${BUNDLED_PLUGIN_LABELS[pluginId]}?`;
+}
+
+async function choosePluginPreset(lang: UiLanguage, defaultPreset: ConfigurePluginPreset): Promise<ConfigurePluginPreset> {
+  return await promptChoice(
+    text(lang, 'pluginPresetPrompt'),
+    [
+      { value: 'social-only', label: text(lang, 'presetSocial'), description: text(lang, 'presetSocialDesc') },
+      { value: 'empty-core', label: text(lang, 'presetEmpty'), description: text(lang, 'presetEmptyDesc') },
+      { value: 'custom', label: text(lang, 'presetCustom'), description: text(lang, 'presetCustomDesc') },
+    ],
+    defaultPreset,
+    lang,
+  );
+}
+
+async function chooseCustomBundledPlugins(lang: UiLanguage, defaults: BundledPluginState): Promise<BundledPluginState> {
+  return {
+    'uruc.social': await promptConfirm(pluginTogglePrompt(lang, 'uruc.social'), defaults['uruc.social'], lang),
+  };
+}
+
+async function editSources(lang: UiLanguage, sources: CityPluginSource[]): Promise<CityPluginSource[]> {
+  const next = [...sources];
+  while (true) {
+    if (next.length === 0) {
+      printStatus('info', text(lang, 'noSources'));
+    } else {
+      printStatus('info', `${text(lang, 'sourcesSummary')}: ${next.map((source) => `${source.id} -> ${source.registry}`).join(', ')}`);
+    }
+
+    const action = await promptChoice<'done' | 'add' | 'remove'>(
+      text(lang, 'sourceActionPrompt'),
+      [
+        { value: 'done', label: text(lang, 'sourceDone') },
+        { value: 'add', label: text(lang, 'sourceAdd') },
+        { value: 'remove', label: text(lang, 'sourceRemove') },
+      ],
+      'done',
+      lang,
+    );
+
+    if (action === 'done') {
+      return next;
+    }
+
+    if (action === 'add') {
+      const id = await promptInput(text(lang, 'sourceIdPrompt'), '');
+      const registry = await promptInput(text(lang, 'sourceRegistryPrompt'), '');
+      if (!id || !registry) {
+        continue;
+      }
+      const existingIndex = next.findIndex((source) => source.id === id);
+      const value: CityPluginSource = { id, type: 'npm', registry };
+      if (existingIndex >= 0) {
+        next[existingIndex] = value;
+      } else {
+        next.push(value);
+      }
+      continue;
+    }
+
+    if (next.length === 0) {
+      continue;
+    }
+
+    const sourceId = await promptChoice(
+      text(lang, 'sourceRemovePrompt'),
+      next.map((source) => ({
+        value: source.id,
+        label: source.id,
+        description: source.registry,
+      })),
+      next[0]!.id,
+      lang,
+    );
+    const removeIndex = next.findIndex((source) => source.id === sourceId);
+    if (removeIndex >= 0) {
+      next.splice(removeIndex, 1);
+    }
+  }
 }
 
 async function reconcileAdminAccount(
@@ -328,127 +705,262 @@ async function reconcileAdminAccount(
 
 async function gatherAnswers(context: CommandContext): Promise<ConfigureResult> {
   ensureServerEnvFile();
+  const acceptDefaults = hasFlag(context.args, '--yes', '--accept-defaults');
   const storedLang = context.lang ?? readCliMeta().language ?? getCurrentLanguage();
-  const lang = await chooseLanguage(storedLang);
+  const lang = await chooseLanguage(storedLang, acceptDefaults);
   printBanner(lang, text(lang, 'title'));
 
   if (rootEnvExists()) {
     printStatus('warn', text(lang, 'invalidRootEnv'));
   }
 
+  const forcedMode = hasFlag(context.args, '--quickstart')
+    ? 'quickstart'
+    : hasFlag(context.args, '--advanced')
+      ? 'advanced'
+      : undefined;
+  const forcedSection = validateRequestedSection(readOption(context.args, '--section'));
+  const { mode, section } = await chooseConfigureMode(lang, forcedMode, forcedSection, acceptDefaults);
+
   const env = parseEnvFile();
   const cliMeta = readCliMeta();
   const existingReachability = cliMeta.reachability ?? inferReachability(env, 'local');
   const existingPurpose = cliMeta.purpose ?? ((env.URUC_PURPOSE === 'production' ? 'production' : 'test') as InstancePurpose);
 
-  const reachability = await promptChoice<CityReachability>(
-    text(lang, 'reachabilityPrompt'),
-    [
-      { value: 'local', label: text(lang, 'localMode'), description: text(lang, 'localModeDesc') },
-      { value: 'lan', label: text(lang, 'lanMode'), description: text(lang, 'lanModeDesc') },
-      { value: 'server', label: text(lang, 'serverMode'), description: text(lang, 'serverModeDesc') },
-    ],
-    existingReachability,
-    lang,
-  );
-
-  const purpose = await promptChoice<InstancePurpose>(
-    text(lang, 'purposePrompt'),
-    [
-      { value: 'test', label: lang === 'zh-CN' ? '测试' : lang === 'en' ? 'Test' : '테스트' },
-      { value: 'production', label: lang === 'zh-CN' ? '正式' : lang === 'en' ? 'Production' : '운영' },
-    ],
-    existingPurpose,
-    lang,
-  );
-
   const currentBaseUrl = env.BASE_URL;
-  const defaultPublicHost = reachability === 'local'
+  const baseHost = existingReachability === 'local'
     ? '127.0.0.1'
-    : reachability === 'lan'
+    : existingReachability === 'lan'
       ? safeHostFromBaseUrl(currentBaseUrl, detectLanHost())
       : safeHostFromBaseUrl(currentBaseUrl, os.hostname());
-  const defaultProtocol = reachability === 'server'
+  const baseProtocol = existingReachability === 'server'
     ? inferSiteProtocol(currentBaseUrl, 'http')
     : 'http';
+  const defaults = currentConfigureDefaults(
+    existingReachability,
+    existingPurpose,
+    baseHost,
+    env.PORT ?? '3000',
+    env.WS_PORT ?? '3001',
+    baseProtocol,
+  );
 
-  const publicHost = reachability === 'local'
-    ? '127.0.0.1'
-    : await promptInput(
-      reachability === 'lan' ? text(lang, 'lanHostPrompt') : text(lang, 'serverHostPrompt'),
-      defaultPublicHost,
-    );
-  const siteProtocol = reachability === 'server'
-    ? await promptChoice<SiteProtocol>(
-      text(lang, 'protocolPrompt'),
-      [
-        { value: 'http', label: text(lang, 'protocolHttp') },
-        { value: 'https', label: text(lang, 'protocolHttps') },
-      ],
-      defaultProtocol,
-      lang,
-    )
-    : 'http';
-  const httpPort = await promptInput(text(lang, 'httpPortPrompt'), env.PORT ?? '3000');
-  const wsPort = await promptInput(text(lang, 'wsPortPrompt'), env.WS_PORT ?? '3001');
-  const defaults = currentConfigureDefaults(reachability, purpose, publicHost, httpPort, wsPort, siteProtocol);
+  const initialCityConfigPath = resolveCityConfigPath(defaults.cityConfigPath);
+  const cityConfigExists = existsSync(initialCityConfigPath);
+  const existingCityConfig = await readCityConfig(initialCityConfigPath);
+  const existingPluginState = cityConfigExists
+    ? detectBundledPluginState(existingCityConfig)
+    : getBundledPluginPresetState(DEFAULT_PLUGIN_PRESET);
+  const existingPluginPreset = cityConfigExists
+    ? inferPluginPreset(existingPluginState)
+    : DEFAULT_PLUGIN_PRESET;
 
-  const adminUsername = await promptInput(text(lang, 'adminUserPrompt'), defaults.adminUsername);
-  const adminPassword = await promptInput(text(lang, 'adminPasswordPrompt'), defaults.adminPassword, { secret: true });
-  const adminEmail = await promptInput(text(lang, 'adminEmailPrompt'), defaults.adminEmail);
-  const allowRegister = await promptConfirm(text(lang, 'allowRegisterPrompt'), defaults.allowRegister, lang);
-  const noindex = await promptConfirm(text(lang, 'noindexPrompt'), defaults.noindex, lang);
-  const sitePassword = await promptInput(text(lang, 'sitePasswordPrompt'), defaults.sitePassword, { secret: true });
+  let cityConfigResolvedPath = initialCityConfigPath;
+  let baseCityConfig = cityConfigExists
+    ? existingCityConfig
+    : {
+      apiVersion: 2,
+      approvedPublishers: ['uruc'],
+      pluginStoreDir: DEFAULT_PLUGIN_STORE_DIR,
+      sources: [],
+      plugins: {},
+    } satisfies CityConfigFile;
 
   const answers: ConfigureAnswers = {
     ...defaults,
     lang,
-    reachability,
-    purpose,
-    bindHost: defaults.bindHost,
-    publicHost,
-    siteProtocol,
-    httpPort,
-    wsPort,
-    adminUsername,
-    adminPassword,
-    adminEmail,
-    allowRegister,
-    noindex,
-    sitePassword,
-    baseUrl: buildBaseUrl(siteProtocol, publicHost, httpPort),
+    mode,
+    section,
+    reachability: existingReachability,
+    purpose: existingPurpose,
+    pluginPreset: existingPluginPreset,
+    pluginStoreDir: existingCityConfig.pluginStoreDir ?? DEFAULT_PLUGIN_STORE_DIR,
+    bundledPluginState: existingPluginState,
   };
 
-  const advanced = await promptConfirm(text(lang, 'advancedPrompt'), false, lang);
-  if (advanced) {
-    answers.dbPath = await promptInput(text(lang, 'dbPathPrompt'), defaults.dbPath);
-    answers.pluginConfigPath = await promptInput(text(lang, 'pluginConfigPrompt'), defaults.pluginConfigPath || getDefaultPluginConfig(purpose));
-    answers.allowedOrigins = await promptInput(text(lang, 'allowedOriginsPrompt'), defaults.allowedOrigins);
-    answers.jwtSecret = await promptInput(text(lang, 'jwtSecretPrompt'), defaults.jwtSecret);
-    answers.publicDir = await promptInput(text(lang, 'publicDirPrompt'), defaults.publicDir);
-    answers.uploadsDir = await promptInput(text(lang, 'uploadsDirPrompt'), defaults.uploadsDir);
+  if (mode === 'quickstart' || sectionMatches(section, 'runtime')) {
+    if (!acceptDefaults) {
+      answers.reachability = await promptChoice<CityReachability>(
+        text(lang, 'reachabilityPrompt'),
+        [
+          { value: 'local', label: text(lang, 'localMode'), description: text(lang, 'localModeDesc') },
+          { value: 'lan', label: text(lang, 'lanMode'), description: text(lang, 'lanModeDesc') },
+          { value: 'server', label: text(lang, 'serverMode'), description: text(lang, 'serverModeDesc') },
+        ],
+        answers.reachability,
+        lang,
+      );
 
-    const useResend = await promptConfirm(text(lang, 'resendPrompt'), !!defaults.resendApiKey, lang);
-    if (useResend) {
-      answers.resendApiKey = await promptInput(text(lang, 'resendKeyPrompt'), defaults.resendApiKey);
-      answers.fromEmail = await promptInput(text(lang, 'fromEmailPrompt'), defaults.fromEmail);
-    } else {
-      answers.resendApiKey = '';
+      answers.purpose = await promptChoice<InstancePurpose>(
+        text(lang, 'purposePrompt'),
+        [
+          { value: 'test', label: lang === 'zh-CN' ? '测试' : lang === 'en' ? 'Test' : '테스트' },
+          { value: 'production', label: lang === 'zh-CN' ? '正式' : lang === 'en' ? 'Production' : '운영' },
+        ],
+        answers.purpose,
+        lang,
+      );
     }
 
-    const useGoogle = await promptConfirm(text(lang, 'googlePrompt'), !!defaults.googleClientId, lang);
+    const runtimeDefaults = defaultConfig(
+      answers.reachability,
+      answers.purpose,
+      answers.publicHost,
+      answers.httpPort,
+      answers.wsPort,
+      answers.siteProtocol,
+    );
+    const suggestedPublicHost = answers.reachability === 'local'
+      ? '127.0.0.1'
+      : answers.reachability === 'lan'
+        ? safeHostFromBaseUrl(currentBaseUrl, detectLanHost())
+        : safeHostFromBaseUrl(currentBaseUrl, os.hostname());
+
+    answers.publicHost = answers.reachability === 'local'
+      ? '127.0.0.1'
+      : acceptDefaults
+        ? (answers.publicHost || suggestedPublicHost)
+        : await promptInput(
+          answers.reachability === 'lan' ? text(lang, 'lanHostPrompt') : text(lang, 'serverHostPrompt'),
+          answers.publicHost || suggestedPublicHost,
+        );
+
+    if (answers.reachability === 'server') {
+      if (!acceptDefaults) {
+        answers.siteProtocol = await promptChoice<SiteProtocol>(
+          text(lang, 'protocolPrompt'),
+          [
+            { value: 'http', label: text(lang, 'protocolHttp') },
+            { value: 'https', label: text(lang, 'protocolHttps') },
+          ],
+          answers.siteProtocol,
+          lang,
+        );
+      }
+    } else {
+      answers.siteProtocol = 'http';
+    }
+
+    if (mode === 'advanced' && !acceptDefaults) {
+      answers.httpPort = await promptInput(text(lang, 'httpPortPrompt'), answers.httpPort);
+      answers.wsPort = await promptInput(text(lang, 'wsPortPrompt'), answers.wsPort);
+      answers.publicDir = await promptInput(text(lang, 'publicDirPrompt'), answers.publicDir || runtimeDefaults.publicDir);
+      answers.uploadsDir = await promptInput(text(lang, 'uploadsDirPrompt'), answers.uploadsDir || runtimeDefaults.uploadsDir);
+    } else {
+      answers.httpPort = answers.httpPort || '3000';
+      answers.wsPort = answers.wsPort || '3001';
+      answers.publicDir = keepConfiguredPath(answers.publicDir, runtimeDefaults.publicDir);
+      answers.uploadsDir = keepConfiguredPath(answers.uploadsDir, runtimeDefaults.uploadsDir);
+    }
+
+    answers.bindHost = defaultBindHost(answers.reachability);
+    answers.baseUrl = buildBaseUrl(answers.siteProtocol, answers.publicHost, answers.httpPort);
+    answers.allowRegister = mode === 'quickstart' ? runtimeDefaults.allowRegister : answers.allowRegister;
+    answers.noindex = mode === 'quickstart' ? runtimeDefaults.noindex : answers.noindex;
+    answers.allowedOrigins = mode === 'quickstart'
+      ? defaultConfig(
+        answers.reachability,
+        answers.purpose,
+        answers.publicHost,
+        answers.httpPort,
+        answers.wsPort,
+        answers.siteProtocol,
+      ).allowedOrigins
+      : answers.allowedOrigins;
+  }
+
+  if (mode === 'quickstart' || sectionMatches(section, 'access')) {
+    if (!acceptDefaults) {
+      answers.adminUsername = await promptInput(text(lang, 'adminUserPrompt'), answers.adminUsername);
+      answers.adminPassword = await promptInput(text(lang, 'adminPasswordPrompt'), answers.adminPassword, { secret: true });
+      answers.adminEmail = await promptInput(text(lang, 'adminEmailPrompt'), answers.adminEmail);
+    }
+
+    if (mode === 'advanced' && !acceptDefaults) {
+      answers.allowRegister = await promptConfirm(text(lang, 'allowRegisterPrompt'), answers.allowRegister, lang);
+      answers.noindex = await promptConfirm(text(lang, 'noindexPrompt'), answers.noindex, lang);
+      answers.sitePassword = await promptInput(text(lang, 'sitePasswordPrompt'), answers.sitePassword, { secret: true });
+    }
+  }
+
+  if (sectionMatches(section, 'city') && mode === 'advanced') {
+    answers.dbPath = await promptInput(text(lang, 'dbPathPrompt'), answers.dbPath);
+    const nextCityConfigPath = await promptInput(text(lang, 'cityConfigPrompt'), answers.cityConfigPath);
+    const nextResolved = resolveCityConfigPath(nextCityConfigPath);
+    if (nextResolved !== cityConfigResolvedPath) {
+      baseCityConfig = rebaseCityConfigPaths(baseCityConfig, cityConfigResolvedPath, nextResolved);
+      cityConfigResolvedPath = nextResolved;
+    }
+    answers.cityConfigPath = nextCityConfigPath;
+  } else if (mode === 'quickstart') {
+    answers.dbPath = keepConfiguredPath(
+      answers.dbPath,
+      defaultConfig(
+        answers.reachability,
+        answers.purpose,
+        answers.publicHost,
+        answers.httpPort,
+        answers.wsPort,
+        answers.siteProtocol,
+      ).dbPath,
+    );
+  }
+
+  if (mode === 'quickstart' || sectionMatches(section, 'plugins')) {
+    if (mode === 'advanced') {
+      const nextCityConfigPath = await promptInput(text(lang, 'cityConfigPrompt'), answers.cityConfigPath);
+      const nextResolved = resolveCityConfigPath(nextCityConfigPath);
+      if (nextResolved !== cityConfigResolvedPath) {
+        baseCityConfig = rebaseCityConfigPaths(baseCityConfig, cityConfigResolvedPath, nextResolved);
+        cityConfigResolvedPath = nextResolved;
+      }
+      answers.cityConfigPath = nextCityConfigPath;
+      answers.pluginStoreDir = await promptInput(text(lang, 'pluginStoreDirPrompt'), answers.pluginStoreDir || DEFAULT_PLUGIN_STORE_DIR);
+    }
+
+    if (!acceptDefaults) {
+      answers.pluginPreset = await choosePluginPreset(lang, answers.pluginPreset);
+      answers.bundledPluginState = answers.pluginPreset === 'custom'
+        ? await chooseCustomBundledPlugins(lang, answers.bundledPluginState)
+        : getBundledPluginPresetState(answers.pluginPreset, answers.bundledPluginState);
+    } else {
+      answers.bundledPluginState = getBundledPluginPresetState(answers.pluginPreset, answers.bundledPluginState);
+    }
+
+    if (mode === 'advanced' && await promptConfirm(text(lang, 'editSourcesPrompt'), false, lang)) {
+      baseCityConfig = {
+        ...baseCityConfig,
+        sources: await editSources(lang, baseCityConfig.sources ?? []),
+      };
+    }
+  }
+
+  if (sectionMatches(section, 'integrations') && mode === 'advanced') {
+    answers.allowedOrigins = await promptInput(text(lang, 'allowedOriginsPrompt'), answers.allowedOrigins);
+    answers.jwtSecret = await promptInput(text(lang, 'jwtSecretPrompt'), answers.jwtSecret);
+
+    const useResend = await promptConfirm(text(lang, 'resendPrompt'), !!answers.resendApiKey, lang);
+    if (useResend) {
+      answers.resendApiKey = await promptInput(text(lang, 'resendKeyPrompt'), answers.resendApiKey);
+      answers.fromEmail = await promptInput(text(lang, 'fromEmailPrompt'), answers.fromEmail);
+    } else {
+      answers.resendApiKey = '';
+      answers.fromEmail = '';
+    }
+
+    const useGoogle = await promptConfirm(text(lang, 'googlePrompt'), !!answers.googleClientId, lang);
     if (useGoogle) {
-      answers.googleClientId = await promptInput(text(lang, 'googleIdPrompt'), defaults.googleClientId);
-      answers.googleClientSecret = await promptInput(text(lang, 'googleSecretPrompt'), defaults.googleClientSecret, { secret: true });
+      answers.googleClientId = await promptInput(text(lang, 'googleIdPrompt'), answers.googleClientId);
+      answers.googleClientSecret = await promptInput(text(lang, 'googleSecretPrompt'), answers.googleClientSecret, { secret: true });
     } else {
       answers.googleClientId = '';
       answers.googleClientSecret = '';
     }
 
-    const useGithub = await promptConfirm(text(lang, 'githubPrompt'), !!defaults.githubClientId, lang);
+    const useGithub = await promptConfirm(text(lang, 'githubPrompt'), !!answers.githubClientId, lang);
     if (useGithub) {
-      answers.githubClientId = await promptInput(text(lang, 'githubIdPrompt'), defaults.githubClientId);
-      answers.githubClientSecret = await promptInput(text(lang, 'githubSecretPrompt'), defaults.githubClientSecret, { secret: true });
+      answers.githubClientId = await promptInput(text(lang, 'githubIdPrompt'), answers.githubClientId);
+      answers.githubClientSecret = await promptInput(text(lang, 'githubSecretPrompt'), answers.githubClientSecret, { secret: true });
     } else {
       answers.githubClientId = '';
       answers.githubClientSecret = '';
@@ -460,6 +972,8 @@ async function gatherAnswers(context: CommandContext): Promise<ConfigureResult> 
     answers: adminResolution.answers,
     adminAction: adminResolution.action,
     generatedPassword: adminResolution.generatedPassword,
+    baseCityConfig,
+    cityConfigResolvedPath,
   };
 }
 
@@ -476,50 +990,96 @@ async function applyAdminPlan(result: ConfigureResult): Promise<void> {
   }
 }
 
-function persistConfiguration(result: ConfigureResult): void {
+async function persistConfiguration(result: ConfigureResult): Promise<void> {
   writeEnvFile(configureAnswersToEnv(result.answers));
   rememberConfiguration(result.answers);
+  await ensureCityConfig({
+    configPath: result.cityConfigResolvedPath,
+    packageRoot,
+    preset: result.answers.pluginPreset,
+    pluginState: result.answers.bundledPluginState,
+    pluginStoreDir: result.answers.pluginStoreDir || DEFAULT_PLUGIN_STORE_DIR,
+    baseConfig: result.baseCityConfig,
+    createIfMissing: true,
+    mutateExisting: true,
+  });
+  await syncCityLock({
+    configPath: result.cityConfigResolvedPath,
+    lockPath: getCityLockPath(),
+    packageRoot,
+    pluginStoreDir: path.isAbsolute(result.answers.pluginStoreDir)
+      ? result.answers.pluginStoreDir
+      : path.resolve(packageRoot, result.answers.pluginStoreDir || DEFAULT_PLUGIN_STORE_DIR),
+  });
 }
 
-export async function runConfigureCommand(context: CommandContext): Promise<void> {
-  const result = await gatherAnswers(context);
+function printSummary(result: ConfigureResult): void {
   const { answers } = result;
   const lang = answers.lang;
+  const summary = getConfigureSummaryLines(answers);
 
   printSection(text(lang, 'summaryTitle'));
-  for (const line of getConfigureSummaryLines(answers)) {
+
+  printSection(text(lang, 'runtimeSummaryTitle'));
+  for (const line of summary.slice(0, 6)) {
     console.log(`- ${line}`);
   }
+
+  printSection(text(lang, 'citySummaryTitle'));
+  for (const line of summary.slice(10, 16)) {
+    console.log(`- ${line}`);
+  }
+
+  printSection(text(lang, 'adminSummaryTitle'));
+  for (const line of summary.slice(6, 10)) {
+    console.log(`- ${line}`);
+  }
+  console.log(`- Email: ${answers.adminEmail}`);
+  console.log(`- ${text(lang, 'sourcesSummary')}: ${result.baseCityConfig.sources?.length ?? 0}`);
+
   if (result.generatedPassword) {
     printStatus('info', text(lang, 'generatedPassword'));
   }
   if (answers.siteProtocol === 'https') {
     printStatus('warn', text(lang, 'httpsNotice'));
   }
+}
+
+export async function runConfigureCommand(context: CommandContext): Promise<void> {
+  const result = await gatherAnswers(context);
+  const { answers } = result;
+  const lang = answers.lang;
+  const acceptDefaults = hasFlag(context.args, '--yes', '--accept-defaults');
+
+  printSummary(result);
 
   printSection(text(lang, 'actionsTitle'));
   for (const action of getConfigureActions()) {
     console.log(`- ${action}`);
   }
 
-  const nextAction = await promptChoice(
-    text(lang, 'applyPrompt'),
-    [
-      { value: 'start-foreground', label: text(lang, 'startForeground') },
-      { value: 'start-background', label: text(lang, 'startBackground') },
-      { value: 'save', label: text(lang, 'saveOnly') },
-      { value: 'edit', label: text(lang, 'editAgain') },
-    ],
-    'start-foreground',
-    lang,
-  );
+  const runtimeStatus = await getRuntimeStatus();
+  const systemdInstalled = isSystemdInstalled();
+  const applyChoices = getApplyChoices(lang, runtimeStatus, systemdInstalled);
+  if (runtimeStatus.mode === 'unmanaged') {
+    printStatus('warn', unmanagedSaveWarning(lang));
+  }
+
+  const nextAction = acceptDefaults
+    ? 'save'
+    : await promptChoice<ConfigureApplyAction>(
+      text(lang, 'applyPrompt'),
+      applyChoices,
+      applyChoices[0]?.value ?? 'save',
+      lang,
+    );
 
   if (nextAction === 'edit') {
     await runConfigureCommand(context);
     return;
   }
 
-  persistConfiguration(result);
+  await persistConfiguration(result);
   await applyAdminPlan(result);
 
   const siteUrl = answers.baseUrl;
@@ -537,9 +1097,22 @@ export async function runConfigureCommand(context: CommandContext): Promise<void
     return;
   }
 
+  if (nextAction === 'start-managed') {
+    const currentRuntime = await getRuntimeStatus();
+    if (currentRuntime.mode === 'background' || currentRuntime.mode === 'systemd') {
+      const { runRestartCommand } = await import('./restart.js');
+      await runRestartCommand({ ...context, args: [] });
+      return;
+    }
+
+    const { runStartCommand } = await import('./start.js');
+    await runStartCommand({
+      ...context,
+      args: ['--background'],
+    });
+    return;
+  }
+
   const { runStartCommand } = await import('./start.js');
-  await runStartCommand({
-    ...context,
-    args: nextAction === 'start-background' ? ['--background'] : [],
-  });
+  await runStartCommand({ ...context, args: [] });
 }

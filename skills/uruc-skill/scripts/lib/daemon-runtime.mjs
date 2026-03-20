@@ -1,4 +1,3 @@
-import { spawn } from 'child_process';
 import { createServer } from 'net';
 
 import {
@@ -23,6 +22,7 @@ import {
   writeState,
   uuid,
 } from './common.mjs';
+import { sendOpenClawSystemEventText } from './openclaw-gateway.mjs';
 
 const MAX_BRIDGE_RETRY_MS = 30_000;
 
@@ -186,13 +186,11 @@ export class AgentDaemon {
           return { id: request.id, ok: true, data: this.buildBridgeStatus() };
 
         case 'bridge_test': {
-          const entry = {
-            id: uuid(),
+          const message = {
             type: 'bridge_test',
             payload: { manual: true, mode: BRIDGE_MODE_LOCAL },
-            receivedAt: new Date().toISOString(),
           };
-          this.queueWakeEnvelope(this.buildWakeEnvelope([entry], 'manual_test'));
+          this.queueWakeBatch({ id: 'manual_test', createdAt: new Date().toISOString(), messages: [message] });
           await this.processWakeQueue();
           return { id: request.id, ok: true, data: this.buildBridgeStatus({ testQueued: true }) };
         }
@@ -405,7 +403,7 @@ export class AgentDaemon {
     }
     this.logPush(entry);
     this.persistState();
-    void this.scheduleWakeForEvent(entry);
+    void this.scheduleWakeForMessage(message);
   }
 
   async disconnectRemote({ clearSession }) {
@@ -560,7 +558,7 @@ export class AgentDaemon {
     }
   }
 
-  async scheduleWakeForEvent(event) {
+  async scheduleWakeForMessage(message) {
     const bridge = this.getBridgeConfig();
     if (!bridge?.enabled) return;
     if (!this.state.agentSession?.agentId) return;
@@ -569,10 +567,10 @@ export class AgentDaemon {
       this.pendingWakeBatch = {
         id: uuid(),
         createdAt: new Date().toISOString(),
-        events: [],
+        messages: [],
       };
     }
-    this.pendingWakeBatch.events.push(event);
+    this.pendingWakeBatch.messages.push(cloneJsonValue(message));
     this.syncBridgeState();
     this.persistState();
 
@@ -581,57 +579,26 @@ export class AgentDaemon {
       this.bridgeCoalesceTimer = undefined;
       const pending = this.pendingWakeBatch;
       this.pendingWakeBatch = null;
-      if (!pending || pending.events.length === 0) {
+      if (!pending || pending.messages.length === 0) {
         this.syncBridgeState();
         this.persistState();
         return;
       }
-      this.queueWakeEnvelope(this.buildWakeEnvelope(pending.events, pending.id, pending.createdAt));
+      this.queueWakeBatch(pending);
       void this.processWakeQueue();
     }, bridge.coalesceWindowMs);
   }
 
-  buildWakeEnvelope(events, batchId, createdAt = new Date().toISOString()) {
-    return {
-      id: batchId,
-      source: 'uruc-bridge',
-      bridgeVersion: 1,
-      agentId: this.state.agentSession?.agentId ?? null,
-      agentName: this.state.agentSession?.agentName ?? null,
-      createdAt,
-      receivedAt: new Date().toISOString(),
-      session: this.buildSessionSnapshot(),
-      events,
-      wakeReason: 'remote_push_batch',
-    };
-  }
+  queueWakeBatch(batch) {
+    const normalized = normalizeWakeBatch(batch);
+    if (normalized.messages.length === 0) return;
 
-  buildSessionSnapshot() {
-    return {
-      connected: this.state.authenticated,
-      hasController: this.state.hasController,
-      isController: this.state.isController,
-      inCity: this.state.inCity,
-      currentLocation: this.state.currentLocation,
-      serverTimestamp: this.state.serverTimestamp,
-      availableCommands: this.state.availableCommands,
-      availableLocations: this.state.availableLocations,
-    };
-  }
-
-  queueWakeEnvelope(envelope) {
     if (this.bridgeQueue.batches.length > 0) {
       const last = this.bridgeQueue.batches[this.bridgeQueue.batches.length - 1];
-      if (last.agentId === envelope.agentId) {
-        last.events.push(...envelope.events);
-        last.receivedAt = envelope.receivedAt;
-        last.session = envelope.session;
-        last.agentName = envelope.agentName;
-      } else {
-        this.bridgeQueue.batches.push(envelope);
-      }
+      last.messages = [...last.messages, ...normalized.messages];
+      last.createdAt = normalized.createdAt;
     } else {
-      this.bridgeQueue.batches.push(envelope);
+      this.bridgeQueue.batches.push(normalized);
     }
     writeBridgeQueue(this.bridgeQueue);
     this.syncBridgeState();
@@ -672,37 +639,19 @@ export class AgentDaemon {
     }
   }
 
-  async sendWake(envelope, bridge) {
+  async sendWake(batch, bridge) {
     if (bridge.mode !== BRIDGE_MODE_LOCAL) {
-      throw new Error(`不支持的 wake 模式: ${bridge.mode}`);
+      throw new Error(`不支持的 bridge 模式: ${bridge.mode}`);
     }
-    await this.sendLocalWakeText(`${BRIDGE_MESSAGE_PREFIX}\n${JSON.stringify(envelope)}`);
+    const body = batch.messages.length <= 1 ? batch.messages[0] ?? null : batch.messages;
+    await this.sendLocalWakeText(`${BRIDGE_MESSAGE_PREFIX}\n${JSON.stringify(body)}`, {
+      sessionKey: bridge.targetSession ?? 'main',
+      idempotencyKey: batch.id,
+    });
   }
 
-  async sendLocalWakeText(text) {
-    await new Promise((resolve, reject) => {
-      const child = spawn('openclaw', ['system', 'event', '--text', text, '--mode', 'now'], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-      let stderr = '';
-
-      child.stderr.on('data', (chunk) => {
-        stderr += chunk.toString();
-      });
-      child.on('error', (error) => {
-        reject(new Error(`无法执行 openclaw CLI: ${error.message}`));
-      });
-      child.on('close', (code) => {
-        if (code === 0) {
-          resolve();
-          return;
-        }
-        const detail = stderr.trim();
-        reject(new Error(
-          `OpenClaw 本地唤醒失败: exit ${code}${detail ? ` ${detail.slice(0, 200)}` : ''}`,
-        ));
-      });
-    });
+  async sendLocalWakeText(text, options = {}) {
+    await sendOpenClawSystemEventText(text, options);
   }
 
   scheduleBridgeRetry() {
@@ -760,14 +709,34 @@ export class AgentDaemon {
     console.log(`[uruc-agent] push type=${entry.type}${serverTimestamp}`);
   }
 
-  logWake(envelope) {
-    const serverTimestamp = typeof envelope.session?.serverTimestamp === 'number'
-      ? ` serverTimestamp=${envelope.session.serverTimestamp}`
-      : '';
-    console.log(
-      `[uruc-agent] wake batch=${envelope.id} agent=${envelope.agentId ?? 'unknown'} events=${envelope.events.length}${serverTimestamp}`,
-    );
+  logWake(batch) {
+    const serverTimestamp = extractWakeBatchServerTimestamp(batch.messages);
+    const timestampLabel = typeof serverTimestamp === 'number' ? ` serverTimestamp=${serverTimestamp}` : '';
+    console.log(`[uruc-agent] bridge batch=${batch.id ?? 'unknown'} messages=${batch.messages.length}${timestampLabel}`);
   }
+}
+
+function normalizeWakeBatch(batch) {
+  return {
+    id: typeof batch?.id === 'string' && batch.id !== '' ? batch.id : uuid(),
+    createdAt: typeof batch?.createdAt === 'string' && batch.createdAt !== '' ? batch.createdAt : new Date().toISOString(),
+    messages: Array.isArray(batch?.messages)
+      ? batch.messages.map((message) => cloneJsonValue(message))
+      : [],
+  };
+}
+
+function extractWakeBatchServerTimestamp(messages) {
+  for (const message of messages) {
+    const serverTimestamp = extractServerTimestamp(message?.payload, null);
+    if (typeof serverTimestamp === 'number') return serverTimestamp;
+  }
+  return null;
+}
+
+function cloneJsonValue(value) {
+  if (typeof value === 'undefined') return null;
+  return JSON.parse(JSON.stringify(value));
 }
 
 function normalizeConfig(config) {

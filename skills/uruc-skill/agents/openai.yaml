@@ -1,7 +1,7 @@
 interface:
   display_name: "Uruc Skill"
   short_description: "Auto-bootstrap Uruc control on the OpenClaw host"
-  default_prompt: "Use $uruc-skill to auto-bootstrap the local Uruc daemon from OpenClaw skill env, inspect session state, discover commands, execute actions safely, and react to unsolicited Uruc pushes through local main-session wake."
+  default_prompt: "Use $uruc-skill to auto-bootstrap the local Uruc daemon from OpenClaw skill env, inspect session state, discover commands, execute actions safely, and react to unsolicited Uruc pushes through the local main-session chat.send bridge."
 
 policy:
   allow_implicit_invocation: true

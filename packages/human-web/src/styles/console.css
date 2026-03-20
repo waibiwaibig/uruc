@@ -1,17 +1,26 @@
+.agent-console-page {
+  width: min(1440px, calc(100% - (var(--space-3) * 2)));
+}
+
+.agent-console-shell {
+  display: grid;
+  gap: 20px;
+}
+
 .console-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
-  align-items: stretch;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
 }
 
 .registry-list {
   display: grid;
-  gap: var(--space-1);
+  gap: 10px;
 }
 
 .registry-card {
-  padding: var(--space-2);
+  padding: 12px 14px;
   display: block;
 }
 
@@ -23,7 +32,7 @@
 .control-section {
   padding: var(--space-3);
   display: grid;
-  gap: var(--space-2);
+  gap: 16px;
 }
 
 .agent-console-page .control-section .section-label {
@@ -40,12 +49,13 @@
 
 .agent-console-registry,
 .agent-console-main {
-  height: 100%;
+  min-height: 100%;
 }
 
 .agent-console-registry {
   align-content: start;
   grid-auto-rows: min-content;
+  gap: 16px;
 }
 
 .agent-console-hero {
@@ -99,14 +109,14 @@
 
 .agent-avatar-field {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: 14px;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 18px;
   align-items: center;
 }
 
 .agent-avatar-field__preview {
-  width: 72px;
-  height: 72px;
+  width: 88px;
+  height: 88px;
   border-radius: 50%;
   overflow: hidden;
   border: 1px solid var(--line-soft);
@@ -128,7 +138,7 @@
 
 .agent-avatar-field__copy {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   justify-items: start;
 }
 
@@ -146,13 +156,11 @@
 
 .agent-create-strip {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: end;
+  gap: 8px;
 }
 
 .agent-create-strip .app-btn {
-  min-width: 150px;
+  width: 100%;
 }
 
 .registry-card__row {
@@ -160,88 +168,79 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-direction: row;
 }
 
 .registry-card__copy {
   display: inline-flex;
-  align-items: baseline;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 
-.registry-card__copy strong,
-.registry-card__copy .tiny {
+.registry-card__copy strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .registry-card__meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
+  flex-wrap: nowrap;
 }
 
 .registry-card__meta .info-pill {
-  min-height: 28px;
-  padding: 4px 10px;
+  min-height: 26px;
+  padding: 3px 9px;
 }
 
 .agent-console-main {
   display: grid;
+  gap: 18px;
   align-content: start;
 }
 
-.agent-console-main > .split-panel {
-  height: 100%;
-  align-items: stretch;
+.agent-console-primary {
+  gap: 20px;
+  background:
+    radial-gradient(circle at top left, rgba(245, 217, 143, 0.08), transparent 36%),
+    linear-gradient(180deg, rgba(32, 22, 13, 0.94), rgba(15, 11, 7, 0.94));
 }
 
-.agent-console-side {
-  gap: 14px;
+.agent-console-primary__footer {
+  display: flex;
+  justify-content: flex-end;
 }
 
-.agent-token-card {
-  align-content: start;
-}
-
-.agent-token-card__head {
-  display: grid;
-  gap: 4px;
-}
-
-.agent-token-card__head .title-panel {
+.agent-console-primary__note {
   margin: 0;
 }
 
-.agent-token-card__hint {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--ink-mid);
-}
-
-.agent-token-card__actions {
+.agent-console-secondary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 18px;
 }
 
-.agent-token-card__actions .app-btn {
-  width: 100%;
-  justify-content: center;
-}
-
-.agent-location-card__hint {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--ink-mid);
+.agent-console-secondary--single {
+  grid-template-columns: 1fr;
 }
 
 .agent-location-card {
   position: relative;
   overflow: visible;
   z-index: 4;
+}
+
+.agent-location-card__summary {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-mid);
 }
 
 .agent-location-picker {
@@ -343,60 +342,72 @@
   gap: 2px;
 }
 
-.split-panel--single {
-  grid-template-columns: 1fr;
+.agent-activity-panel {
+  align-content: start;
 }
 
-.split-panel--single > .control-section {
-  height: 100%;
-}
-
-.agent-activity-strip {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 14px 18px;
-}
-
-.agent-activity-strip__head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.agent-activity-strip__head .title-panel {
-  margin: 0;
-}
-
-.agent-activity-strip__items {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.agent-activity-strip__hint {
+.agent-activity-panel__summary,
+.agent-activity-panel__empty {
   margin: 0;
   font-size: 12px;
-  line-height: 1.45;
+  line-height: 1.5;
   color: var(--ink-mid);
 }
 
 .agent-console-message {
-  grid-column: 1 / -1;
+  margin: 0;
 }
 
 .selected-agent-banner {
-  padding: var(--space-3);
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-2);
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px;
   align-items: center;
+  background:
+    radial-gradient(circle at top left, rgba(245, 217, 143, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(39, 28, 16, 0.96), rgba(18, 13, 8, 0.96));
+}
+
+.selected-agent-banner__main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.selected-agent-banner__avatar {
+  width: 96px;
+  height: 96px;
+}
+
+.selected-agent-banner__copy {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.selected-agent-banner__name {
+  margin: 0;
+  font-size: clamp(1.7rem, 3vw, 2.35rem);
+  line-height: 0.96;
+  color: var(--paper);
+}
+
+.selected-agent-banner__meta {
+  margin: 0;
+}
+
+.selected-agent-banner__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.selected-agent-banner__token {
+  margin-top: 2px;
+  max-width: min(100%, 760px);
 }
 
 .empty-state {
@@ -440,21 +451,7 @@
 }
 
 @media (max-width: 1024px) {
-  .agent-console-hero {
-    grid-template-columns: 1fr;
-  }
-
   .console-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .agent-console-summary {
-    width: 100%;
-    justify-self: stretch;
-    justify-content: flex-start;
-  }
-
-  .agent-create-strip {
     grid-template-columns: 1fr;
   }
 
@@ -463,30 +460,45 @@
     justify-items: start;
   }
 
+  .agent-console-registry {
+    order: 2;
+  }
+
   .registry-card__row {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .registry-card__copy {
-    flex-wrap: wrap;
   }
 
   .registry-card__meta {
     flex-wrap: wrap;
   }
 
-  .agent-activity-strip {
-    align-items: flex-start;
-    flex-direction: column;
+  .agent-console-main {
+    order: 1;
   }
 
-  .agent-activity-strip__items {
+  .selected-agent-banner {
+    grid-template-columns: 1fr;
+  }
+
+  .selected-agent-banner__main {
+    grid-template-columns: 1fr;
+  }
+
+  .selected-agent-banner__actions {
     justify-content: flex-start;
   }
 
-  .agent-token-card__actions {
+  .agent-console-secondary {
     grid-template-columns: 1fr;
+  }
+
+  .agent-console-primary__footer {
+    justify-content: stretch;
+  }
+
+  .agent-console-primary__footer .app-btn {
+    width: 100%;
   }
 
   .agent-location-picker__menu {

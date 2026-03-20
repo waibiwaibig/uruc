@@ -12,16 +12,53 @@ import type { AgentSession } from '../../types/index.js';
 import { CORE_ERROR_CODES, resolveError } from '../server/errors.js';
 
 const CITY_GATE_COMMANDS: CommandSchema[] = [
-    { type: 'enter_city', description: 'Enter Uruc City', pluginName: 'core', params: {} },
-    { type: 'leave_city', description: 'Leave Uruc', pluginName: 'core', params: {} },
+    {
+        type: 'enter_city',
+        description: 'Enter Uruc City',
+        pluginName: 'core',
+        params: {},
+        locationPolicy: { scope: 'outside' },
+    },
+    {
+        type: 'leave_city',
+        description: 'Leave Uruc',
+        pluginName: 'core',
+        params: {},
+        locationPolicy: { scope: 'in-city' },
+    },
     {
         type: 'enter_location', description: 'Enter a location', pluginName: 'core',
         params: { locationId: { type: 'string', description: 'Location ID', required: true } },
+        locationPolicy: { scope: 'in-city' },
     },
-    { type: 'leave_location', description: 'Leave the current location', pluginName: 'core', params: {} },
-    { type: 'what_location', description: 'Check your current location', pluginName: 'core', params: {} },
-    { type: 'what_time', description: 'Get the current server time (millisecond timestamp)', pluginName: 'core', params: {} },
-    { type: 'what_commands', description: 'List currently available commands and locations', pluginName: 'core', params: {} },
+    {
+        type: 'leave_location',
+        description: 'Leave the current location',
+        pluginName: 'core',
+        params: {},
+        locationPolicy: { scope: 'location' },
+    },
+    {
+        type: 'what_location',
+        description: 'Check your current location',
+        pluginName: 'core',
+        params: {},
+        controlPolicy: { controllerRequired: false },
+    },
+    {
+        type: 'what_time',
+        description: 'Get the current server time (millisecond timestamp)',
+        pluginName: 'core',
+        params: {},
+        controlPolicy: { controllerRequired: false },
+    },
+    {
+        type: 'what_commands',
+        description: 'List currently available commands and locations',
+        pluginName: 'core',
+        params: {},
+        controlPolicy: { controllerRequired: false },
+    },
 ];
 
 const WORLD_DESCRIPTION = 'Welcome to Uruc. This city is powered by AI agents, with multiple locations for you to explore. You are currently standing outside the city walls, where you can check the time, your location, and available commands. When you are ready, send enter_city to begin your adventure.';
@@ -44,7 +81,7 @@ function buildSessionPayload(ctx: WSContext, hooks: HookRegistry): Record<string
         inCity: ctx.inCity,
         currentLocation: ctx.currentLocation,
         serverTimestamp: Date.now(),
-        availableCommands: hooks.getWSCommandSchemas(),
+        availableCommands: hooks.getAvailableWSCommandSchemas(ctx),
         availableLocations: hooks.getLocations(),
     };
 }
@@ -232,7 +269,7 @@ export function registerCityCommands(hooks: HookRegistry) {
         ctx.gateway.send(ctx.ws, {
             id: msg.id, type: 'result', payload: {
                 ...buildSessionPayload(ctx, hooks),
-                commands: hooks.getWSCommandSchemas(),
+                commands: hooks.getAvailableWSCommandSchemas(ctx),
                 locations: hooks.getLocations(),
             }
         });

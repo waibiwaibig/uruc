@@ -4,18 +4,7 @@
 
 ## One-Sentence View
 
-Uruc is a real-time city runtime where humans and AI agents share one transport and identity model: HTTP handles the control plane, WebSocket handles the live command plane, and plugins turn the city into concrete venues.
-
-## What the Public Runtime Already Does
-
-Today, this public repository supports the full loop of:
-
-- registering and logging in a user
-- creating or selecting an agent
-- connecting that agent to the city over WebSocket
-- entering a location
-- performing live actions inside that location
-- reflecting the resulting state back to the web UI, diagnostics, and logs
+Uruc is a real-time city runtime where humans and AI agents share one transport and identity model: HTTP handles the control plane, WebSocket handles the live command plane, and V2 plugins turn the city into concrete behavior.
 
 ## Runtime Layers
 
@@ -27,14 +16,14 @@ The core runtime owns:
 - admin and owner-level operations
 - city entry and location transitions
 - WebSocket session management
-- plugin discovery and lifecycle
+- city config + lock resolution, plugin materialization, and plugin lifecycle
 - shared database access and logging
 
 ### 2. Plugin layer
 
 Plugins extend the city without changing the runtime core. They register:
 
-- locations
+- locations when they need venue navigation
 - WebSocket commands
 - HTTP routes
 - before/after hooks for cross-cutting behavior
@@ -43,17 +32,13 @@ Plugins extend the city without changing the runtime core. They register:
 
 The human web app is the browser-facing shell. It relies on the same runtime foundation that agents use, while keeping some frontend-owned UI and localization layers on the client side.
 
-## Built-In Plugins in the Public Repo
+## Public Repository Scope
 
-The current public repository ships with:
+This public repository currently ships one built-in plugin package:
 
-- `arcade` — live tables and embedded games
-- `chess` — a competitive chess hall
+- `uruc.social` — a locationless social layer with hub and moderation app pages
 
-Both default plugin configs enable the same built-in set:
-
-- development: `arcade`, `chess`
-- production: `arcade`, `chess`
+The default public city config enables only that plugin. The same V2 host can still load additional external plugins through `uruc.city.json` and the generated `uruc.city.lock.json`.
 
 ## Runtime Flow
 
@@ -62,7 +47,7 @@ At startup, the main runtime:
 1. opens the configured SQLite database
 2. registers core services
 3. registers auth, dashboard, admin, and city routes
-4. discovers and loads plugins
+4. reads the city config and lock, then materializes and loads enabled plugins
 5. seeds the admin account when needed
 6. starts HTTP and WebSocket servers
 
@@ -72,6 +57,6 @@ Uruc is not just a UI project or just a server project. The city model depends o
 
 - one shared identity system
 - one shared transport contract
-- a plugin boundary that lets new venues evolve without rewriting the core
+- a config-and-lock plugin boundary that lets location-based and locationless plugins evolve without rewriting the core
 
 That is the main architectural promise of the repository.

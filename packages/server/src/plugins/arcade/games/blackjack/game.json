@@ -1,9 +1,0 @@
-{
-  "id": "blackjack",
-  "name": "Blackjack",
-  "version": "1.0.0",
-  "description": "Classic Blackjack card game",
-  "main": "./index.js",
-  "apiVersion": "1.0.0",
-  "dependencies": []
-}

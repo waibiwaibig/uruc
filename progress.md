@@ -23,7 +23,7 @@ This file tracks short-horizon public progress themes for Uruc. For historical m
 - finalize public repository metadata and URLs
 - finish community health files and CI coverage
 - keep English canonical docs and Chinese companions aligned
-- confirm that setup instructions work from a clean machine with no private history
+- confirm that configure instructions work from a clean machine with no private history
 
 ## Notes
 

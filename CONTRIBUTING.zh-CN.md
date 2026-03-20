@@ -88,7 +88,7 @@ npm run test --workspace=packages/server -- src/path/to/file.test.ts
 - Server 概览：[`packages/server/README.md`](packages/server/README.md)
 - 核心架构：[`docs/server/core-architecture.md`](docs/server/core-architecture.md)
 - 插件开发：[`docs/server/plugin-development.md`](docs/server/plugin-development.md)
-- 电玩城二级游戏开发：[`docs/server/arcade-game-development.md`](docs/server/arcade-game-development.md)
+- Social 插件说明：[`packages/plugins/social/README.md`](packages/plugins/social/README.md)
 
 ## Bug 与安全问题
 

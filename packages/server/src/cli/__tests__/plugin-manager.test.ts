@@ -1,0 +1,867 @@
+import { execFile } from 'child_process';
+import { createHash } from 'crypto';
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'fs/promises';
+import { createServer, type Server } from 'http';
+import os from 'os';
+import path from 'path';
+import type { AddressInfo } from 'net';
+import { promisify } from 'util';
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { createDb } from '../../core/database/index.js';
+import { readCityConfig, readCityLock, writeCityConfig } from '../../core/plugin-platform/config.js';
+import { PluginPlatformHost } from '../../core/plugin-platform/host.js';
+import { HookRegistry } from '../../core/plugin-system/hook-registry.js';
+import { ServiceRegistry } from '../../core/plugin-system/service-registry.js';
+
+const tempDirs: string[] = [];
+const servers: Server[] = [];
+const execFileAsync = promisify(execFile);
+const originalEnv = {
+  CITY_CONFIG_PATH: process.env.CITY_CONFIG_PATH,
+  CITY_LOCK_PATH: process.env.CITY_LOCK_PATH,
+  PLUGIN_STORE_DIR: process.env.PLUGIN_STORE_DIR,
+};
+
+async function createPluginPackage(root: string, options: {
+  pluginId: string;
+  packageName: string;
+  version: string;
+  publisher: string;
+  body?: string;
+}): Promise<void> {
+  await mkdir(root, { recursive: true });
+  await writeFile(path.join(root, 'package.json'), `${JSON.stringify({
+    name: options.packageName,
+    version: options.version,
+    type: 'module',
+    urucPlugin: {
+      pluginId: options.pluginId,
+      apiVersion: 2,
+      kind: 'backend',
+      entry: './index.mjs',
+      publisher: options.publisher,
+      displayName: options.pluginId,
+      permissions: [],
+      dependencies: [],
+      activation: ['startup'],
+    },
+  }, null, 2)}\n`, 'utf8');
+  await writeFile(
+    path.join(root, 'index.mjs'),
+    options.body ?? `export default {
+    kind: 'uruc.backend-plugin@v2',
+    pluginId: '${options.pluginId}',
+    apiVersion: 2,
+    async setup() {},
+  };\n`,
+    'utf8',
+  );
+}
+
+async function createTempRuntime(): Promise<{
+  cityConfigPath: string;
+  cityLockPath: string;
+  pluginStoreDir: string;
+  registryDir: string;
+  packageV1: string;
+  packageV2: string;
+  packageV3: string;
+  tempRoot: string;
+}> {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-cli-'));
+  tempDirs.push(tempRoot);
+  const cityConfigPath = path.join(tempRoot, 'uruc.city.json');
+  const cityLockPath = path.join(tempRoot, 'uruc.city.lock.json');
+  const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+  const registryDir = path.join(tempRoot, 'registry');
+  const packageV1 = path.join(tempRoot, 'packages', 'venue-v1');
+  const packageV2 = path.join(tempRoot, 'packages', 'venue-v2');
+  const packageV3 = path.join(tempRoot, 'packages', 'venue-v3');
+
+  await createPluginPackage(packageV1, {
+    pluginId: 'acme.venue',
+    packageName: '@acme/plugin-venue',
+    version: '1.0.0',
+    publisher: 'acme',
+  });
+  await createPluginPackage(packageV2, {
+    pluginId: 'acme.venue',
+    packageName: '@acme/plugin-venue',
+    version: '1.1.0',
+    publisher: 'acme',
+  });
+  await createPluginPackage(packageV3, {
+    pluginId: 'acme.venue',
+    packageName: '@acme/plugin-venue',
+    version: '1.2.0',
+    publisher: 'acme',
+  });
+
+  await mkdir(registryDir, { recursive: true });
+  await writeCityConfig(cityConfigPath, {
+    apiVersion: 2,
+    approvedPublishers: ['acme'],
+    pluginStoreDir,
+    sources: [
+      {
+        id: 'local',
+        type: 'npm',
+        registry: registryDir,
+      },
+    ],
+    plugins: {},
+  });
+
+  process.env.CITY_CONFIG_PATH = cityConfigPath;
+  process.env.CITY_LOCK_PATH = cityLockPath;
+  process.env.PLUGIN_STORE_DIR = pluginStoreDir;
+
+  return { cityConfigPath, cityLockPath, pluginStoreDir, registryDir, packageV1, packageV2, packageV3, tempRoot };
+}
+
+async function writeRegistry(
+  registryDir: string,
+  packages: Array<{
+    pluginId: string;
+    packageName: string;
+    version: string;
+    publisher: string;
+    path: string;
+  }>,
+): Promise<void> {
+  await writeFile(path.join(registryDir, 'uruc-registry.json'), `${JSON.stringify({
+    apiVersion: 1,
+    packages,
+  }, null, 2)}\n`, 'utf8');
+}
+
+async function packPluginPackage(packageRoot: string): Promise<{
+  tarballPath: string;
+  integrity: string;
+}> {
+  const packDir = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-pack-'));
+  const npmCacheDir = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-npm-cache-'));
+  tempDirs.push(packDir);
+  tempDirs.push(npmCacheDir);
+  const { stdout } = await execFileAsync('npm', ['pack', packageRoot], {
+    cwd: packDir,
+    env: {
+      ...process.env,
+      npm_config_cache: npmCacheDir,
+    },
+  });
+  const tarballName = stdout.trim().split('\n').filter(Boolean).at(-1);
+  if (!tarballName) {
+    throw new Error(`npm pack did not produce a tarball name for ${packageRoot}`);
+  }
+  const tarballPath = path.join(packDir, tarballName);
+  const tarball = await readFile(tarballPath);
+  return {
+    tarballPath,
+    integrity: `sha512-${createHash('sha512').update(tarball).digest('base64')}`,
+  };
+}
+
+async function startRegistryServer(options: {
+  registry: unknown;
+  tarballPath: string;
+}): Promise<string> {
+  const tarball = await readFile(options.tarballPath);
+  const server = createServer((req, res) => {
+    if (req.url === '/uruc-registry.json') {
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(options.registry));
+      return;
+    }
+
+    if (req.url === '/artifacts/chess.tgz') {
+      res.writeHead(200, { 'content-type': 'application/octet-stream' });
+      res.end(tarball);
+      return;
+    }
+
+    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    res.end('not found');
+  });
+  servers.push(server);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+  const address = server.address() as AddressInfo | null;
+  if (!address) {
+    throw new Error('Registry server did not bind to an address');
+  }
+  return `http://127.0.0.1:${address.port}`;
+}
+
+beforeEach(() => {
+  vi.resetModules();
+});
+
+afterEach(async () => {
+  vi.restoreAllMocks();
+  process.env.CITY_CONFIG_PATH = originalEnv.CITY_CONFIG_PATH;
+  process.env.CITY_LOCK_PATH = originalEnv.CITY_LOCK_PATH;
+  process.env.PLUGIN_STORE_DIR = originalEnv.PLUGIN_STORE_DIR;
+  await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  })));
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+});
+
+describe('plugin manager', () => {
+  it('installs a marketplace plugin by alias from the official source', async () => {
+    const runtime = await createTempRuntime();
+    const chessPackage = path.join(runtime.tempRoot, 'packages', 'chess');
+    await createPluginPackage(chessPackage, {
+      pluginId: 'uruc.chess',
+      packageName: '@uruc/plugin-chess',
+      version: '0.1.0',
+      publisher: 'uruc',
+      body: `import { defineBackendPlugin } from '@uruc/plugin-sdk/backend';
+
+export default defineBackendPlugin({
+  pluginId: 'uruc.chess',
+  async setup(ctx) {
+    await ctx.commands.register({
+      id: 'ping',
+      description: 'ping',
+      inputSchema: {},
+      handler: async () => ({ ok: true }),
+    });
+  },
+});
+`,
+    });
+    const { tarballPath, integrity } = await packPluginPackage(chessPackage);
+    const baseUrl = await startRegistryServer({
+      registry: {
+        apiVersion: 1,
+        packages: [
+          {
+            alias: '@uruc/chess',
+            pluginId: 'uruc.chess',
+            packageName: '@uruc/plugin-chess',
+            version: '0.1.0',
+            publisher: 'uruc',
+            artifactUrl: './artifacts/chess.tgz',
+            integrity,
+          },
+        ],
+      },
+      tarballPath,
+    });
+
+    const configBefore = await readCityConfig(runtime.cityConfigPath);
+    configBefore.approvedPublishers = ['acme', 'uruc'];
+    configBefore.sources = [
+      { id: 'official', type: 'npm', registry: `${baseUrl}/uruc-registry.json` },
+      ...configBefore.sources,
+    ];
+    await writeCityConfig(runtime.cityConfigPath, configBefore);
+
+    const { runPluginCommand } = await import('../plugin-manager.js');
+    await runPluginCommand(['add', '@uruc/chess']);
+
+    const host = new PluginPlatformHost({
+      configPath: runtime.cityConfigPath,
+      lockPath: runtime.cityLockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir: runtime.pluginStoreDir,
+    });
+    await host.syncLockFile();
+    await host.startAll({
+      db: createDb(':memory:'),
+      hooks: new HookRegistry(),
+      services: new ServiceRegistry(),
+    });
+
+    const config = await readCityConfig(runtime.cityConfigPath);
+    const lock = await readCityLock(runtime.cityLockPath);
+
+    expect(config.plugins['uruc.chess']).toMatchObject({
+      pluginId: 'uruc.chess',
+      packageName: '@uruc/plugin-chess',
+      version: '0.1.0',
+      source: 'official',
+      enabled: true,
+    });
+    expect(lock.plugins['uruc.chess']).toMatchObject({
+      pluginId: 'uruc.chess',
+      packageName: '@uruc/plugin-chess',
+      version: '0.1.0',
+      source: 'official',
+      sourceType: 'package',
+      publisher: 'uruc',
+      enabled: true,
+    });
+    expect(host.getPluginDiagnostics().find((item) => item.pluginId === 'uruc.chess')?.state).toBe('active');
+
+    await host.stopAll();
+  });
+
+  it('rejects marketplace install when artifact integrity does not match', async () => {
+    const runtime = await createTempRuntime();
+    const chessPackage = path.join(runtime.tempRoot, 'packages', 'chess');
+    await createPluginPackage(chessPackage, {
+      pluginId: 'uruc.chess',
+      packageName: '@uruc/plugin-chess',
+      version: '0.1.0',
+      publisher: 'uruc',
+    });
+    const { tarballPath, integrity } = await packPluginPackage(chessPackage);
+    const badIntegrity = `${integrity.slice(0, -1)}${integrity.endsWith('A') ? 'B' : 'A'}`;
+    const baseUrl = await startRegistryServer({
+      registry: {
+        apiVersion: 1,
+        packages: [
+          {
+            alias: '@uruc/chess',
+            pluginId: 'uruc.chess',
+            packageName: '@uruc/plugin-chess',
+            version: '0.1.0',
+            publisher: 'uruc',
+            artifactUrl: './artifacts/chess.tgz',
+            integrity: badIntegrity,
+          },
+        ],
+      },
+      tarballPath,
+    });
+
+    const configBefore = await readCityConfig(runtime.cityConfigPath);
+    configBefore.approvedPublishers = ['acme', 'uruc'];
+    configBefore.sources = [
+      { id: 'official', type: 'npm', registry: `${baseUrl}/uruc-registry.json` },
+      ...configBefore.sources,
+    ];
+    await writeCityConfig(runtime.cityConfigPath, configBefore);
+
+    const { runPluginCommand } = await import('../plugin-manager.js');
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`process.exit:${code ?? 0}`);
+    }) as any);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(runPluginCommand(['add', '@uruc/chess'])).rejects.toThrow('process.exit:1');
+    const config = await readCityConfig(runtime.cityConfigPath);
+    expect(config.plugins['uruc.chess']).toBeUndefined();
+    expect(errorSpy).toHaveBeenCalled();
+
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('installs a plugin by pluginId from a configured source and locks it as a package source', async () => {
+    const runtime = await createTempRuntime();
+    await writeRegistry(runtime.registryDir, [
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.0.0',
+        publisher: 'acme',
+        path: runtime.packageV1,
+      },
+    ]);
+
+    const { runPluginCommand } = await import('../plugin-manager.js');
+    await runPluginCommand(['install', 'acme.venue', '--source', 'local']);
+
+    const config = await readCityConfig(runtime.cityConfigPath);
+    const lock = await readCityLock(runtime.cityLockPath);
+
+    expect(config.plugins['acme.venue']).toMatchObject({
+      pluginId: 'acme.venue',
+      packageName: '@acme/plugin-venue',
+      version: '1.0.0',
+      source: 'local',
+      enabled: true,
+    });
+    expect(config.plugins['acme.venue']?.devOverridePath).toBeUndefined();
+
+    expect(lock.plugins['acme.venue']).toMatchObject({
+      pluginId: 'acme.venue',
+      packageName: '@acme/plugin-venue',
+      version: '1.0.0',
+      source: 'local',
+      sourceType: 'package',
+      publisher: 'acme',
+      enabled: true,
+    });
+  });
+
+  it('installs a healthy source-backed plugin even when another configured plugin is unresolved', async () => {
+    const runtime = await createTempRuntime();
+    const configBefore = await readCityConfig(runtime.cityConfigPath);
+    configBefore.plugins['acme.broken'] = {
+      pluginId: 'acme.broken',
+      packageName: '@acme/plugin-broken',
+      enabled: true,
+      permissionsGranted: [],
+      devOverridePath: './packages/missing-broken',
+    };
+    await writeCityConfig(runtime.cityConfigPath, configBefore);
+
+    await writeRegistry(runtime.registryDir, [
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.0.0',
+        publisher: 'acme',
+        path: runtime.packageV1,
+      },
+    ]);
+
+    const { runPluginCommand } = await import('../plugin-manager.js');
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await runPluginCommand(['install', 'acme.venue', '--source', 'local']);
+
+    const config = await readCityConfig(runtime.cityConfigPath);
+    const lock = await readCityLock(runtime.cityLockPath);
+
+    expect(config.plugins['acme.venue']?.version).toBe('1.0.0');
+    expect(lock.plugins['acme.venue']?.version).toBe('1.0.0');
+    expect(lock.plugins['acme.broken']).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('acme.broken'));
+
+    warnSpy.mockRestore();
+  });
+
+  it('installs a local override plugin that imports the sdk backend entrypoint', async () => {
+    const runtime = await createTempRuntime();
+    const localPlugin = path.join(runtime.tempRoot, 'packages', 'local-sdk-plugin');
+
+    await createPluginPackage(localPlugin, {
+      pluginId: 'acme.local-sdk',
+      packageName: '@acme/plugin-local-sdk',
+      version: '1.0.0',
+      publisher: 'acme',
+      body: `import { defineBackendPlugin } from '@uruc/plugin-sdk/backend';
+
+export default defineBackendPlugin({
+  pluginId: 'acme.local-sdk',
+  async setup(ctx) {
+    await ctx.commands.register({
+      id: 'ping',
+      description: 'ping',
+      inputSchema: {},
+      handler: async () => ({ ok: true }),
+    });
+  },
+});
+`,
+    });
+
+    const { runPluginCommand } = await import('../plugin-manager.js');
+    await runPluginCommand(['install', localPlugin]);
+
+    const host = new PluginPlatformHost({
+      configPath: runtime.cityConfigPath,
+      lockPath: runtime.cityLockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir: runtime.pluginStoreDir,
+    });
+    await host.syncLockFile();
+    await host.startAll({
+      db: createDb(':memory:'),
+      hooks: new HookRegistry(),
+      services: new ServiceRegistry(),
+    });
+
+    const config = await readCityConfig(runtime.cityConfigPath);
+    const lock = await readCityLock(runtime.cityLockPath);
+
+    expect(config.plugins['acme.local-sdk']).toMatchObject({
+      pluginId: 'acme.local-sdk',
+      packageName: '@acme/plugin-local-sdk',
+      enabled: true,
+    });
+    expect(config.plugins['acme.local-sdk']?.devOverridePath).toBeTruthy();
+    expect(lock.plugins['acme.local-sdk']?.sourceType).toBe('path');
+    expect(host.getPluginDiagnostics().find((item) => item.pluginId === 'acme.local-sdk')?.state).toBe('active');
+
+    await host.stopAll();
+  });
+
+  it('does not replace a local override during update', async () => {
+    const runtime = await createTempRuntime();
+    const localPlugin = path.join(runtime.tempRoot, 'packages', 'local-sdk-plugin');
+
+    await createPluginPackage(localPlugin, {
+      pluginId: 'acme.local-sdk',
+      packageName: '@acme/plugin-local-sdk',
+      version: '1.0.0',
+      publisher: 'acme',
+      body: `import { defineBackendPlugin } from '@uruc/plugin-sdk/backend';
+export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {} });
+`,
+    });
+
+    const { runPluginCommand } = await import('../plugin-manager.js');
+    await runPluginCommand(['install', localPlugin]);
+    await runPluginCommand(['update']);
+
+    const config = await readCityConfig(runtime.cityConfigPath);
+    expect(config.plugins['acme.local-sdk']?.devOverridePath).toBeTruthy();
+    expect(config.plugins['acme.local-sdk']?.source).toBeUndefined();
+  });
+
+  it('updates a source-backed plugin to the newest available release and records rollback history', async () => {
+    const runtime = await createTempRuntime();
+    await writeRegistry(runtime.registryDir, [
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.0.0',
+        publisher: 'acme',
+        path: runtime.packageV1,
+      },
+    ]);
+
+    const { runPluginCommand } = await import('../plugin-manager.js');
+    await runPluginCommand(['install', 'acme.venue', '--source', 'local']);
+
+    await writeRegistry(runtime.registryDir, [
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.0.0',
+        publisher: 'acme',
+        path: runtime.packageV1,
+      },
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.1.0',
+        publisher: 'acme',
+        path: runtime.packageV2,
+      },
+    ]);
+
+    await runPluginCommand(['update', 'acme.venue']);
+
+    const config = await readCityConfig(runtime.cityConfigPath);
+    const lock = await readCityLock(runtime.cityLockPath);
+
+    expect(config.plugins['acme.venue']?.version).toBe('1.1.0');
+    expect(lock.plugins['acme.venue']?.version).toBe('1.1.0');
+    expect(lock.plugins['acme.venue']?.history[0]?.version).toBe('1.0.0');
+    expect(lock.plugins['acme.venue']?.sourceType).toBe('package');
+  });
+
+  it('updates healthy source-backed plugins even when another plugin source can no longer resolve', async () => {
+    const runtime = await createTempRuntime();
+    const failingPackageV1 = path.join(runtime.tempRoot, 'packages', 'failing-v1');
+    await createPluginPackage(failingPackageV1, {
+      pluginId: 'acme.failing',
+      packageName: '@acme/plugin-failing',
+      version: '1.0.0',
+      publisher: 'acme',
+    });
+
+    await writeRegistry(runtime.registryDir, [
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.0.0',
+        publisher: 'acme',
+        path: runtime.packageV1,
+      },
+      {
+        pluginId: 'acme.failing',
+        packageName: '@acme/plugin-failing',
+        version: '1.0.0',
+        publisher: 'acme',
+        path: failingPackageV1,
+      },
+    ]);
+
+    const { runPluginCommand } = await import('../plugin-manager.js');
+    await runPluginCommand(['install', 'acme.venue', '--source', 'local']);
+    await runPluginCommand(['install', 'acme.failing', '--source', 'local']);
+
+    await writeRegistry(runtime.registryDir, [
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.0.0',
+        publisher: 'acme',
+        path: runtime.packageV1,
+      },
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.1.0',
+        publisher: 'acme',
+        path: runtime.packageV2,
+      },
+    ]);
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await runPluginCommand(['update']);
+
+    const config = await readCityConfig(runtime.cityConfigPath);
+    const lock = await readCityLock(runtime.cityLockPath);
+
+    expect(config.plugins['acme.venue']?.version).toBe('1.1.0');
+    expect(lock.plugins['acme.venue']?.version).toBe('1.1.0');
+    expect(config.plugins['acme.failing']?.version).toBe('1.0.0');
+    expect(lock.plugins['acme.failing']?.version).toBe('1.0.0');
+    expect(warnSpy).toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
+
+  it('plugin doctor accepts healthy source-backed plugins', async () => {
+    const runtime = await createTempRuntime();
+    await writeRegistry(runtime.registryDir, [
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.0.0',
+        publisher: 'acme',
+        path: runtime.packageV1,
+      },
+    ]);
+
+    const { runPluginCommand } = await import('../plugin-manager.js');
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await runPluginCommand(['install', 'acme.venue', '--source', 'local']);
+    await runPluginCommand(['doctor']);
+
+    expect(logSpy).toHaveBeenCalledWith('✓ City plugin configuration is healthy');
+    logSpy.mockRestore();
+  });
+
+  it('plugin doctor warns for disabled unresolved plugins without failing the command', async () => {
+    const runtime = await createTempRuntime();
+    const configBefore = await readCityConfig(runtime.cityConfigPath);
+    configBefore.plugins['acme.disabled'] = {
+      pluginId: 'acme.disabled',
+      packageName: '@acme/plugin-disabled',
+      enabled: false,
+      permissionsGranted: [],
+      devOverridePath: './packages/missing-disabled',
+    };
+    await writeCityConfig(runtime.cityConfigPath, configBefore);
+
+    const { runPluginCommand } = await import('../plugin-manager.js');
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await runPluginCommand(['doctor']);
+
+    expect(process.exitCode).not.toBe(1);
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Plugin doctor warnings:'));
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('acme.disabled'));
+
+    process.exitCode = 0;
+    logSpy.mockRestore();
+  });
+
+  it('uninstalls a configured plugin by removing it from city config and lock state', async () => {
+    const runtime = await createTempRuntime();
+    await writeRegistry(runtime.registryDir, [
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.0.0',
+        publisher: 'acme',
+        path: runtime.packageV1,
+      },
+    ]);
+
+    const { runPluginCommand } = await import('../plugin-manager.js');
+    await runPluginCommand(['install', 'acme.venue', '--source', 'local']);
+    await runPluginCommand(['uninstall', 'acme.venue']);
+    await runPluginCommand(['update']);
+
+    const config = await readCityConfig(runtime.cityConfigPath);
+    const lock = await readCityLock(runtime.cityLockPath);
+
+    expect(config.plugins['acme.venue']).toBeUndefined();
+    expect(lock.plugins['acme.venue']).toBeUndefined();
+  });
+
+  it('fails with a clear error when uninstalling a plugin that is not configured', async () => {
+    await createTempRuntime();
+    const { runPluginCommand } = await import('../plugin-manager.js');
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`process.exit:${code ?? 0}`);
+    }) as any);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(runPluginCommand(['uninstall', 'acme.missing'])).rejects.toThrow('process.exit:1');
+    expect(errorSpy).toHaveBeenCalledWith('Error: Plugin acme.missing is not configured');
+
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('keeps files in place during plugin gc dry-run', async () => {
+    const runtime = await createTempRuntime();
+    await writeRegistry(runtime.registryDir, [
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.0.0',
+        publisher: 'acme',
+        path: runtime.packageV1,
+      },
+    ]);
+
+    const { runPluginCommand } = await import('../plugin-manager.js');
+    await runPluginCommand(['install', 'acme.venue', '--source', 'local']);
+    await writeRegistry(runtime.registryDir, [
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.0.0',
+        publisher: 'acme',
+        path: runtime.packageV1,
+      },
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.1.0',
+        publisher: 'acme',
+        path: runtime.packageV2,
+      },
+    ]);
+    await runPluginCommand(['update', 'acme.venue']);
+
+    const pluginRoot = path.join(runtime.pluginStoreDir, 'acme.venue');
+    const orphanRevision = path.join(runtime.pluginStoreDir, 'orphan.plugin', 'dry-run-revision');
+    await mkdir(orphanRevision, { recursive: true });
+    const before = (await readdir(pluginRoot)).sort();
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await runPluginCommand(['gc', '--dry-run']);
+
+    const after = (await readdir(pluginRoot)).sort();
+    expect(after).toEqual(before);
+    expect(await readdir(path.join(runtime.pluginStoreDir, 'orphan.plugin'))).toEqual(['dry-run-revision']);
+    expect(consoleSpy).toHaveBeenCalledWith('Plugin GC dry-run would remove:');
+  });
+
+  it('plugin gc removes unused revisions but keeps the current and most recent rollback revision', async () => {
+    const runtime = await createTempRuntime();
+    const { runPluginCommand } = await import('../plugin-manager.js');
+
+    await writeRegistry(runtime.registryDir, [
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.0.0',
+        publisher: 'acme',
+        path: runtime.packageV1,
+      },
+    ]);
+    await runPluginCommand(['install', 'acme.venue', '--source', 'local']);
+    await writeRegistry(runtime.registryDir, [
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.0.0',
+        publisher: 'acme',
+        path: runtime.packageV1,
+      },
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.1.0',
+        publisher: 'acme',
+        path: runtime.packageV2,
+      },
+    ]);
+    await runPluginCommand(['update', 'acme.venue']);
+
+    await writeRegistry(runtime.registryDir, [
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.0.0',
+        publisher: 'acme',
+        path: runtime.packageV1,
+      },
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.1.0',
+        publisher: 'acme',
+        path: runtime.packageV2,
+      },
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.2.0',
+        publisher: 'acme',
+        path: runtime.packageV3,
+      },
+    ]);
+    await runPluginCommand(['update', 'acme.venue']);
+    await runPluginCommand(['disable', 'acme.venue']);
+
+    const lockBeforeGc = await readCityLock(runtime.cityLockPath);
+    const currentRevision = lockBeforeGc.plugins['acme.venue']!.revision;
+    const recentRevision = lockBeforeGc.plugins['acme.venue']!.history[0]!.revision;
+    const oldestRevision = lockBeforeGc.plugins['acme.venue']!.history[1]!.revision;
+
+    const orphanRevision = path.join(runtime.pluginStoreDir, 'orphan.plugin', 'dead-revision');
+    await mkdir(orphanRevision, { recursive: true });
+
+    await runPluginCommand(['gc']);
+
+    const pluginRevisions = (await readdir(path.join(runtime.pluginStoreDir, 'acme.venue'))).sort();
+    expect(pluginRevisions).toContain(currentRevision);
+    expect(pluginRevisions).toContain(recentRevision);
+    expect(pluginRevisions).not.toContain(oldestRevision);
+
+    await expect(readdir(path.join(runtime.pluginStoreDir, 'orphan.plugin'))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('creates a backend-only plugin scaffold that validates as a V2 package', async () => {
+    const runtime = await createTempRuntime();
+    const outputDir = path.join(runtime.tempRoot, 'generated', 'acme-demo');
+    const { runPluginCommand } = await import('../plugin-manager.js');
+
+    await runPluginCommand(['create', 'acme.demo', '--dir', outputDir]);
+    await runPluginCommand(['validate', outputDir]);
+
+    const pkg = JSON.parse(await readFile(path.join(outputDir, 'package.json'), 'utf8')) as Record<string, any>;
+    const backendEntry = await readFile(path.join(outputDir, 'index.mjs'), 'utf8');
+
+    expect(pkg.urucPlugin?.pluginId).toBe('acme.demo');
+    expect(pkg.urucFrontend).toBeUndefined();
+    expect(backendEntry).toContain("@uruc/plugin-sdk/backend");
+  });
+
+  it('creates a dual-entry plugin scaffold with stable frontend SDK imports', async () => {
+    const runtime = await createTempRuntime();
+    const outputDir = path.join(runtime.tempRoot, 'generated', 'acme-demo-ui');
+    const { runPluginCommand } = await import('../plugin-manager.js');
+
+    await runPluginCommand(['create', 'acme.demo-ui', '--frontend', '--dir', outputDir]);
+    await runPluginCommand(['validate', outputDir]);
+
+    const pkg = JSON.parse(await readFile(path.join(outputDir, 'package.json'), 'utf8')) as Record<string, any>;
+    const frontendEntry = await readFile(path.join(outputDir, 'frontend', 'plugin.ts'), 'utf8');
+    const frontendPage = await readFile(path.join(outputDir, 'frontend', 'PluginPage.tsx'), 'utf8');
+
+    expect(pkg.urucPlugin?.pluginId).toBe('acme.demo-ui');
+    expect(pkg.urucFrontend?.entry).toBe('./frontend/plugin.ts');
+    expect(frontendEntry).toContain("@uruc/plugin-sdk/frontend");
+    expect(frontendEntry).not.toContain("@uruc/plugin-sdk'");
+    expect(frontendEntry).toContain("shell: 'app'");
+    expect(frontendEntry).not.toContain("shell: 'game'");
+    expect(frontendPage).toContain("@uruc/plugin-sdk/frontend-react");
+  });
+});

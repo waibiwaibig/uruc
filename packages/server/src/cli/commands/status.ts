@@ -17,7 +17,7 @@ export async function runStatusCommand(context: CommandContext): Promise<void> {
   console.log(`Health:        ${status.healthUrl}`);
   console.log(`WS:            ${status.wsUrl}`);
   console.log(`DB:            ${status.dbPath}`);
-  console.log(`Plugin config: ${status.pluginConfigPath}`);
+  console.log(`City config:   ${status.cityConfigPath}`);
   console.log(`Public dir:    ${status.publicDir}`);
   console.log(`Admin user:    ${status.adminUsername || '(not set)'}`);
   if (status.managedProcess) {
