@@ -345,6 +345,72 @@ describe('PluginPlatformHost', () => {
     });
   });
 
+  it('rejects frontend asset paths that escape frontend-dist', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-frontend-asset-'));
+    tempDirs.push(tempRoot);
+
+    const pluginRoot = path.join(tempRoot, 'plugin');
+    const escapeRoot = path.join(tempRoot, 'plugin-escape');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await mkdir(path.join(pluginRoot, 'frontend-dist'), { recursive: true });
+    await mkdir(escapeRoot, { recursive: true });
+    await writeFile(path.join(pluginRoot, 'frontend-dist', 'plugin.js'), 'console.log("plugin");\n', 'utf8');
+    await writeFile(path.join(pluginRoot, 'package.json'), '{"name":"plugin-root-secret"}\n', 'utf8');
+    await writeFile(path.join(escapeRoot, 'secret.txt'), 'escaped\n', 'utf8');
+
+    await writeCityLock(lockPath, {
+      apiVersion: 2,
+      generatedAt: new Date().toISOString(),
+      plugins: {
+        'acme.frontend-assets': {
+          pluginId: 'acme.frontend-assets',
+          packageName: '@acme/plugin-frontend-assets',
+          version: '0.1.0',
+          publisher: 'acme',
+          revision: 'rev-assets',
+          sourcePath: pluginRoot,
+          packageRoot: pluginRoot,
+          entryPath: path.join(pluginRoot, 'index.mjs'),
+          enabled: true,
+          dependencies: [],
+          activation: ['startup'],
+          permissionsRequested: [],
+          permissionsGranted: [],
+          config: {},
+          sourceType: 'path',
+          frontend: {
+            apiVersion: 1,
+            pluginId: 'acme.frontend-assets',
+            version: '0.1.0',
+            format: 'global-script',
+            entry: './plugin.js',
+            css: [],
+            exportKey: 'acme.frontend-assets',
+          },
+          generatedAt: new Date().toISOString(),
+          history: [],
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await expect(
+      host.readFrontendAsset('acme.frontend-assets', 'rev-assets', 'frontend-dist/../package.json'),
+    ).resolves.toBeNull();
+    await expect(
+      host.readFrontendAsset('acme.frontend-assets', 'rev-assets', 'frontend-dist/../../plugin-escape/secret.txt'),
+    ).resolves.toBeNull();
+  });
+
   it('installs runtime dependencies into materialized plugin revisions before startup', async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-runtime-deps-'));
     tempDirs.push(tempRoot);

@@ -695,8 +695,14 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
     }
 
     const pluginRoot = path.resolve(plugin.packageRoot);
+    const frontendRoot = path.resolve(pluginRoot, 'frontend-dist');
     const filePath = path.resolve(pluginRoot, normalizedAssetPath);
-    if (!filePath.startsWith(pluginRoot)) {
+    const relativeAssetPath = path.relative(frontendRoot, filePath);
+    if (
+      relativeAssetPath === ''
+      || relativeAssetPath.startsWith('..')
+      || path.isAbsolute(relativeAssetPath)
+    ) {
       return null;
     }
 
