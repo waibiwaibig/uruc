@@ -71,10 +71,28 @@ export interface LockedPluginHistoryEntry {
   version: string;
   packageRoot: string;
   entryPath: string;
+  frontend?: LockedPluginFrontendSpec;
   integrity?: string;
   sourceFingerprint?: string;
   generatedAt: string;
 }
+
+export interface PackageJsonUrucFrontend {
+  apiVersion: 1;
+  entry: string;
+}
+
+export interface PluginFrontendBuildManifest {
+  apiVersion: 1;
+  pluginId: string;
+  version: string;
+  format: 'global-script';
+  entry: string;
+  css: string[];
+  exportKey: string;
+}
+
+export interface LockedPluginFrontendSpec extends PluginFrontendBuildManifest {}
 
 export interface LockedPluginSpec {
   pluginId: string;
@@ -93,6 +111,7 @@ export interface LockedPluginSpec {
   config: Record<string, unknown>;
   source?: string;
   sourceType: 'path' | 'package';
+  frontend?: LockedPluginFrontendSpec;
   integrity?: string;
   sourceFingerprint?: string;
   healthcheck?: {
@@ -136,6 +155,8 @@ export interface PluginPackageManifest {
   packageRoot: string;
   entryPath: string;
   urucPlugin: PackageJsonUrucPlugin;
+  urucFrontend?: PackageJsonUrucFrontend;
+  frontendBuild?: PluginFrontendBuildManifest;
 }
 
 export interface PluginListEntry {
@@ -168,9 +189,26 @@ export interface PluginHealthView {
   lastError?: string;
 }
 
+export interface FrontendRuntimePluginAsset {
+  body: Buffer;
+}
+
+export interface FrontendRuntimePluginManifest {
+  pluginId: string;
+  version: string;
+  revision: string;
+  format: 'global-script';
+  entryUrl: string;
+  cssUrls: string[];
+  exportKey: string;
+  source: string;
+}
+
 export interface PluginPlatformHealthProvider {
   listPlugins(): PluginListEntry[];
   getPluginDiagnostics(): unknown[];
+  listFrontendPlugins(): Promise<FrontendRuntimePluginManifest[]>;
+  readFrontendAsset(pluginId: string, revision: string, assetPath: string): Promise<FrontendRuntimePluginAsset | null>;
 }
 
 export interface BackendPluginSetupContext {

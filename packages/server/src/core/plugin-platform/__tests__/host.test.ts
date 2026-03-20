@@ -24,6 +24,13 @@ async function createPluginPackage(root: string, options: {
   packageName: string;
   version: string;
   publisher: string;
+  dependencies?: Record<string, string>;
+  frontendEntry?: string;
+  frontendBuild?: {
+    entry: string;
+    css?: string[];
+    exportKey?: string;
+  };
   body?: string;
 }): Promise<void> {
   await mkdir(root, { recursive: true });
@@ -31,6 +38,7 @@ async function createPluginPackage(root: string, options: {
     name: options.packageName,
     version: options.version,
     type: 'module',
+    ...(options.dependencies ? { dependencies: options.dependencies } : {}),
     urucPlugin: {
       pluginId: options.pluginId,
       apiVersion: 2,
@@ -42,6 +50,12 @@ async function createPluginPackage(root: string, options: {
       dependencies: [],
       activation: ['startup'],
     },
+    ...(options.frontendEntry ? {
+      urucFrontend: {
+        apiVersion: 1,
+        entry: options.frontendEntry,
+      },
+    } : {}),
   }, null, 2)}\n`, 'utf8');
   await writeFile(path.join(root, 'index.mjs'), options.body ?? `export default {
     kind: 'uruc.backend-plugin@v2',
@@ -49,6 +63,21 @@ async function createPluginPackage(root: string, options: {
     apiVersion: 2,
     async setup() {},
   };\n`, 'utf8');
+
+  if (options.frontendBuild) {
+    const frontendDistDir = path.join(root, 'frontend-dist');
+    await mkdir(frontendDistDir, { recursive: true });
+    await writeFile(path.join(frontendDistDir, 'manifest.json'), `${JSON.stringify({
+      apiVersion: 1,
+      pluginId: options.pluginId,
+      version: options.version,
+      format: 'global-script',
+      entry: options.frontendBuild.entry,
+      css: options.frontendBuild.css ?? [],
+      exportKey: options.frontendBuild.exportKey ?? options.pluginId,
+    }, null, 2)}\n`, 'utf8');
+    await writeFile(path.join(frontendDistDir, 'plugin.js'), 'window.__uruc_plugin_exports = window.__uruc_plugin_exports || {};\n', 'utf8');
+  }
 }
 
 async function createExampleVenuePluginPackage(root: string): Promise<void> {
@@ -257,6 +286,154 @@ afterEach(async () => {
 });
 
 describe('PluginPlatformHost', () => {
+  it('stores frontend build metadata from a materialized plugin revision in the city lock', async () => {
+    const pluginRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-frontend-lock-'));
+    tempDirs.push(pluginRoot);
+    await createPluginPackage(pluginRoot, {
+      pluginId: 'acme.frontend-lock',
+      packageName: '@acme/plugin-frontend-lock',
+      version: '0.1.0',
+      publisher: 'acme',
+      frontendEntry: './frontend/plugin.ts',
+      frontendBuild: {
+        entry: './plugin.js',
+        css: ['./plugin.css'],
+      },
+    });
+
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-runtime-'));
+    tempDirs.push(tempRoot);
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.frontend-lock': {
+          pluginId: 'acme.frontend-lock',
+          packageName: '@acme/plugin-frontend-lock',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginRoot,
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    const lock = await host.syncLockFile();
+
+    expect(lock.plugins['acme.frontend-lock']).toMatchObject({
+      pluginId: 'acme.frontend-lock',
+      revision: expect.any(String),
+      frontend: {
+        apiVersion: 1,
+        format: 'global-script',
+        entry: './plugin.js',
+        css: ['./plugin.css'],
+        exportKey: 'acme.frontend-lock',
+      },
+    });
+  });
+
+  it('installs runtime dependencies into materialized plugin revisions before startup', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-runtime-deps-'));
+    tempDirs.push(tempRoot);
+
+    const dependencyRoot = path.join(tempRoot, 'deps', 'fixture-runtime-dep');
+    const pluginPath = path.join(tempRoot, 'plugins', 'runtime-dep');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await mkdir(dependencyRoot, { recursive: true });
+    await writeFile(path.join(dependencyRoot, 'package.json'), `${JSON.stringify({
+      name: 'fixture-runtime-dep',
+      version: '1.0.0',
+      type: 'module',
+      exports: {
+        '.': './index.js',
+      },
+    }, null, 2)}\n`, 'utf8');
+    await writeFile(
+      path.join(dependencyRoot, 'index.js'),
+      "export function runtimeValue() { return 'runtime dependency loaded'; }\n",
+      'utf8',
+    );
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'acme.runtime-dep',
+      packageName: '@acme/plugin-runtime-dep',
+      version: '1.0.0',
+      publisher: 'acme',
+      dependencies: {
+        'fixture-runtime-dep': `file:${dependencyRoot}`,
+      },
+      body: `import { runtimeValue } from 'fixture-runtime-dep';
+
+export default {
+  kind: 'uruc.backend-plugin@v2',
+  pluginId: 'acme.runtime-dep',
+  apiVersion: 2,
+  async setup(ctx) {
+    await ctx.commands.register({
+      id: 'ping',
+      description: 'ping',
+      inputSchema: {},
+      handler: async () => ({ ok: true, value: runtimeValue() }),
+    });
+  },
+};\n`,
+    });
+
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.runtime-dep': {
+          pluginId: 'acme.runtime-dep',
+          packageName: '@acme/plugin-runtime-dep',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginPath,
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await host.syncLockFile();
+    const lock = await readCityLock(lockPath);
+    const entry = lock.plugins['acme.runtime-dep'];
+    expect(entry).toBeDefined();
+    expect(existsSync(path.join(entry!.packageRoot, 'node_modules', 'fixture-runtime-dep', 'package.json'))).toBe(true);
+
+    const hooks = new HookRegistry();
+    const services = new ServiceRegistry();
+    const db = createDb(':memory:');
+    await host.startAll({ db, hooks, services });
+
+    expect(host.getPluginDiagnostics().find((item) => item.pluginId === 'acme.runtime-dep')?.state).toBe('active');
+
+    await host.stopAll();
+  });
+
   it('reuses the same revision for unchanged dev override plugins across syncs', async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-lock-dev-'));
     tempDirs.push(tempRoot);

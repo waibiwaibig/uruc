@@ -54,6 +54,21 @@ export interface HealthResponse {
   services: string[];
 }
 
+export interface FrontendRuntimePluginManifest {
+  pluginId: string;
+  version: string;
+  revision: string;
+  format: 'global-script';
+  entryUrl: string;
+  cssUrls: string[];
+  exportKey: string;
+  source: string;
+}
+
+export interface FrontendRuntimePluginIndexResponse {
+  plugins: FrontendRuntimePluginManifest[];
+}
+
 export interface ActionLog {
   id: string;
   userId: string;

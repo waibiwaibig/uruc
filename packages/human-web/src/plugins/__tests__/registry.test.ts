@@ -1,16 +1,22 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HealthResponse } from '../../lib/types';
 import { loadFrontendPluginRegistry } from '../registry';
 import { resolveEnabledPluginIds } from '../state';
 import socialEn from '../../../../plugins/social/frontend/locales/en';
+import { PAGE_ROUTE_TARGET } from '@uruc/plugin-sdk/frontend';
 
-beforeAll(() => {
+beforeEach(() => {
   vi.stubGlobal('localStorage', {
     getItem: () => null,
     setItem: () => undefined,
     removeItem: () => undefined,
     clear: () => undefined,
   });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  delete (globalThis as Record<string, unknown>).__uruc_plugin_exports;
 });
 
 describe('frontend plugin registry v2', () => {
@@ -83,5 +89,91 @@ describe('frontend plugin registry v2', () => {
     expect(socialEn.social.intro.title).not.toBe('social:intro.title');
     expect(socialEn.socialAdmin.nav.label).not.toBe('socialAdmin:nav.label');
     expect(socialEn.socialAdmin.page.queue.title).not.toBe('socialAdmin:page.queue.title');
+  });
+
+  it('merges runtime-installed frontend plugins returned by the server', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.pathname
+          : input.url;
+
+      if (url === '/api/frontend-plugins') {
+        return new Response(JSON.stringify({
+          plugins: [{
+            pluginId: 'acme.runtime',
+            version: '0.1.0',
+            revision: 'rev-runtime',
+            format: 'global-script',
+            entryUrl: '/api/plugin-assets/acme.runtime/rev-runtime/frontend-dist/plugin.js',
+            cssUrls: ['/api/plugin-assets/acme.runtime/rev-runtime/frontend-dist/plugin.css'],
+            exportKey: 'acme.runtime',
+            source: 'frontend-dist/manifest.json',
+          }],
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json; charset=utf-8' },
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    }));
+
+    const appended: Array<{ tagName: string; href?: string; src?: string }> = [];
+    vi.stubGlobal('document', {
+      head: {
+        appendChild(node: Record<string, unknown>) {
+          appended.push({
+            tagName: String(node.tagName ?? ''),
+            href: typeof node.href === 'string' ? node.href : undefined,
+            src: typeof node.src === 'string' ? node.src : undefined,
+          });
+          if (typeof node.onload === 'function') {
+            node.onload(new Event('load'));
+          }
+          return node;
+        },
+      },
+      querySelector: () => null,
+      createElement(tagName: string) {
+        return {
+          tagName: tagName.toUpperCase(),
+          rel: '',
+          href: '',
+          src: '',
+          async: false,
+          onload: null,
+          onerror: null,
+          setAttribute() {},
+        };
+      },
+    });
+
+    (globalThis as Record<string, unknown>).__uruc_plugin_exports = {
+      'acme.runtime': {
+        pluginId: 'acme.runtime',
+        version: '0.1.0',
+        contributes: [{
+          target: PAGE_ROUTE_TARGET,
+          payload: {
+            id: 'home',
+            pathSegment: 'home',
+            shell: 'app',
+            guard: 'auth',
+            load: async () => ({ default: () => null }),
+          },
+        }],
+      },
+    };
+
+    const registry = await loadFrontendPluginRegistry();
+
+    expect(registry.plugins.map((plugin) => plugin.pluginId).sort()).toEqual(['acme.runtime', 'uruc.social']);
+    expect(registry.pageRoutes.some((route) => route.pluginId === 'acme.runtime' && route.path === '/app/plugins/acme.runtime/home')).toBe(true);
+    expect(appended).toEqual(expect.arrayContaining([
+      expect.objectContaining({ tagName: 'LINK', href: '/api/plugin-assets/acme.runtime/rev-runtime/frontend-dist/plugin.css' }),
+      expect.objectContaining({ tagName: 'SCRIPT', src: '/api/plugin-assets/acme.runtime/rev-runtime/frontend-dist/plugin.js' }),
+    ]));
   });
 });

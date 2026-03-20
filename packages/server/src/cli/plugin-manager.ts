@@ -1,6 +1,10 @@
+import { execFile } from 'child_process';
+import { createHash } from 'crypto';
 import { existsSync } from 'fs';
-import { readdir, rm } from 'fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, rm } from 'fs/promises';
+import os from 'os';
 import path from 'path';
+import { promisify } from 'util';
 
 import dotenv from 'dotenv';
 
@@ -24,6 +28,7 @@ dotenv.config({ path: getEnvPath(), quiet: true });
 const packageRoot = getPackageRoot();
 const cityConfigPath = getCityConfigPath();
 const cityLockPath = getCityLockPath();
+const execFileAsync = promisify(execFile);
 
 function createHost(): PluginPlatformHost {
   return new PluginPlatformHost({
@@ -141,6 +146,9 @@ export async function runPluginCommand(args: string[]): Promise<void> {
       case 'gc':
         await garbageCollectPlugins(args.slice(1));
         return;
+      case 'pack':
+        await packPlugin(args.slice(1));
+        return;
       case 'create':
         await createPlugin(args.slice(1));
         return;
@@ -219,6 +227,82 @@ async function installPlugin(args: string[]): Promise<void> {
   await writeCityConfig(cityConfigPath, config);
   await syncLock({ strictPluginId: pluginId });
   console.log(`✓ Installed ${pluginId} from ${manifest.packageRoot}`);
+}
+
+async function buildPluginFrontendForPack(packageRootPath: string): Promise<void> {
+  const buildScriptPath = path.resolve(packageRoot, '..', '..', 'scripts', 'build-plugin-frontend.mjs');
+
+  try {
+    await execFileAsync(process.execPath, [
+      buildScriptPath,
+      '--plugin',
+      packageRootPath,
+      '--out',
+      path.join(packageRootPath, 'frontend-dist'),
+    ], {
+      cwd: path.resolve(packageRoot, '..', '..'),
+      env: process.env,
+    });
+  } catch (error: any) {
+    const message = error?.stderr?.trim()
+      || error?.stdout?.trim()
+      || error?.message
+      || String(error);
+    throw new Error(`Failed to build plugin frontend for packaging: ${message}`);
+  }
+}
+
+async function packPlugin(args: string[]): Promise<void> {
+  const candidatePath = resolveMaybePath(args[0]);
+  if (!candidatePath) {
+    throw new Error('Usage: uruc plugin pack <path> [--out <dir>]');
+  }
+
+  const manifest = await readPluginPackageManifest(candidatePath);
+  const outputArg = readOption(args, '--out');
+  const outputDir = outputArg
+    ? resolveTargetPath(outputArg)
+    : path.resolve(process.cwd(), 'dist', 'plugins');
+  const stagingRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-pack-stage-'));
+  const npmCacheDir = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-pack-cache-'));
+  const stagedPackageRoot = path.join(stagingRoot, path.basename(candidatePath));
+
+  try {
+    await mkdir(outputDir, { recursive: true });
+    await cp(candidatePath, stagedPackageRoot, {
+      recursive: true,
+      force: true,
+    });
+    await rm(path.join(stagedPackageRoot, 'frontend-dist'), { recursive: true, force: true });
+
+    if (manifest.urucFrontend) {
+      await buildPluginFrontendForPack(stagedPackageRoot);
+    }
+
+    const { stdout } = await execFileAsync('npm', ['pack', stagedPackageRoot], {
+      cwd: outputDir,
+      env: {
+        ...process.env,
+        npm_config_cache: npmCacheDir,
+      },
+    });
+    const tarballName = stdout.trim().split('\n').filter(Boolean).at(-1);
+    if (!tarballName) {
+      throw new Error(`npm pack did not produce a tarball for ${manifest.packageName}`);
+    }
+
+    const tarballPath = path.join(outputDir, tarballName);
+    const tarball = await readFile(tarballPath);
+    const integrity = `sha512-${createHash('sha512').update(tarball).digest('base64')}`;
+
+    console.log(`✓ Packed ${manifest.urucPlugin.pluginId} -> ${tarballPath}`);
+    console.log(`integrity: ${integrity}`);
+  } finally {
+    await Promise.all([
+      rm(stagingRoot, { recursive: true, force: true }),
+      rm(npmCacheDir, { recursive: true, force: true }),
+    ]);
+  }
 }
 
 async function addPlugin(args: string[]): Promise<void> {
@@ -357,6 +441,7 @@ async function rollbackPlugin(pluginId: string | undefined): Promise<void> {
   target.version = previous.version;
   target.packageRoot = previous.packageRoot;
   target.entryPath = previous.entryPath;
+  target.frontend = previous.frontend;
   target.integrity = previous.integrity;
   target.sourceFingerprint = previous.sourceFingerprint;
   target.generatedAt = new Date().toISOString();
@@ -555,6 +640,7 @@ Usage:
   uruc plugin validate <pluginId|path>
   uruc plugin doctor
   uruc plugin gc [--dry-run]
+  uruc plugin pack <path> [--out <dir>]
   uruc plugin create <pluginId> [--frontend] [--dir <path>]
   `);
 }

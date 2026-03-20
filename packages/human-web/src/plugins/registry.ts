@@ -15,6 +15,8 @@ import {
   type RuntimeSlicePayload,
 } from '@uruc/plugin-sdk/frontend';
 import { ZodError } from 'zod';
+import { PublicApi } from '../lib/api';
+import type { FrontendRuntimePluginManifest } from '../lib/types';
 import { extensionRegistry } from './extension-points';
 
 const packageModules = import.meta.glob('../../../plugins/*/package.json', { eager: true });
@@ -27,7 +29,9 @@ type DiagnosticState =
   | 'loaded'
   | 'invalid_manifest'
   | 'missing_entry'
+  | 'missing_runtime_export'
   | 'plugin_id_mismatch'
+  | 'duplicate_plugin'
   | 'unknown_extension'
   | 'invalid_payload'
   | 'duplicate_route'
@@ -88,10 +92,71 @@ interface DiscoveredPackageRecord {
   loadEntry: (() => Promise<unknown>) | null;
 }
 
+const runtimeScriptLoads = new Map<string, Promise<void>>();
+const runtimeStylesLoaded = new Set<string>();
+
 function formatZodError(error: ZodError): string {
   return error.issues
     .map((issue) => `${issue.path.join('.') || 'root'}: ${issue.message}`)
     .join('; ');
+}
+
+function getRuntimePluginExports(): Record<string, unknown> {
+  const root = globalThis as Record<string, unknown>;
+  const existing = root.__uruc_plugin_exports;
+  if (existing && typeof existing === 'object') {
+    return existing as Record<string, unknown>;
+  }
+
+  const next: Record<string, unknown> = {};
+  root.__uruc_plugin_exports = next;
+  return next;
+}
+
+function hasRuntimeFrontendEnvironment(): boolean {
+  return typeof fetch === 'function'
+    && typeof document !== 'undefined'
+    && typeof document.createElement === 'function'
+    && typeof document.head?.appendChild === 'function';
+}
+
+function ensureRuntimeStylesheet(url: string): void {
+  if (!hasRuntimeFrontendEnvironment()) {
+    return;
+  }
+  if (runtimeStylesLoaded.has(url)) {
+    return;
+  }
+
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = url;
+  link.setAttribute?.('data-uruc-plugin-asset', url);
+  document.head.appendChild(link);
+  runtimeStylesLoaded.add(url);
+}
+
+async function ensureRuntimeScript(url: string): Promise<void> {
+  if (runtimeScriptLoads.has(url)) {
+    await runtimeScriptLoads.get(url);
+    return;
+  }
+  if (!hasRuntimeFrontendEnvironment()) {
+    throw new Error(`Cannot load runtime plugin script '${url}' without a browser document`);
+  }
+
+  const pending = new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = url;
+    script.setAttribute?.('data-uruc-plugin-asset', url);
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Failed to load runtime plugin script '${url}'`));
+    document.head.appendChild(script);
+  });
+
+  runtimeScriptLoads.set(url, pending);
+  await pending;
 }
 
 function canonicalPluginRoute(pluginId: string, route: Pick<PageRoutePayload, 'id' | 'pathSegment' | 'shell'>): string {
@@ -156,6 +221,41 @@ export function createEmptyFrontendPluginRegistry(): FrontendPluginRegistry {
   };
 }
 
+function addLoadedPluginCandidate(options: {
+  expectedPluginId: string;
+  candidate: unknown;
+  source: string;
+  diagnostics: FrontendPluginDiagnostic[];
+  loadedPlugins: LoadedPluginRecord[];
+}): void {
+  const parsedPlugin = frontendPluginSchema.safeParse(options.candidate);
+  if (!parsedPlugin.success) {
+    options.diagnostics.push({
+      pluginId: options.expectedPluginId,
+      state: 'invalid_manifest',
+      source: options.source,
+      message: formatZodError(parsedPlugin.error),
+    });
+    return;
+  }
+
+  const plugin = parsedPlugin.data as FrontendPlugin;
+  if (plugin.pluginId !== options.expectedPluginId) {
+    options.diagnostics.push({
+      pluginId: options.expectedPluginId,
+      state: 'plugin_id_mismatch',
+      source: options.source,
+      message: `Frontend plugin id '${plugin.pluginId}' does not match backend plugin id '${options.expectedPluginId}'`,
+    });
+    return;
+  }
+
+  options.loadedPlugins.push({
+    plugin,
+    source: options.source,
+  });
+}
+
 function discoverFrontendPackages(): {
   packages: DiscoveredPackageRecord[];
   diagnostics: FrontendPluginDiagnostic[];
@@ -196,6 +296,133 @@ function discoverFrontendPackages(): {
     packages: discoveredPackages,
     diagnostics,
   };
+}
+
+async function loadDiscoveredFrontendPackages(
+  packages: DiscoveredPackageRecord[],
+  diagnostics: FrontendPluginDiagnostic[],
+): Promise<LoadedPluginRecord[]> {
+  const loadedPlugins: LoadedPluginRecord[] = [];
+
+  for (const record of packages) {
+    if (!record.loadEntry) {
+      diagnostics.push({
+        pluginId: record.pluginId,
+        state: 'missing_entry',
+        source: record.packageSource,
+        message: `Frontend entry '${record.frontendEntry}' was not found for ${record.packageName}`,
+      });
+      continue;
+    }
+
+    let mod: unknown;
+    try {
+      mod = await record.loadEntry();
+    } catch (error) {
+      diagnostics.push({
+        pluginId: record.pluginId,
+        state: 'load_failed',
+        source: record.entrySource,
+        message: error instanceof Error ? error.message : `Failed to load frontend entry '${record.frontendEntry}'`,
+      });
+      continue;
+    }
+
+    addLoadedPluginCandidate({
+      expectedPluginId: record.pluginId,
+      candidate: ((mod as { default?: unknown }).default ?? mod) as unknown,
+      source: record.entrySource,
+      diagnostics,
+      loadedPlugins,
+    });
+  }
+
+  return loadedPlugins;
+}
+
+async function loadRuntimeFrontendPlugins(staticPluginIds: Set<string>): Promise<{
+  loadedPlugins: LoadedPluginRecord[];
+  diagnostics: FrontendPluginDiagnostic[];
+}> {
+  const diagnostics: FrontendPluginDiagnostic[] = [];
+  const loadedPlugins: LoadedPluginRecord[] = [];
+  if (!hasRuntimeFrontendEnvironment()) {
+    return { loadedPlugins, diagnostics };
+  }
+
+  let manifests: FrontendRuntimePluginManifest[];
+  try {
+    manifests = (await PublicApi.frontendPlugins()).plugins ?? [];
+  } catch (error) {
+    diagnostics.push({
+      pluginId: 'frontend-host',
+      state: 'load_failed',
+      source: '/api/frontend-plugins',
+      message: error instanceof Error ? error.message : 'Failed to load runtime frontend plugin manifests',
+    });
+    return { loadedPlugins, diagnostics };
+  }
+
+  const seenRuntimePluginIds = new Set<string>();
+
+  for (const manifest of manifests) {
+    if (staticPluginIds.has(manifest.pluginId)) {
+      diagnostics.push({
+        pluginId: manifest.pluginId,
+        state: 'duplicate_plugin',
+        source: manifest.entryUrl,
+        message: `Runtime plugin '${manifest.pluginId}' is shadowed by a built-in plugin with the same id`,
+      });
+      continue;
+    }
+
+    if (seenRuntimePluginIds.has(manifest.pluginId)) {
+      diagnostics.push({
+        pluginId: manifest.pluginId,
+        state: 'duplicate_plugin',
+        source: manifest.entryUrl,
+        message: `Runtime plugin '${manifest.pluginId}' was returned more than once`,
+      });
+      continue;
+    }
+    seenRuntimePluginIds.add(manifest.pluginId);
+
+    try {
+      for (const cssUrl of manifest.cssUrls) {
+        ensureRuntimeStylesheet(cssUrl);
+      }
+      await ensureRuntimeScript(manifest.entryUrl);
+    } catch (error) {
+      diagnostics.push({
+        pluginId: manifest.pluginId,
+        state: 'load_failed',
+        source: manifest.entryUrl,
+        message: error instanceof Error ? error.message : `Failed to load runtime frontend assets for '${manifest.pluginId}'`,
+      });
+      continue;
+    }
+
+    const candidate = getRuntimePluginExports()[manifest.exportKey];
+    if (!candidate) {
+      diagnostics.push({
+        pluginId: manifest.pluginId,
+        state: 'missing_runtime_export',
+        source: manifest.entryUrl,
+        message: `Runtime plugin export '${manifest.exportKey}' was not found after loading '${manifest.entryUrl}'`,
+      });
+      continue;
+    }
+
+    addLoadedPluginCandidate({
+      expectedPluginId: manifest.pluginId,
+      candidate,
+      source: manifest.entryUrl,
+      diagnostics,
+      loadedPlugins,
+    });
+  }
+
+  return { loadedPlugins, diagnostics };
 }
 
 function buildRegistryFromLoadedPlugins(
@@ -357,62 +584,12 @@ function buildRegistryFromLoadedPlugins(
 
 export async function loadFrontendPluginRegistry(): Promise<FrontendPluginRegistry> {
   const { packages, diagnostics } = discoverFrontendPackages();
-  const loadedPlugins: LoadedPluginRecord[] = [];
-
-  for (const record of packages) {
-    if (!record.loadEntry) {
-      diagnostics.push({
-        pluginId: record.pluginId,
-        state: 'missing_entry',
-        source: record.packageSource,
-        message: `Frontend entry '${record.frontendEntry}' was not found for ${record.packageName}`,
-      });
-      continue;
-    }
-
-    let mod: unknown;
-    try {
-      mod = await record.loadEntry();
-    } catch (error) {
-      diagnostics.push({
-        pluginId: record.pluginId,
-        state: 'load_failed',
-        source: record.entrySource,
-        message: error instanceof Error ? error.message : `Failed to load frontend entry '${record.frontendEntry}'`,
-      });
-      continue;
-    }
-
-    const candidate = ((mod as { default?: unknown }).default ?? mod) as unknown;
-    const parsedPlugin = frontendPluginSchema.safeParse(candidate);
-    if (!parsedPlugin.success) {
-      diagnostics.push({
-        pluginId: record.pluginId,
-        state: 'invalid_manifest',
-        source: record.entrySource,
-        message: formatZodError(parsedPlugin.error),
-      });
-      continue;
-    }
-
-    const plugin = parsedPlugin.data as FrontendPlugin;
-    if (plugin.pluginId !== record.pluginId) {
-      diagnostics.push({
-        pluginId: record.pluginId,
-        state: 'plugin_id_mismatch',
-        source: record.entrySource,
-        message: `Frontend plugin id '${plugin.pluginId}' does not match backend plugin id '${record.pluginId}'`,
-      });
-      continue;
-    }
-
-    loadedPlugins.push({
-      plugin,
-      source: record.entrySource,
-    });
-  }
-
-  return buildRegistryFromLoadedPlugins(loadedPlugins, diagnostics);
+  const loadedPlugins = await loadDiscoveredFrontendPackages(packages, diagnostics);
+  const runtime = await loadRuntimeFrontendPlugins(new Set(packages.map((pkg) => pkg.pluginId)));
+  return buildRegistryFromLoadedPlugins(
+    [...loadedPlugins, ...runtime.loadedPlugins],
+    [...diagnostics, ...runtime.diagnostics],
+  );
 }
 
 if (import.meta.hot) {

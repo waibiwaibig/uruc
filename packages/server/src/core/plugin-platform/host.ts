@@ -1,7 +1,9 @@
+import { execFile } from 'child_process';
 import { existsSync } from 'fs';
-import { access, cp, mkdir, realpath, rm, symlink } from 'fs/promises';
+import { access, cp, mkdir, readFile, realpath, rm, symlink } from 'fs/promises';
 import path from 'path';
 import { pathToFileURL } from 'url';
+import { promisify } from 'util';
 import { nanoid } from 'nanoid';
 import { sql } from 'drizzle-orm';
 
@@ -48,6 +50,8 @@ interface PluginStorageRow {
   valueJson: string;
   updatedAt: number;
 }
+
+const execFileAsync = promisify(execFile);
 
 async function resolveExistingPackageRoot(candidate: string): Promise<string | null> {
   try {
@@ -167,6 +171,7 @@ function toHistoryEntry(spec: LockedPluginSpec): LockedPluginHistoryEntry {
     version: spec.version,
     packageRoot: spec.packageRoot,
     entryPath: spec.entryPath,
+    frontend: spec.frontend,
     integrity: spec.integrity,
     sourceFingerprint: spec.sourceFingerprint,
     generatedAt: spec.generatedAt,
@@ -296,6 +301,32 @@ async function readRawRequestBody(req: HttpContext['req'], maxSize = 1024 * 1024
   return Buffer.concat(chunks);
 }
 
+async function readPackageDependencies(packageRoot: string): Promise<string[]> {
+  const packageJsonPath = path.join(packageRoot, 'package.json');
+  const raw = JSON.parse(await readFile(packageJsonPath, 'utf8')) as {
+    dependencies?: Record<string, unknown>;
+  };
+  if (!raw.dependencies || typeof raw.dependencies !== 'object') {
+    return [];
+  }
+
+  return Object.entries(raw.dependencies)
+    .filter(([, value]) => typeof value === 'string' && value.trim() !== '')
+    .map(([name]) => name);
+}
+
+async function hasInstalledDependency(packageRoot: string, dependencyName: string): Promise<boolean> {
+  try {
+    await access(path.join(packageRoot, 'node_modules', ...dependencyName.split('/'), 'package.json'));
+    return true;
+  } catch (error: any) {
+    if (error?.code === 'ENOENT') {
+      return false;
+    }
+    throw error;
+  }
+}
+
 function parseRouteInput(method: string, url: URL, headers: HttpContext['req']['headers'], rawBody?: Buffer): unknown {
   if (method === 'GET') {
     return buildQueryObject(url);
@@ -377,6 +408,39 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
     process.env.URUC_SERVER_PACKAGE_ROOT = this.packageRoot;
   }
 
+  private async ensurePluginRuntimeDependencies(packageRoot: string, pluginId: string): Promise<void> {
+    const dependencies = await readPackageDependencies(packageRoot);
+    if (dependencies.length === 0) {
+      return;
+    }
+
+    const installed = await Promise.all(
+      dependencies.map((dependencyName) => hasInstalledDependency(packageRoot, dependencyName)),
+    );
+    if (installed.every(Boolean)) {
+      return;
+    }
+
+    try {
+      await execFileAsync('npm', [
+        'install',
+        '--omit=dev',
+        '--package-lock=false',
+        '--no-audit',
+        '--no-fund',
+      ], {
+        cwd: packageRoot,
+        env: process.env,
+      });
+    } catch (error: any) {
+      const message = error?.stderr?.trim()
+        || error?.stdout?.trim()
+        || error?.message
+        || String(error);
+      throw new Error(`Failed to install runtime dependencies for plugin ${pluginId}: ${message}`);
+    }
+  }
+
   async syncLockFile(): Promise<CityLockFile> {
     const config = normalizeConfig(await readCityConfig(this.configPath));
     const existingLock = await readCityLock(this.lockPath);
@@ -417,6 +481,7 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
         const packageRoot = needsRematerialization
           ? await this.materializePluginRevision(resolved.sourcePath, pluginId, revision, storeRoot)
           : previous.packageRoot;
+        await this.ensurePluginRuntimeDependencies(packageRoot, pluginId);
         await this.ensureRuntimeSdkBridge(packageRoot);
 
         resolvedPlugins[pluginId] = {
@@ -436,6 +501,7 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
           config: pluginConfig.config ?? {},
           source: pluginConfig.source ?? resolved.sourcedRelease?.sourceId,
           sourceType: resolved.sourceType,
+          frontend: resolved.manifest.frontendBuild,
           integrity: resolved.sourcedRelease?.integrity,
           sourceFingerprint,
           healthcheck: resolved.manifest.urucPlugin.healthcheck,
@@ -589,6 +655,61 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
   async syncAndReloadPlugin(pluginId: string): Promise<void> {
     await this.syncLockFile();
     await this.reloadPlugin(pluginId);
+  }
+
+  async listFrontendPlugins() {
+    const lock = await readCityLock(this.lockPath);
+
+    return Object.values(lock.plugins)
+      .filter((plugin) => plugin.enabled && plugin.frontend)
+      .map((plugin) => {
+        const frontend = plugin.frontend!;
+        const entry = frontend.entry.replace(/^\.\//, '');
+        const css = frontend.css.map((assetPath) => assetPath.replace(/^\.\//, ''));
+        const encodedPluginId = encodeURIComponent(plugin.pluginId);
+        const encodedRevision = encodeURIComponent(plugin.revision);
+
+        return {
+          pluginId: plugin.pluginId,
+          version: plugin.version,
+          revision: plugin.revision,
+          format: frontend.format,
+          entryUrl: `/api/plugin-assets/${encodedPluginId}/${encodedRevision}/frontend-dist/${entry}`,
+          cssUrls: css.map((assetPath) => `/api/plugin-assets/${encodedPluginId}/${encodedRevision}/frontend-dist/${assetPath}`),
+          exportKey: frontend.exportKey,
+          source: 'frontend-dist/manifest.json',
+        };
+      });
+  }
+
+  async readFrontendAsset(pluginId: string, revision: string, assetPath: string) {
+    const lock = await readCityLock(this.lockPath);
+    const plugin = lock.plugins[pluginId];
+    if (!plugin || !plugin.enabled || !plugin.frontend || plugin.revision !== revision) {
+      return null;
+    }
+
+    const normalizedAssetPath = assetPath.replace(/^\/+/, '');
+    if (!normalizedAssetPath.startsWith('frontend-dist/')) {
+      return null;
+    }
+
+    const pluginRoot = path.resolve(plugin.packageRoot);
+    const filePath = path.resolve(pluginRoot, normalizedAssetPath);
+    if (!filePath.startsWith(pluginRoot)) {
+      return null;
+    }
+
+    try {
+      return {
+        body: await readFile(filePath),
+      };
+    } catch (error: any) {
+      if (error?.code === 'ENOENT') {
+        return null;
+      }
+      throw error;
+    }
   }
 
   listPlugins(): PluginListEntry[] {

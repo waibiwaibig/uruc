@@ -1,7 +1,12 @@
 import { readFile } from 'fs/promises';
 import path from 'path';
 
-import type { PackageJsonUrucPlugin, PluginPackageManifest } from './types.js';
+import type {
+  PackageJsonUrucFrontend,
+  PackageJsonUrucPlugin,
+  PluginFrontendBuildManifest,
+  PluginPackageManifest,
+} from './types.js';
 
 function assertString(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.trim() === '') {
@@ -16,6 +21,49 @@ function assertStringArray(value: unknown, field: string): string[] {
     throw new Error(`Invalid plugin manifest field "${field}"`);
   }
   return value as string[];
+}
+
+function normalizeUrucFrontend(raw: unknown): PackageJsonUrucFrontend | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Invalid package.json#urucFrontend');
+  }
+
+  const value = raw as Record<string, unknown>;
+  if (value.apiVersion !== 1) {
+    throw new Error('Only urucFrontend.apiVersion=1 is supported');
+  }
+
+  return {
+    apiVersion: 1,
+    entry: assertString(value.entry, 'urucFrontend.entry'),
+  };
+}
+
+function normalizeFrontendBuild(raw: unknown): PluginFrontendBuildManifest {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Invalid frontend build manifest');
+  }
+
+  const value = raw as Record<string, unknown>;
+  if (value.apiVersion !== 1) {
+    throw new Error('Only frontend build apiVersion=1 is supported');
+  }
+  if (value.format !== 'global-script') {
+    throw new Error('Only frontend build format="global-script" is supported');
+  }
+
+  return {
+    apiVersion: 1,
+    pluginId: assertString(value.pluginId, 'frontend-dist/manifest.json pluginId'),
+    version: assertString(value.version, 'frontend-dist/manifest.json version'),
+    format: 'global-script',
+    entry: assertString(value.entry, 'frontend-dist/manifest.json entry'),
+    css: assertStringArray(value.css, 'frontend-dist/manifest.json css'),
+    exportKey: assertString(value.exportKey, 'frontend-dist/manifest.json exportKey'),
+  };
 }
 
 function normalizeUrucPlugin(raw: unknown): PackageJsonUrucPlugin {
@@ -63,6 +111,29 @@ export async function readPluginPackageManifest(packageRoot: string): Promise<Pl
   const packageName = assertString(packageJson.name, 'package.json.name');
   const version = assertString(packageJson.version, 'package.json.version');
   const urucPlugin = normalizeUrucPlugin(packageJson.urucPlugin);
+  const urucFrontend = normalizeUrucFrontend(packageJson.urucFrontend);
+  let frontendBuild: PluginFrontendBuildManifest | undefined;
+
+  try {
+    const frontendBuildPath = path.join(packageRoot, 'frontend-dist', 'manifest.json');
+    frontendBuild = normalizeFrontendBuild(JSON.parse(await readFile(frontendBuildPath, 'utf8')) as unknown);
+  } catch (error: any) {
+    if (error?.code !== 'ENOENT') {
+      throw error;
+    }
+  }
+
+  if (frontendBuild && frontendBuild.pluginId !== urucPlugin.pluginId) {
+    throw new Error(
+      `Frontend build pluginId '${frontendBuild.pluginId}' does not match backend pluginId '${urucPlugin.pluginId}'`,
+    );
+  }
+
+  if (frontendBuild && frontendBuild.version !== version) {
+    throw new Error(
+      `Frontend build version '${frontendBuild.version}' does not match package.json version '${version}'`,
+    );
+  }
 
   return {
     packageName,
@@ -70,5 +141,7 @@ export async function readPluginPackageManifest(packageRoot: string): Promise<Pl
     packageRoot,
     entryPath: path.resolve(packageRoot, urucPlugin.entry),
     urucPlugin,
+    urucFrontend,
+    frontendBuild,
   };
 }

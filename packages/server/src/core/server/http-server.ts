@@ -170,6 +170,42 @@ async function handleRequest(
     }, req);
   }
 
+  if (path === '/api/frontend-plugins' && method === 'GET') {
+    setSecurityHeaders(res, req);
+    res.setHeader('Cache-Control', 'no-store');
+    return sendJson(res, 200, {
+      plugins: await deps.loader?.listFrontendPlugins() ?? [],
+    }, req);
+  }
+
+  if (path.startsWith('/api/plugin-assets/') && method === 'GET') {
+    const prefix = '/api/plugin-assets/';
+    const rawSuffix = path.slice(prefix.length);
+    const [rawPluginId, rawRevision, ...assetParts] = rawSuffix.split('/');
+    const pluginId = decodeURIComponent(rawPluginId ?? '');
+    const revision = decodeURIComponent(rawRevision ?? '');
+    const assetPath = assetParts.join('/');
+
+    if (!pluginId || !revision || !assetPath) {
+      return sendError(res, 404, { error: 'File not found', code: 'NOT_FOUND' }, req);
+    }
+
+    const asset = await deps.loader?.readFrontendAsset(pluginId, revision, assetPath);
+    if (!asset) {
+      return sendError(res, 404, { error: 'File not found', code: 'NOT_FOUND' }, req);
+    }
+
+    const ext = extname(assetPath);
+    setSecurityHeaders(res, req);
+    setCorsHeaders(req, res);
+    res.writeHead(200, {
+      'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    });
+    res.end(asset.body);
+    return;
+  }
+
   // === Static uploads serving ===
   if (path.startsWith('/uploads/')) {
     const filePath = resolve(uploadsDir, path.replace('/uploads/', ''));

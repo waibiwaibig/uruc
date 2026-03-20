@@ -29,6 +29,7 @@ async function createPluginPackage(root: string, options: {
   packageName: string;
   version: string;
   publisher: string;
+  frontendEntry?: string;
   body?: string;
 }): Promise<void> {
   await mkdir(root, { recursive: true });
@@ -47,6 +48,12 @@ async function createPluginPackage(root: string, options: {
       dependencies: [],
       activation: ['startup'],
     },
+    ...(options.frontendEntry ? {
+      urucFrontend: {
+        apiVersion: 1,
+        entry: options.frontendEntry,
+      },
+    } : {}),
   }, null, 2)}\n`, 'utf8');
   await writeFile(
     path.join(root, 'index.mjs'),
@@ -58,6 +65,55 @@ async function createPluginPackage(root: string, options: {
   };\n`,
     'utf8',
   );
+}
+
+async function createFrontendPluginPackage(root: string, options: {
+  pluginId: string;
+  packageName: string;
+  version: string;
+  publisher: string;
+}): Promise<void> {
+  await createPluginPackage(root, {
+    ...options,
+    frontendEntry: './frontend/plugin.ts',
+  });
+
+  const frontendDir = path.join(root, 'frontend');
+  await mkdir(frontendDir, { recursive: true });
+  await writeFile(path.join(frontendDir, 'plugin.ts'), `import './plugin.css';
+import { PAGE_ROUTE_TARGET, defineFrontendPlugin } from '@uruc/plugin-sdk/frontend';
+
+export default defineFrontendPlugin({
+  pluginId: '${options.pluginId}',
+  version: '${options.version}',
+  contributes: [{
+    target: PAGE_ROUTE_TARGET,
+    payload: {
+      id: 'home',
+      pathSegment: 'home',
+      shell: 'app',
+      guard: 'auth',
+      load: async () => ({ default: (await import('./PluginPage')).PluginPage }),
+    },
+  }],
+});
+`, 'utf8');
+  await writeFile(path.join(frontendDir, 'PluginPage.tsx'), `import i18n from 'i18next';
+import { Bot } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
+
+export function PluginPage() {
+  const { t } = useTranslation();
+  return (
+    <div className="plugin-pack-fixture">
+      <Bot size={16} />
+      <Link to="/app/plugins/${options.pluginId}/home">{t('pluginPack:title', { defaultValue: i18n.t('pluginPack:title', { defaultValue: 'frontend fixture' }) })}</Link>
+    </div>
+  );
+}
+`, 'utf8');
+  await writeFile(path.join(frontendDir, 'plugin.css'), `.plugin-pack-fixture { color: rgb(10, 20, 30); }\n`, 'utf8');
 }
 
 async function createTempRuntime(): Promise<{
@@ -219,27 +275,19 @@ describe('plugin manager', () => {
   it('installs a marketplace plugin by alias from the official source', async () => {
     const runtime = await createTempRuntime();
     const chessPackage = path.join(runtime.tempRoot, 'packages', 'chess');
-    await createPluginPackage(chessPackage, {
+    await createFrontendPluginPackage(chessPackage, {
       pluginId: 'uruc.chess',
       packageName: '@uruc/plugin-chess',
       version: '0.1.0',
       publisher: 'uruc',
-      body: `import { defineBackendPlugin } from '@uruc/plugin-sdk/backend';
-
-export default defineBackendPlugin({
-  pluginId: 'uruc.chess',
-  async setup(ctx) {
-    await ctx.commands.register({
-      id: 'ping',
-      description: 'ping',
-      inputSchema: {},
-      handler: async () => ({ ok: true }),
     });
-  },
-});
-`,
-    });
-    const { tarballPath, integrity } = await packPluginPackage(chessPackage);
+    const packedDir = path.join(runtime.tempRoot, 'packed-official');
+    const { runPluginCommand } = await import('../plugin-manager.js');
+    await runPluginCommand(['pack', chessPackage, '--out', packedDir]);
+    const tarballs = (await readdir(packedDir)).filter((entry) => entry.endsWith('.tgz'));
+    const tarballPath = path.join(packedDir, tarballs[0]!);
+    const tarball = await readFile(tarballPath);
+    const integrity = `sha512-${createHash('sha512').update(tarball).digest('base64')}`;
     const baseUrl = await startRegistryServer({
       registry: {
         apiVersion: 1,
@@ -266,7 +314,6 @@ export default defineBackendPlugin({
     ];
     await writeCityConfig(runtime.cityConfigPath, configBefore);
 
-    const { runPluginCommand } = await import('../plugin-manager.js');
     await runPluginCommand(['add', '@uruc/chess']);
 
     const host = new PluginPlatformHost({
@@ -300,6 +347,11 @@ export default defineBackendPlugin({
       sourceType: 'package',
       publisher: 'uruc',
       enabled: true,
+      frontend: {
+        format: 'global-script',
+        entry: './plugin.js',
+        exportKey: 'uruc.chess',
+      },
     });
     expect(host.getPluginDiagnostics().find((item) => item.pluginId === 'uruc.chess')?.state).toBe('active');
 
@@ -826,6 +878,39 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
     expect(pluginRevisions).not.toContain(oldestRevision);
 
     await expect(readdir(path.join(runtime.pluginStoreDir, 'orphan.plugin'))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('packs a frontend plugin into a marketplace tarball with prebuilt frontend assets', async () => {
+    const runtime = await createTempRuntime();
+    const pluginRoot = path.join(runtime.tempRoot, 'packages', 'acme-packed-ui');
+    const outputDir = path.join(runtime.tempRoot, 'packed');
+    await createFrontendPluginPackage(pluginRoot, {
+      pluginId: 'acme.packed-ui',
+      packageName: '@acme/plugin-packed-ui',
+      version: '0.1.0',
+      publisher: 'acme',
+    });
+
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { runPluginCommand } = await import('../plugin-manager.js');
+    await runPluginCommand(['pack', pluginRoot, '--out', outputDir]);
+
+    const tarballs = (await readdir(outputDir)).filter((entry) => entry.endsWith('.tgz'));
+    expect(tarballs).toHaveLength(1);
+
+    const tarballPath = path.join(outputDir, tarballs[0]!);
+    const stagingRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-pack-verify-'));
+    tempDirs.push(stagingRoot);
+
+    const { downloadAndExtractPluginArtifact } = await import('../../core/plugin-platform/remote-artifact.js');
+    const extracted = await downloadAndExtractPluginArtifact({
+      artifactUrl: tarballPath,
+      stagingRoot,
+    });
+
+    expect(await readFile(path.join(extracted.packageRoot, 'frontend-dist', 'manifest.json'), 'utf8')).toContain('"format": "global-script"');
+    expect(await readFile(path.join(extracted.packageRoot, 'frontend-dist', 'plugin.js'), 'utf8')).toContain('__uruc_plugin_exports');
+    expect(logSpy.mock.calls.flat().join('\n')).toContain('sha512-');
   });
 
   it('creates a backend-only plugin scaffold that validates as a V2 package', async () => {

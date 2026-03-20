@@ -1,4 +1,4 @@
-import type { ActionLog, Agent, HealthResponse, User } from './types';
+import type { ActionLog, Agent, FrontendRuntimePluginIndexResponse, HealthResponse, User } from './types';
 import { localizeCoreError } from './error-text';
 
 const API_BASE = '/api';
@@ -147,6 +147,12 @@ export const DashboardApi = {
 export const PublicApi = {
   health() {
     return request<HealthResponse>('/health', {
+      cache: 'no-store',
+    });
+  },
+
+  frontendPlugins() {
+    return request<FrontendRuntimePluginIndexResponse>('/frontend-plugins', {
       cache: 'no-store',
     });
   },
