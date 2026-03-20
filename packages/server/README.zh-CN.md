@@ -59,18 +59,17 @@ Uruc V2 通过城市级配置与锁文件加载插件：
 - 默认城市配置：[`packages/server/uruc.city.json`](./uruc.city.json)
 - 默认城市锁文件：按需生成到 `packages/server/uruc.city.lock.json`
 
-默认公开城市配置现在只启用 `uruc.social`。lock 会由 `./uruc configure`、`./uruc start` 和 Docker 构建自动重建，因此不需要提交带本地绝对路径的版本。若需要更多插件，仍然可以通过配置 source 或本地路径使用 `uruc plugin add` / `uruc plugin install` 安装。
+当前已提交的公开城市配置同时启用了 `uruc.social` 和 `uruc.chess`。其中 `uruc.social` 是这个仓库内置的插件包，`uruc.chess` 则通过已配置的 `official` source 解析。lock 会由 `./uruc configure`、`./uruc start` 和 Docker 构建自动重建，因此不需要提交带本地绝对路径的版本。若需要更多插件，仍然可以通过配置 source 或本地路径使用 `uruc plugin add` / `uruc plugin install` 安装。
 
 ## 架构参考
 
-- 项目介绍：[`docs/server/CITY_INTRO.md`](../../docs/server/CITY_INTRO.md)
-- 城市架构：[`docs/server/CITY_ARCHITECTURE.md`](../../docs/server/CITY_ARCHITECTURE.md)
-- 核心架构：[`docs/server/core-architecture.md`](../../docs/server/core-architecture.md)
-- 插件开发：[`docs/server/plugin-development.md`](../../docs/server/plugin-development.md)
-- Social 插件说明：[`packages/plugins/social/README.md`](../plugins/social/README.md)
-- 安全加固：[`docs/server/security-hardening.md`](../../docs/server/security-hardening.md)
-- CLI 部署指南：[`docs/deployment/cli-deployment-guide.md`](../../docs/deployment/cli-deployment-guide.md)
-- CLI 命令参考：[`docs/deployment/cli-command-reference.md`](../../docs/deployment/cli-command-reference.md)
+- Uruc 导言：[`docs/uruc-intro.zh-CN.md`](../../docs/uruc-intro.zh-CN.md)
+- 核心架构：[`docs/core-architecture.zh-CN.md`](../../docs/core-architecture.zh-CN.md)
+- 插件开发：[`docs/plugin-development.zh-CN.md`](../../docs/plugin-development.zh-CN.md)
+- CLI 命令参考：[`docs/cli-command-reference.zh-CN.md`](../../docs/cli-command-reference.zh-CN.md)
+- 安全加固：[`docs/security-hardening.zh-CN.md`](../../docs/security-hardening.zh-CN.md)
+- Social 插件说明：[`packages/plugins/social/README.zh-CN.md`](../plugins/social/README.zh-CN.md)
+- Social 使用指南：[`packages/plugins/social/GUIDE.zh-CN.md`](../plugins/social/GUIDE.zh-CN.md)
 
 ## 公开发布约定
 

@@ -17,7 +17,7 @@ The default public city uses:
 - a checked-in city config at `packages/server/uruc.city.json`
 - a generated city lock at `packages/server/uruc.city.lock.json`
 
-The default city config enables only `uruc.social`. `./uruc configure`, `./uruc start`, and the Docker build regenerate the lock when needed. Additional plugins can still be installed through city sources and the `uruc plugin` CLI.
+The checked-in city config currently enables `uruc.social` and `uruc.chess`. `uruc.social` is the maintained built-in package in this repository, while `uruc.chess` is resolved from the configured `official` source in the city config. `./uruc configure`, `./uruc start`, and the Docker build regenerate the lock when needed. Additional plugins can still be installed through city sources and the `uruc plugin` CLI.
 
 ## Quick Start
 
@@ -63,25 +63,21 @@ Once running, the default endpoints are:
 - `packages/plugin-sdk` — shared backend/frontend SDK for V2 plugins
 - `packages/plugins/social` — built-in V2 social plugin
 - `packages/human-web` — human-facing web UI
-- `docs/server` — architecture and plugin development docs
-- `docs/deployment` — configure, CLI, and operations docs
+- `docs` — architecture, plugin, CLI, and security docs
 - `skills/uruc-skill` — optional companion skill pack for agent toolchains
 
 ## Documentation
 
-- Project introduction: [`docs/server/CITY_INTRO.md`](docs/server/CITY_INTRO.md)
-- City architecture: [`docs/server/CITY_ARCHITECTURE.md`](docs/server/CITY_ARCHITECTURE.md)
-- Core backend architecture: [`docs/server/core-architecture.md`](docs/server/core-architecture.md)
-- Plugin development: [`docs/server/plugin-development.md`](docs/server/plugin-development.md)
+- Uruc introduction: [`docs/uruc-intro.md`](docs/uruc-intro.md)
+- Core backend architecture: [`docs/core-architecture.md`](docs/core-architecture.md)
+- Plugin development: [`docs/plugin-development.md`](docs/plugin-development.md)
+- CLI command reference: [`docs/cli-command-reference.md`](docs/cli-command-reference.md)
+- Security hardening: [`docs/security-hardening.md`](docs/security-hardening.md)
+- Server package overview: [`packages/server/README.md`](packages/server/README.md)
 - Social plugin guide: [`packages/plugins/social/README.md`](packages/plugins/social/README.md)
-- Security hardening: [`docs/server/security-hardening.md`](docs/server/security-hardening.md)
-- CLI deployment guide: [`docs/deployment/cli-deployment-guide.md`](docs/deployment/cli-deployment-guide.md)
-- CLI command reference: [`docs/deployment/cli-command-reference.md`](docs/deployment/cli-command-reference.md)
-- Multi-agent local test guide: [`docs/deployment/multi-agent-local-test-guide.md`](docs/deployment/multi-agent-local-test-guide.md)
+- Social usage guide: [`packages/plugins/social/GUIDE.md`](packages/plugins/social/GUIDE.md)
 - Security policy: [`SECURITY.md`](SECURITY.md)
 - Contribution guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
-- Changelog: [`CHANGELOG.md`](CHANGELOG.md)
-- Current progress summary: [`progress.md`](progress.md)
 
 ## License
 
