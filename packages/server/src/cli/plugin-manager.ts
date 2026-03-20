@@ -9,7 +9,7 @@ import { promisify } from 'util';
 import dotenv from 'dotenv';
 
 import { readCityConfig, readCityLock, writeCityConfig, writeCityLock } from '../core/plugin-platform/config.js';
-import { readPluginPackageManifest } from '../core/plugin-platform/manifest.js';
+import { readPluginPackageManifest, validatePluginPackageContract } from '../core/plugin-platform/manifest.js';
 import {
   inspectConfiguredPlugins,
   resolveConfiguredPlugin,
@@ -278,6 +278,8 @@ async function packPlugin(args: string[]): Promise<void> {
     if (manifest.urucFrontend) {
       await buildPluginFrontendForPack(stagedPackageRoot);
     }
+    const stagedManifest = await readPluginPackageManifest(stagedPackageRoot);
+    await validatePluginPackageContract(stagedPackageRoot, stagedManifest, 'distribution');
 
     const { stdout } = await execFileAsync('npm', ['pack', stagedPackageRoot], {
       cwd: outputDir,
@@ -571,6 +573,11 @@ async function validatePlugin(target: string | undefined): Promise<void> {
   const candidatePath = resolveMaybePath(target);
   if (candidatePath) {
     const manifest = await readPluginPackageManifest(candidatePath);
+    await validatePluginPackageContract(
+      candidatePath,
+      manifest,
+      manifest.frontendBuild ? 'distribution' : 'source',
+    );
     console.log(JSON.stringify(manifest, null, 2));
     return;
   }

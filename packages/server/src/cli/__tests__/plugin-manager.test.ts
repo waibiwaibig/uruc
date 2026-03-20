@@ -30,6 +30,7 @@ async function createPluginPackage(root: string, options: {
   version: string;
   publisher: string;
   frontendEntry?: string;
+  dependencies?: Record<string, string>;
   body?: string;
 }): Promise<void> {
   await mkdir(root, { recursive: true });
@@ -37,6 +38,7 @@ async function createPluginPackage(root: string, options: {
     name: options.packageName,
     version: options.version,
     type: 'module',
+    ...(options.dependencies ? { dependencies: options.dependencies } : {}),
     urucPlugin: {
       pluginId: options.pluginId,
       apiVersion: 2,
@@ -880,6 +882,23 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
     await expect(readdir(path.join(runtime.pluginStoreDir, 'orphan.plugin'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
+  it('creates a backend-only plugin scaffold that validates as a V2 package', async () => {
+    const runtime = await createTempRuntime();
+    const outputDir = path.join(runtime.tempRoot, 'generated', 'acme-demo');
+    const { runPluginCommand } = await import('../plugin-manager.js');
+
+    await runPluginCommand(['create', 'acme.demo', '--dir', outputDir]);
+    await runPluginCommand(['validate', outputDir]);
+
+    const pkg = JSON.parse(await readFile(path.join(outputDir, 'package.json'), 'utf8')) as Record<string, any>;
+    const backendEntry = await readFile(path.join(outputDir, 'index.mjs'), 'utf8');
+
+    expect(pkg.urucPlugin?.pluginId).toBe('acme.demo');
+    expect(pkg.urucFrontend).toBeUndefined();
+    expect(pkg.dependencies?.['@uruc/plugin-sdk']).toBeUndefined();
+    expect(backendEntry).toContain("@uruc/plugin-sdk/backend");
+  });
+
   it('packs a frontend plugin into a marketplace tarball with prebuilt frontend assets', async () => {
     const runtime = await createTempRuntime();
     const pluginRoot = path.join(runtime.tempRoot, 'packages', 'acme-packed-ui');
@@ -913,22 +932,6 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
     expect(logSpy.mock.calls.flat().join('\n')).toContain('sha512-');
   });
 
-  it('creates a backend-only plugin scaffold that validates as a V2 package', async () => {
-    const runtime = await createTempRuntime();
-    const outputDir = path.join(runtime.tempRoot, 'generated', 'acme-demo');
-    const { runPluginCommand } = await import('../plugin-manager.js');
-
-    await runPluginCommand(['create', 'acme.demo', '--dir', outputDir]);
-    await runPluginCommand(['validate', outputDir]);
-
-    const pkg = JSON.parse(await readFile(path.join(outputDir, 'package.json'), 'utf8')) as Record<string, any>;
-    const backendEntry = await readFile(path.join(outputDir, 'index.mjs'), 'utf8');
-
-    expect(pkg.urucPlugin?.pluginId).toBe('acme.demo');
-    expect(pkg.urucFrontend).toBeUndefined();
-    expect(backendEntry).toContain("@uruc/plugin-sdk/backend");
-  });
-
   it('creates a dual-entry plugin scaffold with stable frontend SDK imports', async () => {
     const runtime = await createTempRuntime();
     const outputDir = path.join(runtime.tempRoot, 'generated', 'acme-demo-ui');
@@ -943,10 +946,37 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
 
     expect(pkg.urucPlugin?.pluginId).toBe('acme.demo-ui');
     expect(pkg.urucFrontend?.entry).toBe('./frontend/plugin.ts');
+    expect(pkg.dependencies?.['@uruc/plugin-sdk']).toBeUndefined();
     expect(frontendEntry).toContain("@uruc/plugin-sdk/frontend");
     expect(frontendEntry).not.toContain("@uruc/plugin-sdk'");
     expect(frontendEntry).toContain("shell: 'app'");
     expect(frontendEntry).not.toContain("shell: 'game'");
     expect(frontendPage).toContain("@uruc/plugin-sdk/frontend-react");
+  });
+
+  it('rejects plugin packages that declare the host sdk as a runtime dependency', async () => {
+    const runtime = await createTempRuntime();
+    const pluginRoot = path.join(runtime.tempRoot, 'packages', 'acme-runtime-sdk');
+    const { runPluginCommand } = await import('../plugin-manager.js');
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`process.exit:${code ?? 0}`);
+    }) as any);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await createPluginPackage(pluginRoot, {
+      pluginId: 'acme.runtime-sdk',
+      packageName: '@acme/plugin-runtime-sdk',
+      version: '0.1.0',
+      publisher: 'acme',
+      dependencies: {
+        '@uruc/plugin-sdk': '0.1.0',
+      },
+    });
+
+    await expect(runPluginCommand(['validate', pluginRoot])).rejects.toThrow('process.exit:1');
+    expect(errorSpy.mock.calls.flat().join('\n')).toContain('@uruc/plugin-sdk');
+
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 });

@@ -8,6 +8,12 @@ import type {
   PluginPackageManifest,
 } from './types.js';
 
+export type PluginPackageContractMode = 'source' | 'distribution';
+
+const HOST_BRIDGED_RUNTIME_DEPENDENCIES = new Set([
+  '@uruc/plugin-sdk',
+]);
+
 function assertString(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.trim() === '') {
     throw new Error(`Invalid plugin manifest field "${field}"`);
@@ -144,4 +150,30 @@ export async function readPluginPackageManifest(packageRoot: string): Promise<Pl
     urucFrontend,
     frontendBuild,
   };
+}
+
+export async function validatePluginPackageContract(
+  packageRoot: string,
+  manifest: PluginPackageManifest,
+  mode: PluginPackageContractMode,
+): Promise<void> {
+  const packageJsonPath = path.join(packageRoot, 'package.json');
+  const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8')) as {
+    dependencies?: Record<string, unknown>;
+  };
+  const runtimeDependencies = packageJson.dependencies ?? {};
+
+  for (const dependencyName of HOST_BRIDGED_RUNTIME_DEPENDENCIES) {
+    if (typeof runtimeDependencies[dependencyName] === 'string' && runtimeDependencies[dependencyName]!.trim() !== '') {
+      throw new Error(
+        `package.json dependencies must not include ${dependencyName}; the host provides it at runtime`,
+      );
+    }
+  }
+
+  if (mode === 'distribution' && manifest.urucFrontend && !manifest.frontendBuild) {
+    throw new Error(
+      `Frontend plugin packages must include frontend-dist/manifest.json before they can be installed from package sources`,
+    );
+  }
 }

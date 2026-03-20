@@ -53,9 +53,6 @@ function packageJsonTemplate(parsed: ParsedPluginId, withFrontend: boolean): str
     exports: {
       '.': './index.mjs',
     },
-    dependencies: {
-      '@uruc/plugin-sdk': '0.1.0',
-    },
     urucPlugin: {
       pluginId: parsed.pluginId,
       apiVersion: 2,

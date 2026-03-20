@@ -1,7 +1,7 @@
 import { existsSync } from 'fs';
 import path from 'path';
 
-import { readPluginPackageManifest } from './manifest.js';
+import { readPluginPackageManifest, validatePluginPackageContract } from './manifest.js';
 import { resolvePluginSourceRelease } from './source-registry.js';
 import type {
   CityConfigFile,
@@ -91,6 +91,7 @@ export async function resolveConfiguredPlugin(options: {
   }
 
   const manifest = await readPluginPackageManifest(sourcePath);
+  await validatePluginPackageContract(sourcePath, manifest, sourceType === 'package' ? 'distribution' : 'source');
   const urucPlugin = manifest.urucPlugin;
 
   if (urucPlugin.pluginId !== options.pluginId) {

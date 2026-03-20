@@ -52,6 +52,9 @@ interface PluginStorageRow {
 }
 
 const execFileAsync = promisify(execFile);
+const HOST_BRIDGED_RUNTIME_DEPENDENCIES = new Set([
+  '@uruc/plugin-sdk',
+]);
 
 async function resolveExistingPackageRoot(candidate: string): Promise<string | null> {
   try {
@@ -301,7 +304,7 @@ async function readRawRequestBody(req: HttpContext['req'], maxSize = 1024 * 1024
   return Buffer.concat(chunks);
 }
 
-async function readPackageDependencies(packageRoot: string): Promise<string[]> {
+async function readPackageDependencies(packageRoot: string): Promise<Array<{ name: string; version: string }>> {
   const packageJsonPath = path.join(packageRoot, 'package.json');
   const raw = JSON.parse(await readFile(packageJsonPath, 'utf8')) as {
     dependencies?: Record<string, unknown>;
@@ -312,7 +315,10 @@ async function readPackageDependencies(packageRoot: string): Promise<string[]> {
 
   return Object.entries(raw.dependencies)
     .filter(([, value]) => typeof value === 'string' && value.trim() !== '')
-    .map(([name]) => name);
+    .map(([name, value]) => ({
+      name,
+      version: value as string,
+    }));
 }
 
 async function hasInstalledDependency(packageRoot: string, dependencyName: string): Promise<boolean> {
@@ -414,20 +420,28 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
       return;
     }
 
+    const missing = dependencies.filter((dependency) => !HOST_BRIDGED_RUNTIME_DEPENDENCIES.has(dependency.name));
+    if (missing.length === 0) {
+      return;
+    }
+
     const installed = await Promise.all(
-      dependencies.map((dependencyName) => hasInstalledDependency(packageRoot, dependencyName)),
+      missing.map((dependency) => hasInstalledDependency(packageRoot, dependency.name)),
     );
-    if (installed.every(Boolean)) {
+    const dependenciesToInstall = missing.filter((_, index) => !installed[index]);
+    if (dependenciesToInstall.length === 0) {
       return;
     }
 
     try {
       await execFileAsync('npm', [
         'install',
+        '--no-save',
         '--omit=dev',
         '--package-lock=false',
         '--no-audit',
         '--no-fund',
+        ...dependenciesToInstall.map((dependency) => `${dependency.name}@${dependency.version}`),
       ], {
         cwd: packageRoot,
         env: process.env,
