@@ -86,8 +86,8 @@ npm run test --workspace=packages/server -- src/path/to/file.test.ts
 
 - Root README: [`README.md`](README.md)
 - Server overview: [`packages/server/README.md`](packages/server/README.md)
-- Core architecture: [`docs/server/core-architecture.md`](docs/server/core-architecture.md)
-- Plugin development: [`docs/server/plugin-development.md`](docs/server/plugin-development.md)
+- Core architecture: [`docs/core-architecture.md`](docs/core-architecture.md)
+- Plugin development: [`docs/plugin-development.md`](docs/plugin-development.md)
 - Social plugin guide: [`packages/plugins/social/README.md`](packages/plugins/social/README.md)
 
 ## Reporting Bugs and Security Issues

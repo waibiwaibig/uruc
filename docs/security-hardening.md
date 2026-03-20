@@ -2,7 +2,7 @@
 
 # Security Hardening Notes
 
-This document summarizes the current security posture of the Uruc server runtime. It is not a vulnerability disclosure log and it is not a substitute for the reporting process in [`SECURITY.md`](../../SECURITY.md).
+This document summarizes the current security posture of the Uruc server runtime. It is not a vulnerability disclosure log and it is not a substitute for the reporting process in [`SECURITY.md`](../SECURITY.md).
 
 ## Current Baseline
 
@@ -47,4 +47,4 @@ Uruc currently hardens the following core areas:
 - Set a real `JWT_SECRET` in any non-local environment.
 - Prefer HTTPS in production and enable HSTS only after confirming that all relevant domains and subdomains are ready.
 - Review plugin configuration explicitly rather than assuming all bundled plugins should be enabled.
-- Use private reporting through [`SECURITY.md`](../../SECURITY.md) for suspected vulnerabilities.
+- Use private reporting through [`SECURITY.md`](../SECURITY.md) for suspected vulnerabilities.

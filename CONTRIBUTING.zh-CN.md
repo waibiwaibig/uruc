@@ -84,11 +84,11 @@ npm run test --workspace=packages/server -- src/path/to/file.test.ts
 
 ## 架构参考
 
-- 根 README：[`README.md`](README.md)
-- Server 概览：[`packages/server/README.md`](packages/server/README.md)
-- 核心架构：[`docs/server/core-architecture.md`](docs/server/core-architecture.md)
-- 插件开发：[`docs/server/plugin-development.md`](docs/server/plugin-development.md)
-- Social 插件说明：[`packages/plugins/social/README.md`](packages/plugins/social/README.md)
+- 根 README：[`README.zh-CN.md`](README.zh-CN.md)
+- Server 概览：[`packages/server/README.zh-CN.md`](packages/server/README.zh-CN.md)
+- 核心架构：[`docs/core-architecture.zh-CN.md`](docs/core-architecture.zh-CN.md)
+- 插件开发：[`docs/plugin-development.zh-CN.md`](docs/plugin-development.zh-CN.md)
+- Social 插件说明：[`packages/plugins/social/README.zh-CN.md`](packages/plugins/social/README.zh-CN.md)
 
 ## Bug 与安全问题
 
