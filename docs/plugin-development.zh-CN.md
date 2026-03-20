@@ -167,9 +167,6 @@ package/
   "exports": {
     ".": "./index.mjs"
   },
-  "dependencies": {
-    "@uruc/plugin-sdk": "0.1.0"
-  },
   "urucPlugin": {
     "pluginId": "acme.echo",
     "apiVersion": 2,
@@ -222,6 +219,7 @@ package/
 - `entry` 目前应当指向 `./frontend/plugin.ts` 或 `./frontend/plugin.tsx`
 - 当前静态前端 registry 只扫描 `packages/plugins/*/frontend/plugin.ts(x)`
 - 前端插件里的 `pluginId` 必须和 `package.json#urucPlugin.pluginId` 一致
+- `package.json dependencies` 里不能声明 `@uruc/plugin-sdk`；这部分由 host 在运行时桥接提供
 
 ### 已发布前端构建 manifest
 

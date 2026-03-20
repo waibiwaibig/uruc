@@ -167,9 +167,6 @@ The scaffold generates a package like this:
   "exports": {
     ".": "./index.mjs"
   },
-  "dependencies": {
-    "@uruc/plugin-sdk": "0.1.0"
-  },
   "urucPlugin": {
     "pluginId": "acme.echo",
     "apiVersion": 2,
@@ -222,6 +219,7 @@ Current rules:
 - `entry` should currently point to `./frontend/plugin.ts` or `./frontend/plugin.tsx`
 - the checked-in frontend registry still only scans `packages/plugins/*/frontend/plugin.ts(x)`
 - the frontend plugin id must match `package.json#urucPlugin.pluginId`
+- `package.json dependencies` must not include `@uruc/plugin-sdk`; the host provides that bridge at runtime
 
 ### Published frontend build metadata
 
