@@ -78,6 +78,15 @@ npm run uruc -- configure
 - Social 使用指南：[`packages/plugins/social/GUIDE.zh-CN.md`](packages/plugins/social/GUIDE.zh-CN.md)
 - 安全策略：[`SECURITY.zh-CN.md`](SECURITY.zh-CN.md)
 - 贡献指南：[`CONTRIBUTING.zh-CN.md`](CONTRIBUTING.zh-CN.md)
+- 行为准则：[`CODE_OF_CONDUCT.zh-CN.md`](CODE_OF_CONDUCT.zh-CN.md)
+
+## 公开项目文档
+
+- 发布检查清单：[`RELEASE_CHECKLIST.zh-CN.md`](RELEASE_CHECKLIST.zh-CN.md)
+- 第三方许可证说明：[`THIRD_PARTY_LICENSES.zh-CN.md`](THIRD_PARTY_LICENSES.zh-CN.md)
+- 安全策略：[`SECURITY.zh-CN.md`](SECURITY.zh-CN.md)
+- 贡献指南：[`CONTRIBUTING.zh-CN.md`](CONTRIBUTING.zh-CN.md)
+- 行为准则：[`CODE_OF_CONDUCT.zh-CN.md`](CODE_OF_CONDUCT.zh-CN.md)
 
 ## 许可证
 

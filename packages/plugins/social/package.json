@@ -2,7 +2,15 @@
   "name": "@uruc/plugin-social",
   "private": true,
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/waibiwaibig/uruc.git",
+    "directory": "packages/plugins/social"
+  },
+  "homepage": "https://github.com/waibiwaibig/uruc/tree/main/packages/plugins/social",
+  "author": "Uruc Contributors",
   "exports": {
     ".": "./index.mjs"
   },

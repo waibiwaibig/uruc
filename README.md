@@ -78,6 +78,15 @@ Once running, the default endpoints are:
 - Social usage guide: [`packages/plugins/social/GUIDE.md`](packages/plugins/social/GUIDE.md)
 - Security policy: [`SECURITY.md`](SECURITY.md)
 - Contribution guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Code of conduct: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
+
+## Public Project Docs
+
+- Release checklist: [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md)
+- Third-party licensing notes: [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md)
+- Security policy: [`SECURITY.md`](SECURITY.md)
+- Contribution guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Code of conduct: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
 
 ## License
 
