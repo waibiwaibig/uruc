@@ -104,11 +104,16 @@ function renderChoiceLines<T extends string>(
 export async function promptInput(
   prompt: string,
   defaultValue = '',
-  options: { secret?: boolean } = {},
+  options: { secret?: boolean; clearTokens?: string[]; clearHint?: string } = {},
 ): Promise<string> {
   if (options.secret) {
-    const secret = await promptSecret(prompt, defaultValue);
-    return secret.trim() === '' ? defaultValue : secret.trim();
+    const secret = await promptSecret(prompt, defaultValue, options);
+    const normalized = secret.trim();
+    if (normalized === '') return defaultValue;
+    if (options.clearTokens?.some((token) => token.toLowerCase() === normalized.toLowerCase())) {
+      return '';
+    }
+    return normalized;
   }
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -170,10 +175,21 @@ export async function promptConfirm(prompt: string, defaultValue: boolean, lang:
   return selection === 'yes';
 }
 
-async function promptSecret(prompt: string, defaultValue = ''): Promise<string> {
+function secretPromptSuffix(defaultValue: string, clearHint?: string): string {
+  if (!defaultValue) return '';
+  return clearHint
+    ? ` (hidden default preserved; ${clearHint})`
+    : ' (hidden default preserved)';
+}
+
+async function promptSecret(
+  prompt: string,
+  defaultValue = '',
+  options: { clearHint?: string } = {},
+): Promise<string> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
-    const suffix = defaultValue ? ' (hidden default preserved)' : '';
+    const suffix = secretPromptSuffix(defaultValue, options.clearHint);
     const answer = await rl.question(`${prompt}${suffix}: `);
     await rl.close();
     return answer;
@@ -187,7 +203,7 @@ async function promptSecret(prompt: string, defaultValue = ''): Promise<string> 
     const wasPaused = stdin.isPaused();
     stdin.resume();
     stdin.setRawMode?.(true);
-    stdout.write(`${prompt}${defaultValue ? ' (hidden default preserved)' : ''}: `);
+    stdout.write(`${prompt}${secretPromptSuffix(defaultValue, options.clearHint)}: `);
     let value = '';
 
     const onKeypress = (_char: string, key: readline.Key) => {

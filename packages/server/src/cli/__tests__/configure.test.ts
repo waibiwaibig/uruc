@@ -467,4 +467,39 @@ describe('configure command', () => {
     expect(mocks.runRestartCommand).toHaveBeenCalledWith(expect.objectContaining({ args: [] }));
     expect(mocks.runStartCommand).not.toHaveBeenCalled();
   });
+
+  it('marks the site password prompt as clearable in advanced access mode', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-configure-'));
+    tempDirs.push(tempRoot);
+    const cityConfigPath = path.join(tempRoot, 'uruc.city.json');
+    mocks.currentConfigureDefaults.mockReturnValue({
+      ...makeCurrentDefaults(cityConfigPath),
+      sitePassword: 'existing-site-password',
+    });
+    mocks.promptChoice
+      .mockResolvedValueOnce('en')
+      .mockResolvedValueOnce('save');
+    mocks.promptConfirm
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    mocks.promptInput
+      .mockResolvedValueOnce('admin')
+      .mockResolvedValueOnce('secret-password')
+      .mockResolvedValueOnce('admin@example.com')
+      .mockResolvedValueOnce('-');
+
+    const { runConfigureCommand } = await import('../commands/configure.js');
+    await runConfigureCommand({ args: ['--advanced', '--section', 'access'], json: false });
+
+    expect(mocks.promptInput).toHaveBeenNthCalledWith(
+      4,
+      'Site access password (optional)',
+      'existing-site-password',
+      expect.objectContaining({
+        secret: true,
+        clearHint: 'type - to clear',
+        clearTokens: ['-'],
+      }),
+    );
+  });
 });

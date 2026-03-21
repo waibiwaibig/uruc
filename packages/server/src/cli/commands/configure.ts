@@ -380,6 +380,12 @@ function text(lang: UiLanguage, key: keyof typeof copy['zh-CN']): string {
   return copy[lang][key];
 }
 
+function sitePasswordClearHint(lang: UiLanguage): string {
+  if (lang === 'zh-CN') return '输入 - 清空';
+  if (lang === 'ko') return '- 입력 시 비움';
+  return 'type - to clear';
+}
+
 type ConfigureApplyAction = 'start-foreground' | 'start-managed' | 'save' | 'edit';
 
 function managedStartLabel(
@@ -906,7 +912,11 @@ async function gatherAnswers(context: CommandContext): Promise<ConfigureResult> 
     if (mode === 'advanced' && !acceptDefaults) {
       answers.allowRegister = await promptConfirm(text(lang, 'allowRegisterPrompt'), answers.allowRegister, lang);
       answers.noindex = await promptConfirm(text(lang, 'noindexPrompt'), answers.noindex, lang);
-      answers.sitePassword = await promptInput(text(lang, 'sitePasswordPrompt'), answers.sitePassword, { secret: true });
+      answers.sitePassword = await promptInput(text(lang, 'sitePasswordPrompt'), answers.sitePassword, {
+        secret: true,
+        clearTokens: ['-'],
+        clearHint: sitePasswordClearHint(lang),
+      });
     }
   }
 
