@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Copy, Eye, EyeOff, ImagePlus, Plus, Save, Trash2 } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, Copy, Eye, EyeOff, ImagePlus, Info, Plus, Save, Trash2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { DashboardApi } from '../lib/api';
 import { formatDate, formatDateTime } from '../i18n';
@@ -7,6 +7,13 @@ import type { ActionLog, LocationDef } from '../lib/types';
 import { useAgents } from '../context/AgentsContext';
 import { useAgentRuntime } from '../context/AgentRuntimeContext';
 import { usePluginHost } from '../plugins/context';
+
+type AgentConsoleToastTone = 'info' | 'success' | 'error';
+
+type AgentConsoleToast = {
+  text: string;
+  tone: AgentConsoleToastTone;
+};
 
 export function AgentConsolePage() {
   const { t } = useTranslation(['dashboard', 'common', 'play']);
@@ -26,7 +33,7 @@ export function AgentConsolePage() {
 
   const [createName, setCreateName] = useState('');
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
+  const [toast, setToast] = useState<AgentConsoleToast | null>(null);
   const [tokenVisible, setTokenVisible] = useState(false);
   const [logs, setLogs] = useState<ActionLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
@@ -43,6 +50,7 @@ export function AgentConsolePage() {
   const [avatarRefreshKey, setAvatarRefreshKey] = useState<Record<string, number>>({});
   const [locationPickerOpen, setLocationPickerOpen] = useState(false);
   const [managedAgentId, setManagedAgentId] = useState<string | null>(null);
+  const showToast = (text: string, tone: AgentConsoleToastTone) => setToast({ text, tone });
   const builtinLocationOptions = useMemo(() => (
     enabledLocationPages.map((location) => ({
       id: location.locationId,
@@ -136,7 +144,7 @@ export function AgentConsolePage() {
         setStoredAllowedLocationIds(locations);
       })
       .catch((err) => {
-        setMessage(err instanceof Error ? err.message : t('dashboard:agents.fetchLocationsFailure'));
+        showToast(err instanceof Error ? err.message : t('dashboard:agents.fetchLocationsFailure'), 'error');
       });
 
     setLogsLoading(true);
@@ -145,7 +153,7 @@ export function AgentConsolePage() {
         setLogs(res.logs);
       })
       .catch((err) => {
-        setMessage(err instanceof Error ? err.message : t('dashboard:agents.fetchLogsFailure'));
+        showToast(err instanceof Error ? err.message : t('dashboard:agents.fetchLogsFailure'), 'error');
       })
       .finally(() => {
         setLogsLoading(false);
@@ -168,14 +176,14 @@ export function AgentConsolePage() {
     if (!trimmed) return;
 
     setSaving(true);
-    setMessage('');
+    setToast(null);
     try {
       const next = await createAgent(trimmed);
       setCreateName('');
       setManagedAgentId(next.id);
-      setMessage(t('dashboard:agents.createSuccess', { name: next.name }));
+      showToast(t('dashboard:agents.createSuccess', { name: next.name }), 'success');
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : t('dashboard:agents.createFailure'));
+      showToast(err instanceof Error ? err.message : t('dashboard:agents.createFailure'), 'error');
     } finally {
       setSaving(false);
     }
@@ -184,7 +192,7 @@ export function AgentConsolePage() {
   const onSaveSettings = async () => {
     if (!managedAgentId) return;
     setSaving(true);
-    setMessage('');
+    setToast(null);
     try {
       const nextFields: { name?: string; description?: string; trustMode?: 'confirm' | 'full' } = {
         name: name.trim(),
@@ -194,9 +202,9 @@ export function AgentConsolePage() {
         nextFields.trustMode = trustMode;
       }
       await updateAgent(managedAgentId, nextFields);
-      setMessage(t('dashboard:agents.updateSuccess'));
+      showToast(t('dashboard:agents.updateSuccess'), 'success');
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : t('dashboard:agents.updateFailure'));
+      showToast(err instanceof Error ? err.message : t('dashboard:agents.updateFailure'), 'error');
     } finally {
       setSaving(false);
     }
@@ -205,11 +213,11 @@ export function AgentConsolePage() {
   const onSaveLocations = async () => {
     if (!managedAgentId) return;
     if (managedAgentIsShadow) {
-      setMessage(t('dashboard:agents.shadowNoLocationConfig'));
+      showToast(t('dashboard:agents.shadowNoLocationConfig'), 'info');
       return;
     }
     setSaving(true);
-    setMessage('');
+    setToast(null);
     try {
       const nextAllowedLocations = blockedLocationIds.length === 0
         ? []
@@ -220,9 +228,9 @@ export function AgentConsolePage() {
       setStoredAllowedLocationIds(nextAllowedLocations);
       setLocationSelectionDirty(false);
       setLocationPickerOpen(false);
-      setMessage(t('dashboard:agents.locationSaveSuccess'));
+      showToast(t('dashboard:agents.locationSaveSuccess'), 'success');
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : t('dashboard:agents.locationSaveFailure'));
+      showToast(err instanceof Error ? err.message : t('dashboard:agents.locationSaveFailure'), 'error');
     } finally {
       setSaving(false);
     }
@@ -240,18 +248,18 @@ export function AgentConsolePage() {
   const onDeleteAgent = async () => {
     if (!managedAgentId) return;
     if (managedAgentIsShadow) {
-      setMessage(t('dashboard:agents.deleteBlocked'));
+      showToast(t('dashboard:agents.deleteBlocked'), 'info');
       return;
     }
     if (!window.confirm(t('dashboard:agents.deleteConfirm'))) return;
 
     setSaving(true);
-    setMessage('');
+    setToast(null);
     try {
       await deleteAgent(managedAgentId);
-      setMessage(t('dashboard:agents.deleteSuccess'));
+      showToast(t('dashboard:agents.deleteSuccess'), 'success');
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : t('dashboard:agents.deleteFailure'));
+      showToast(err instanceof Error ? err.message : t('dashboard:agents.deleteFailure'), 'error');
     } finally {
       setSaving(false);
     }
@@ -260,7 +268,7 @@ export function AgentConsolePage() {
   const copyToken = async () => {
     if (!managedAgent?.token) return;
     await navigator.clipboard.writeText(managedAgent.token);
-    setMessage(t('dashboard:agents.tokenCopied'));
+    showToast(t('dashboard:agents.tokenCopied'), 'success');
   };
 
   const uploadAvatar = async (file: File | null) => {
@@ -271,17 +279,17 @@ export function AgentConsolePage() {
     avatarPreviewUrlsRef.current[managedAgentId] = localPreviewUrl;
     setAvatarRefreshKey((prev) => ({ ...prev, [managedAgentId]: Date.now() }));
     setSaving(true);
-    setMessage('');
+    setToast(null);
     try {
       await DashboardApi.uploadAgentAvatar(managedAgentId, file);
       await reloadAgents();
       setAvatarRefreshKey((prev) => ({ ...prev, [managedAgentId]: Date.now() }));
-      setMessage(t('dashboard:agents.uploadSuccess'));
+      showToast(t('dashboard:agents.uploadSuccess'), 'success');
     } catch (err) {
       URL.revokeObjectURL(localPreviewUrl);
       delete avatarPreviewUrlsRef.current[managedAgentId];
       setAvatarRefreshKey((prev) => ({ ...prev, [managedAgentId]: Date.now() }));
-      setMessage(err instanceof Error ? err.message : t('dashboard:agents.uploadFailure'));
+      showToast(err instanceof Error ? err.message : t('dashboard:agents.uploadFailure'), 'error');
     } finally {
       setSaving(false);
       if (avatarInputRef.current) avatarInputRef.current.value = '';
@@ -301,10 +309,38 @@ export function AgentConsolePage() {
   const blockedLocationSummary = blockedLocationIds.length === 0
     ? t('dashboard:agents.defaultAllowed')
     : t('dashboard:agents.blockedSummary', { count: blockedLocationIds.length });
+  const toastIcon = toast?.tone === 'error'
+    ? <AlertTriangle size={18} />
+    : toast?.tone === 'success'
+      ? <Check size={18} />
+      : <Info size={18} />;
 
   return (
     <div className="page-wrap main-grid agent-console-page">
       <section className="agent-console-shell">
+        {toast ? (
+          <div
+            className="agent-console-toast-stack"
+            aria-live={toast.tone === 'error' ? 'assertive' : 'polite'}
+            aria-atomic="true"
+          >
+            <section className={`agent-console-toast agent-console-toast--${toast.tone}`} role={toast.tone === 'error' ? 'alert' : 'status'}>
+              <span className="agent-console-toast__icon" aria-hidden="true">{toastIcon}</span>
+              <div className="agent-console-toast__copy">
+                <p>{toast.text}</p>
+              </div>
+              <button
+                type="button"
+                className="agent-console-toast__close"
+                aria-label={t('common:actions.close')}
+                onClick={() => setToast(null)}
+              >
+                <X size={14} />
+              </button>
+            </section>
+          </div>
+        ) : null}
+
         {managedAgent ? (
           <section className="card control-section selected-agent-banner">
             <div className="selected-agent-banner__main">
@@ -357,8 +393,6 @@ export function AgentConsolePage() {
             </div>
           </section>
         ) : null}
-
-        {message ? <div className="notice info agent-console-message">{message}</div> : null}
 
         <div className="console-grid agent-console-body">
           <aside className="card control-section agent-console-registry">
