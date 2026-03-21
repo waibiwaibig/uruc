@@ -54,6 +54,10 @@ export function isSystemdInstalled(): boolean {
   const serviceName = getServiceName();
   if (!hasSystemd()) return false;
   const result = exec('systemctl', ['status', serviceName]);
+  const combinedOutput = `${result.stdout}\n${result.stderr}`.toLowerCase();
+  if (combinedOutput.includes(`${serviceName}.service could not be found`)) {
+    return false;
+  }
   return result.status === 0 || result.stderr.includes(`${serviceName}.service`) || result.stdout.includes(`${serviceName}.service`);
 }
 

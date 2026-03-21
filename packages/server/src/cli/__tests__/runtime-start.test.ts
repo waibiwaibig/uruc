@@ -102,4 +102,31 @@ describe('startBackground', () => {
     expect(mocks.spawn).not.toHaveBeenCalled();
     expect(mocks.writeManagedProcess).not.toHaveBeenCalled();
   });
+
+  it('falls back to the cli-managed background runtime when the systemd unit is missing', async () => {
+    mocks.commandExists.mockReturnValue(true);
+    mocks.exec.mockReturnValue({
+      status: 4,
+      stdout: '',
+      stderr: 'Unit uruc.service could not be found.',
+    });
+
+    await expect(startBackground()).resolves.toBe('background');
+
+    expect(mocks.runOrThrow).not.toHaveBeenCalled();
+    expect(mocks.spawn).toHaveBeenCalledWith(
+      process.execPath,
+      ['dist/index.js'],
+      expect.objectContaining({
+        detached: true,
+        stdio: ['ignore', 11, 12],
+      }),
+    );
+    expect(mocks.writeManagedProcess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pid: 4242,
+        logPath: '/tmp/uruc.log',
+      }),
+    );
+  });
 });
