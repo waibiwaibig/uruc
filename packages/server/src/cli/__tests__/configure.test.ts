@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getUserRole: vi.fn(),
   adminExists: vi.fn(),
   createAdmin: vi.fn(),
+  findUserByEmail: vi.fn(),
   resetAdminPassword: vi.fn(),
   resolveAdminPasswordState: vi.fn(),
   hasFlag: vi.fn((args: string[], ...flags: string[]) => args.some((arg) => flags.includes(arg))),
@@ -102,6 +103,7 @@ vi.mock('../lib/admin.js', () => ({
   getUserRole: mocks.getUserRole,
   adminExists: mocks.adminExists,
   createAdmin: mocks.createAdmin,
+  findUserByEmail: mocks.findUserByEmail,
   resetAdminPassword: mocks.resetAdminPassword,
   resolveAdminPasswordState: mocks.resolveAdminPasswordState,
 }));
@@ -225,6 +227,7 @@ beforeEach(() => {
   mocks.getUserRole.mockResolvedValue(null);
   mocks.adminExists.mockResolvedValue(false);
   mocks.createAdmin.mockResolvedValue({ created: true });
+  mocks.findUserByEmail.mockResolvedValue(null);
   mocks.resolveAdminPasswordState.mockResolvedValue('match');
   mocks.promptConfirm.mockResolvedValue(false);
   mocks.ensureCityConfig.mockResolvedValue(undefined);
@@ -364,6 +367,41 @@ describe('configure command', () => {
       configPath: cityConfigPath,
       pluginStoreDir: '/tmp/custom-plugin-store',
     }));
+  });
+
+
+  it('quickstart asks for a new admin email when the current one is already owned by another user', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-configure-'));
+    tempDirs.push(tempRoot);
+    const cityConfigPath = path.join(tempRoot, 'uruc.city.json');
+    mocks.currentConfigureDefaults.mockReturnValue(makeCurrentDefaults(cityConfigPath));
+    mocks.findUserByEmail
+      .mockResolvedValueOnce({ id: 'user-1', username: 'existing-user', role: 'user' })
+      .mockResolvedValueOnce(null);
+    mocks.promptChoice
+      .mockResolvedValueOnce('en')
+      .mockResolvedValueOnce('quickstart')
+      .mockResolvedValueOnce('local')
+      .mockResolvedValueOnce('test')
+      .mockResolvedValueOnce('social-only')
+      .mockResolvedValueOnce('save');
+    mocks.promptInput
+      .mockResolvedValueOnce('admin')
+      .mockResolvedValueOnce('secret')
+      .mockResolvedValueOnce('admin@example.com')
+      .mockResolvedValueOnce('admin+fresh@example.com');
+
+    const { runConfigureCommand } = await import('../commands/configure.js');
+    await runConfigureCommand({ args: [], json: false });
+
+    expect(mocks.findUserByEmail).toHaveBeenNthCalledWith(1, 'admin@example.com', './data/uruc.local.db');
+    expect(mocks.findUserByEmail).toHaveBeenNthCalledWith(2, 'admin+fresh@example.com', './data/uruc.local.db');
+    expect(mocks.createAdmin).toHaveBeenCalledWith(
+      'admin',
+      'secret',
+      'admin+fresh@example.com',
+      './data/uruc.local.db',
+    );
   });
 
   it('offers service-aware actions when a systemd service is installed', async () => {

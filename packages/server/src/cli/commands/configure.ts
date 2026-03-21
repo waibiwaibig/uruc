@@ -5,6 +5,7 @@ import path from 'path';
 import {
   adminExists,
   createAdmin,
+  findUserByEmail,
   getUserRole,
   resolveAdminPasswordState,
   resetAdminPassword,
@@ -562,6 +563,20 @@ function pluginTogglePrompt(lang: UiLanguage, pluginId: BundledPluginId): string
   return `Enable bundled plugin ${BUNDLED_PLUGIN_LABELS[pluginId]}?`;
 }
 
+function adminEmailConflictMessage(
+  lang: UiLanguage,
+  email: string,
+  owner: { username: string; role: string },
+): string {
+  if (lang === 'zh-CN') {
+    return `管理员邮箱 ${email} 已被${owner.role === 'admin' ? '管理员' : '用户'} ${owner.username} 占用，请改用另一个邮箱。`;
+  }
+  if (lang === 'ko') {
+    return `관리자 이메일 ${email} 은 이미 ${owner.role === 'admin' ? '관리자' : '사용자'} ${owner.username} 가 사용 중입니다. 다른 이메일을 입력하세요.`;
+  }
+  return `Admin email ${email} already belongs to ${owner.role} ${owner.username}. Choose a different email.`;
+}
+
 async function choosePluginPreset(lang: UiLanguage, defaultPreset: ConfigurePluginPreset): Promise<ConfigurePluginPreset> {
   return await promptChoice(
     text(lang, 'pluginPresetPrompt'),
@@ -645,6 +660,7 @@ async function editSources(lang: UiLanguage, sources: CityPluginSource[]): Promi
 async function reconcileAdminAccount(
   answers: ConfigureAnswers,
   lang: UiLanguage,
+  acceptDefaults: boolean,
 ): Promise<{ action: 'create' | 'keep' | 'reset'; generatedPassword: boolean; answers: ConfigureAnswers }> {
   let generatedPassword = false;
 
@@ -653,6 +669,17 @@ async function reconcileAdminAccount(
     if (role && role !== 'admin') {
       printStatus('warn', text(lang, 'existingUserPrompt'));
       answers.adminUsername = await promptInput(text(lang, 'adminUserPrompt'), `${answers.adminUsername}-admin`);
+      continue;
+    }
+
+    const emailOwner = await findUserByEmail(answers.adminEmail, answers.dbPath);
+    if (emailOwner && emailOwner.username !== answers.adminUsername) {
+      const message = adminEmailConflictMessage(lang, answers.adminEmail, emailOwner);
+      if (acceptDefaults) {
+        throw new Error(message);
+      }
+      printStatus('warn', message);
+      answers.adminEmail = await promptInput(text(lang, 'adminEmailPrompt'), answers.adminEmail);
       continue;
     }
 
@@ -967,7 +994,7 @@ async function gatherAnswers(context: CommandContext): Promise<ConfigureResult> 
     }
   }
 
-  const adminResolution = await reconcileAdminAccount(answers, lang);
+  const adminResolution = await reconcileAdminAccount(answers, lang, acceptDefaults);
   return {
     answers: adminResolution.answers,
     adminAction: adminResolution.action,
@@ -980,11 +1007,16 @@ async function gatherAnswers(context: CommandContext): Promise<ConfigureResult> 
 async function applyAdminPlan(result: ConfigureResult): Promise<void> {
   if (result.adminAction === 'keep') return;
   if (result.adminAction === 'reset') {
-    await resetAdminPassword(result.answers.adminUsername, result.answers.adminPassword);
+    await resetAdminPassword(result.answers.adminUsername, result.answers.adminPassword, result.answers.dbPath);
     return;
   }
 
-  const created = await createAdmin(result.answers.adminUsername, result.answers.adminPassword, result.answers.adminEmail);
+  const created = await createAdmin(
+    result.answers.adminUsername,
+    result.answers.adminPassword,
+    result.answers.adminEmail,
+    result.answers.dbPath,
+  );
   if (!created.created) {
     throw new Error(created.reason ?? `Failed to create admin ${result.answers.adminUsername}`);
   }
@@ -1079,8 +1111,8 @@ export async function runConfigureCommand(context: CommandContext): Promise<void
     return;
   }
 
-  await persistConfiguration(result);
   await applyAdminPlan(result);
+  await persistConfiguration(result);
 
   const siteUrl = answers.baseUrl;
   const wsUrl = buildPublicWsUrl(siteUrl, answers.wsPort);

@@ -47,6 +47,21 @@ export async function seedAdmin(db: UrucDb) {
     return;
   }
 
+  const normalizedEmail = email.trim();
+  if (normalizedEmail) {
+    const [emailOwner] = await db.select({
+      id: schema.users.id,
+      username: schema.users.username,
+      role: schema.users.role,
+    }).from(schema.users).where(eq(schema.users.email, normalizedEmail));
+    if (emailOwner && emailOwner.username !== username) {
+      console.warn(
+        `⚠ ADMIN_EMAIL "${normalizedEmail}" already belongs to ${emailOwner.role} "${emailOwner.username}" — skipping admin seed.`,
+      );
+      return;
+    }
+  }
+
   const passwordHash = await bcrypt.hash(password, 10);
   await db.insert(schema.users).values({
     id: nanoid(), username, email, passwordHash,

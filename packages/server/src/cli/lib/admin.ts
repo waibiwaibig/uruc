@@ -27,6 +27,12 @@ export interface AdminAgentSummary {
   isOnline: boolean | null;
 }
 
+export interface AdminUserIdentity {
+  id: string;
+  username: string;
+  role: string;
+}
+
 function openDb(dbPath?: string): UrucDb {
   if (!dbPath) loadServerEnv();
   return createDb(resolveCliDbPath(dbPath));
@@ -38,6 +44,17 @@ function resolveCliDbPath(dbPath?: string): string | undefined {
 }
 
 type AdminUsersResult = Awaited<ReturnType<AdminService['getAllUsers']>>;
+
+async function findUserByEmailInDb(db: UrucDb, email: string): Promise<AdminUserIdentity | null> {
+  const normalizedEmail = email.trim();
+  if (!normalizedEmail) return null;
+  const [user] = await db.select({
+    id: schema.users.id,
+    username: schema.users.username,
+    role: schema.users.role,
+  }).from(schema.users).where(eq(schema.users.email, normalizedEmail));
+  return user ?? null;
+}
 
 export async function listAdmins(): Promise<AdminUserSummary[]> {
   const db = openDb();
@@ -51,10 +68,19 @@ export async function listAdmins(): Promise<AdminUserSummary[]> {
   }).from(schema.users).where(eq(schema.users.role, 'admin')).orderBy(asc(schema.users.username));
 }
 
-export async function createAdmin(username: string, password: string, email: string): Promise<{ created: boolean; reason?: string }> {
-  const db = openDb();
+export async function findUserByEmail(email: string, dbPath?: string): Promise<AdminUserIdentity | null> {
+  const db = openDb(dbPath);
+  return await findUserByEmailInDb(db, email);
+}
+
+export async function createAdmin(username: string, password: string, email: string, dbPath?: string): Promise<{ created: boolean; reason?: string }> {
+  const db = openDb(dbPath);
   const [existing] = await db.select().from(schema.users).where(eq(schema.users.username, username));
   if (existing) return { created: false, reason: '用户名已存在' };
+  const emailOwner = await findUserByEmailInDb(db, email);
+  if (emailOwner && emailOwner.username !== username) {
+    return { created: false, reason: `邮箱已被用户 ${emailOwner.username} 占用` };
+  }
   const passwordHash = await bcrypt.hash(password, 10);
   await db.insert(schema.users).values({
     id: nanoid(),
@@ -75,9 +101,9 @@ export async function promoteUser(target: string): Promise<{ id: string; usernam
   return { id: user.id, username: user.username };
 }
 
-export async function resetAdminPassword(target: string, password: string): Promise<{ id: string; username: string }> {
-  const db = openDb();
-  const user = await resolveUser(target);
+export async function resetAdminPassword(target: string, password: string, dbPath?: string): Promise<{ id: string; username: string }> {
+  const db = openDb(dbPath);
+  const user = await resolveUser(target, dbPath);
   const passwordHash = await bcrypt.hash(password, 10);
   await db.update(schema.users).set({ passwordHash }).where(eq(schema.users.id, user.id));
   return { id: user.id, username: user.username };
