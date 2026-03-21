@@ -5,6 +5,8 @@ import path from 'path';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
+import { ensureBetterSqlite3Ready } from './lib/uruc-bootstrap.mjs';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 const serverRoot = path.join(repoRoot, 'packages', 'server');
@@ -94,27 +96,12 @@ function probeBetterSqlite3() {
   return run(process.execPath, ['--input-type=module', '-e', script], repoRoot, 'pipe');
 }
 
-function ensureBetterSqlite3Ready() {
-  const probe = probeBetterSqlite3();
-  if (probe.status === 0) return;
-  console.log('[uruc] better-sqlite3 is not ready; rebuilding native module once.');
-  if (probe.stderr.trim()) {
-    console.log(`[uruc] probe detail: ${probe.stderr.trim()}`);
-  }
-  run('npm', ['rebuild', 'better-sqlite3', '--build-from-source']);
-  const finalProbe = probeBetterSqlite3();
-  if (finalProbe.status !== 0) {
-    console.error('[uruc] better-sqlite3 still failed after rebuild.');
-    if (finalProbe.stderr.trim()) {
-      console.error(finalProbe.stderr.trim());
-    }
-    process.exit(finalProbe.status || 1);
-  }
-}
-
 ensureNodeVersion();
 ensureDependencies();
-ensureBetterSqlite3Ready();
+ensureBetterSqlite3Ready({
+  probeBetterSqlite3,
+  runCommand: run,
+});
 
 if (cliNeedsBuild()) {
   run('npm', ['run', 'build', '--workspace=packages/server']);
