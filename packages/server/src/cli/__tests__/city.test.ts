@@ -91,7 +91,7 @@ describe('city runtime preparation', () => {
     expect(config.sources).toContainEqual(expect.objectContaining({
       id: 'official',
       type: 'npm',
-      registry: 'https://uruk.life/market/registry.json',
+      registry: 'https://uruk.life/uruchub/registry.json',
     }));
   });
 

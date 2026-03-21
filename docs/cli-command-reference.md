@@ -285,7 +285,7 @@ Important current details:
 
 - `plugin add <alias>` is a convenience command for the official marketplace source:
   - source id: `official`
-  - registry URL: `https://uruk.life/market/registry.json`
+  - registry URL: `https://uruk.life/uruchub/registry.json`
 - `plugin install <path>` stores the plugin as a local development override.
 - `plugin pack <path>` builds `frontend-dist/` into a temporary staged package and then runs `npm pack`.
 - `plugin update` skips plugins that are configured through `devOverridePath`.

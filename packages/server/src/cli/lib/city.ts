@@ -10,7 +10,7 @@ import type { BundledPluginId, BundledPluginState, ConfigurePluginPreset } from 
 export const DEFAULT_PLUGIN_PRESET: ConfigurePluginPreset = 'custom';
 export const DEFAULT_PLUGIN_STORE_DIR = '.uruc/plugins';
 export const OFFICIAL_PLUGIN_SOURCE_ID = 'official';
-export const OFFICIAL_PLUGIN_REGISTRY_URL = 'https://uruk.life/market/registry.json';
+export const OFFICIAL_PLUGIN_REGISTRY_URL = 'https://uruk.life/uruchub/registry.json';
 
 interface BundledPluginDescriptor {
   pluginId: BundledPluginId;

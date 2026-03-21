@@ -285,7 +285,7 @@ uruc help
 
 - `plugin add <alias>` 是官方 marketplace source 的便捷封装：
   - source id：`official`
-  - registry URL：`https://uruk.life/market/registry.json`
+  - registry URL：`https://uruk.life/uruchub/registry.json`
 - `plugin install <path>` 会把插件保存为本地开发覆盖路径。
 - `plugin pack <path>` 会先在临时 staging 包里构建 `frontend-dist/`，然后再执行 `npm pack`。
 - `plugin update` 会跳过通过 `devOverridePath` 配置的插件。
