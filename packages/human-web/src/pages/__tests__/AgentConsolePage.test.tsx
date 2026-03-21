@@ -147,4 +147,32 @@ describe('AgentConsolePage', () => {
     expect(container.textContent).not.toContain('dashboard:agents.sectionToken');
     expect(firstRegistryCard?.textContent).not.toContain('dashboard:agents.created');
   });
+
+  it('shows success feedback as a floating toast instead of an inline notice', async () => {
+    await renderPage();
+
+    const copyButton = [...container.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('common:actions.copyToken')) as HTMLButtonElement | undefined;
+
+    expect(copyButton).toBeTruthy();
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn(async () => undefined),
+      },
+    });
+
+    await act(async () => {
+      copyButton!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const toast = container.querySelector('.agent-console-toast');
+
+    expect(container.querySelector('.agent-console-message')).toBeNull();
+    expect(toast).not.toBeNull();
+    expect(toast?.getAttribute('role')).toBe('status');
+    expect(toast?.textContent).toContain('dashboard:agents.tokenCopied');
+  });
 });
