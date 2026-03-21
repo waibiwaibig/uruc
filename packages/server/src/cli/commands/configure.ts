@@ -117,8 +117,8 @@ const copy = {
     protocolPrompt: '对外分享时使用什么协议？',
     protocolHttp: 'HTTP（默认直接可用）',
     protocolHttps: 'HTTPS（需你自己接 TLS / 反向代理）',
-    httpPortPrompt: 'HTTP 端口',
-    wsPortPrompt: 'WebSocket 端口',
+    httpPortPrompt: 'HTTP 监听端口',
+    wsPortPrompt: 'WebSocket 监听端口',
     adminUserPrompt: '管理员用户名',
     adminPasswordPrompt: '管理员密码',
     adminEmailPrompt: '管理员邮箱',
@@ -214,8 +214,8 @@ const copy = {
     protocolPrompt: 'Which external protocol should people use?',
     protocolHttp: 'HTTP (works directly by default)',
     protocolHttps: 'HTTPS (you manage TLS / reverse proxy)',
-    httpPortPrompt: 'HTTP port',
-    wsPortPrompt: 'WebSocket port',
+    httpPortPrompt: 'HTTP listen port',
+    wsPortPrompt: 'WebSocket listen port',
     adminUserPrompt: 'Admin username',
     adminPasswordPrompt: 'Admin password',
     adminEmailPrompt: 'Admin email',
@@ -311,8 +311,8 @@ const copy = {
     protocolPrompt: '외부에서 어떤 프로토콜로 접속합니까?',
     protocolHttp: 'HTTP (기본적으로 바로 사용 가능)',
     protocolHttps: 'HTTPS (TLS / 리버스 프록시는 직접 관리)',
-    httpPortPrompt: 'HTTP 포트',
-    wsPortPrompt: 'WebSocket 포트',
+    httpPortPrompt: 'HTTP 리슨 포트',
+    wsPortPrompt: 'WebSocket 리슨 포트',
     adminUserPrompt: '관리자 사용자명',
     adminPasswordPrompt: '관리자 비밀번호',
     adminEmailPrompt: '관리자 이메일',
@@ -462,6 +462,32 @@ function safeHostFromBaseUrl(raw: string | undefined, fallback: string): string 
   } catch {
     return fallback;
   }
+}
+
+function resolveShareBaseUrl(
+  reachability: CityReachability,
+  siteProtocol: SiteProtocol,
+  publicHost: string,
+  httpPort: string,
+  currentBaseUrl: string | undefined,
+): string {
+  const fallbackBaseUrl = buildBaseUrl(siteProtocol, publicHost, httpPort);
+  if (reachability !== 'server' || !currentBaseUrl) {
+    return fallbackBaseUrl;
+  }
+
+  try {
+    const parsed = new URL(currentBaseUrl);
+    const currentHost = parsed.hostname.toLowerCase();
+    const nextHost = publicHost.toLowerCase();
+    if (parsed.protocol === `${siteProtocol}:` && currentHost === nextHost) {
+      return parsed.origin;
+    }
+  } catch {
+    return fallbackBaseUrl;
+  }
+
+  return fallbackBaseUrl;
 }
 
 function detectLanHost(): string {
@@ -887,7 +913,13 @@ async function gatherAnswers(context: CommandContext): Promise<ConfigureResult> 
     }
 
     answers.bindHost = defaultBindHost(answers.reachability);
-    answers.baseUrl = buildBaseUrl(answers.siteProtocol, answers.publicHost, answers.httpPort);
+    answers.baseUrl = resolveShareBaseUrl(
+      answers.reachability,
+      answers.siteProtocol,
+      answers.publicHost,
+      answers.httpPort,
+      currentBaseUrl,
+    );
     answers.allowRegister = mode === 'quickstart' ? runtimeDefaults.allowRegister : answers.allowRegister;
     answers.noindex = mode === 'quickstart' ? runtimeDefaults.noindex : answers.noindex;
     answers.allowedOrigins = mode === 'quickstart'

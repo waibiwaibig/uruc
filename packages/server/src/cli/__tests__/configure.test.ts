@@ -369,6 +369,42 @@ describe('configure command', () => {
     }));
   });
 
+  it('preserves an existing reverse-proxied https base url during quickstart reconfiguration', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-configure-'));
+    tempDirs.push(tempRoot);
+    const cityConfigPath = path.join(tempRoot, 'uruc.city.json');
+    mocks.parseEnvFile.mockReturnValue({
+      BASE_URL: 'https://app.uruk.life',
+      PORT: '3000',
+      WS_PORT: '3001',
+      URUC_CITY_REACHABILITY: 'server',
+      URUC_PURPOSE: 'production',
+    });
+    mocks.inferReachability.mockReturnValue('server');
+    mocks.currentConfigureDefaults.mockReturnValue({
+      ...makeCurrentDefaults(cityConfigPath),
+      reachability: 'server',
+      purpose: 'production',
+      bindHost: '0.0.0.0',
+      publicHost: 'app.uruk.life',
+      siteProtocol: 'https',
+      baseUrl: 'https://app.uruk.life',
+      adminPassword: 'secret-password',
+      allowRegister: true,
+      noindex: false,
+    });
+
+    const { runConfigureCommand } = await import('../commands/configure.js');
+    await runConfigureCommand({ args: ['--quickstart', '--accept-defaults'], json: false });
+
+    expect(mocks.configureAnswersToEnv).toHaveBeenCalledWith(expect.objectContaining({
+      baseUrl: 'https://app.uruk.life',
+      publicHost: 'app.uruk.life',
+      httpPort: '3000',
+      siteProtocol: 'https',
+    }));
+  });
+
 
   it('quickstart asks for a new admin email when the current one is already owned by another user', async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-configure-'));
