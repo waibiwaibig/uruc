@@ -120,8 +120,7 @@ function fieldLabel(lang: ConfigureAnswers['lang'], key: string): string {
 
 function presetLabel(preset: ConfigureAnswers['pluginPreset']): string {
   if (preset === 'empty-core') return 'empty-core';
-  if (preset === 'custom') return 'custom';
-  return 'social-only';
+  return 'custom';
 }
 
 function enabledBundledPlugins(answers: ConfigureAnswers): string {

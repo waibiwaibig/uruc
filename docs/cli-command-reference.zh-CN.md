@@ -72,6 +72,9 @@ uruc configure [--quickstart|--advanced] [--section <runtime|access|city|plugins
   - `PUBLIC_DIR`
   - `UPLOADS_DIR`
   - 城市级 `pluginStoreDir`
+- 当前 bundled 插件预设只有两种：
+  - `custom`：自动枚举 `packages/plugins` 下已提交的插件包，并逐个询问是否启用
+  - `empty-core`：关闭所有 bundled 插件
 - 流程结束时，CLI 可以选择只保存、前台启动或受管理后台启动。
 
 当前 section 范围：

@@ -21,22 +21,33 @@ const mocks = vi.hoisted(() => ({
   ensureCityConfig: vi.fn(),
   syncCityLock: vi.fn(),
   getBundledPluginPresetState: vi.fn((preset: string, current?: Record<string, boolean>) => {
+    const defaultState = {
+      'uruc.arcade': current?.['uruc.arcade'] ?? true,
+      'uruc.article-library': current?.['uruc.article-library'] ?? true,
+      'uruc.battlesnake': current?.['uruc.battlesnake'] ?? true,
+      'uruc.chess': current?.['uruc.chess'] ?? true,
+      'uruc.example': current?.['uruc.example'] ?? true,
+      'uruc.marketplace': current?.['uruc.marketplace'] ?? true,
+      'uruc.silent-hunt': current?.['uruc.silent-hunt'] ?? true,
+      'uruc.social': current?.['uruc.social'] ?? true,
+    };
     if (preset === 'empty-core') {
-      return {
-        'uruc.social': false,
-      };
+      return Object.fromEntries(Object.keys(defaultState).map((pluginId) => [pluginId, false]));
     }
     if (preset === 'custom') {
-      return {
-        'uruc.social': current?.['uruc.social'] ?? true,
-      };
+      return defaultState;
     }
-    return {
-      'uruc.social': true,
-    };
+    return defaultState;
   }),
   inferPluginPreset: vi.fn(() => 'custom'),
   detectBundledPluginState: vi.fn((config: any) => ({
+    'uruc.arcade': config.plugins?.['uruc.arcade']?.enabled ?? false,
+    'uruc.article-library': config.plugins?.['uruc.article-library']?.enabled ?? false,
+    'uruc.battlesnake': config.plugins?.['uruc.battlesnake']?.enabled ?? false,
+    'uruc.chess': config.plugins?.['uruc.chess']?.enabled ?? false,
+    'uruc.example': config.plugins?.['uruc.example']?.enabled ?? false,
+    'uruc.marketplace': config.plugins?.['uruc.marketplace']?.enabled ?? false,
+    'uruc.silent-hunt': config.plugins?.['uruc.silent-hunt']?.enabled ?? false,
     'uruc.social': config.plugins?.['uruc.social']?.enabled ?? false,
   })),
   rebaseCityConfigPaths: vi.fn((config: any) => config),
@@ -73,11 +84,9 @@ const mocks = vi.hoisted(() => ({
     googleClientSecret: '',
     githubClientId: '',
     githubClientSecret: '',
-    pluginPreset: 'social-only',
+    pluginPreset: 'custom',
     pluginStoreDir: '.uruc/plugins',
-    bundledPluginState: {
-      'uruc.social': true,
-    },
+    bundledPluginState: mocks.getBundledPluginPresetState('custom'),
   })),
   defaultBindHost: vi.fn((reachability: string) => (reachability === 'local' ? '127.0.0.1' : '0.0.0.0')),
   rememberConfiguration: vi.fn(),
@@ -114,7 +123,17 @@ vi.mock('../lib/argv.js', () => ({
 }));
 
 vi.mock('../lib/city.js', () => ({
-  DEFAULT_PLUGIN_PRESET: 'social-only',
+  BUNDLED_PLUGINS: [
+    { pluginId: 'uruc.arcade', packageName: '@uruc/plugin-arcade', packageDir: 'arcade', label: 'Arcade' },
+    { pluginId: 'uruc.article-library', packageName: '@uruc/plugin-article-library', packageDir: 'article-library', label: 'Article Library' },
+    { pluginId: 'uruc.battlesnake', packageName: '@uruc/plugin-battlesnake', packageDir: 'battlesnake', label: 'Battlesnake' },
+    { pluginId: 'uruc.chess', packageName: '@uruc/plugin-chess', packageDir: 'chess', label: 'Chess' },
+    { pluginId: 'uruc.example', packageName: '@uruc/plugin-example-venue', packageDir: 'example-venue', label: 'Example Venue' },
+    { pluginId: 'uruc.marketplace', packageName: '@uruc/plugin-marketplace', packageDir: 'marketplace', label: 'Marketplace' },
+    { pluginId: 'uruc.silent-hunt', packageName: '@uruc/plugin-silent-hunt', packageDir: 'silent-hunt', label: 'Silent Hunt' },
+    { pluginId: 'uruc.social', packageName: '@uruc/plugin-social', packageDir: 'social', label: 'Social' },
+  ],
+  DEFAULT_PLUGIN_PRESET: 'custom',
   DEFAULT_PLUGIN_STORE_DIR: '.uruc/plugins',
   ensureCityConfig: mocks.ensureCityConfig,
   syncCityLock: mocks.syncCityLock,
@@ -213,11 +232,9 @@ function makeCurrentDefaults(cityConfigPath: string) {
     googleClientSecret: '',
     githubClientId: '',
     githubClientSecret: '',
-    pluginPreset: 'social-only',
+    pluginPreset: 'custom',
     pluginStoreDir: '.uruc/plugins',
-    bundledPluginState: {
-      'uruc.social': true,
-    },
+    bundledPluginState: mocks.getBundledPluginPresetState('custom'),
   };
 }
 
@@ -253,7 +270,7 @@ describe('configure command', () => {
       .mockResolvedValueOnce('quickstart')
       .mockResolvedValueOnce('local')
       .mockResolvedValueOnce('test')
-      .mockResolvedValueOnce('social-only')
+      .mockResolvedValueOnce('custom')
       .mockResolvedValueOnce('save');
     mocks.promptInput
       .mockResolvedValueOnce('admin')
@@ -266,7 +283,7 @@ describe('configure command', () => {
     expect(mocks.writeEnvFile).toHaveBeenCalledTimes(1);
     expect(mocks.ensureCityConfig).toHaveBeenCalledWith(expect.objectContaining({
       configPath: cityConfigPath,
-      preset: 'social-only',
+      preset: 'custom',
       pluginStoreDir: '.uruc/plugins',
       createIfMissing: true,
       mutateExisting: true,
@@ -308,9 +325,9 @@ describe('configure command', () => {
 
     expect(mocks.ensureCityConfig).toHaveBeenCalledWith(expect.objectContaining({
       configPath: cityConfigPath,
-      pluginState: {
+      pluginState: expect.objectContaining({
         'uruc.social': true,
-      },
+      }),
     }));
   });
 
@@ -347,7 +364,7 @@ describe('configure command', () => {
       .mockResolvedValueOnce('en')
       .mockResolvedValueOnce('local')
       .mockResolvedValueOnce('test')
-      .mockResolvedValueOnce('social-only')
+      .mockResolvedValueOnce('custom')
       .mockResolvedValueOnce('save');
     mocks.promptInput
       .mockResolvedValueOnce('')
@@ -419,7 +436,7 @@ describe('configure command', () => {
       .mockResolvedValueOnce('quickstart')
       .mockResolvedValueOnce('local')
       .mockResolvedValueOnce('test')
-      .mockResolvedValueOnce('social-only')
+      .mockResolvedValueOnce('custom')
       .mockResolvedValueOnce('save');
     mocks.promptInput
       .mockResolvedValueOnce('admin')
@@ -452,7 +469,7 @@ describe('configure command', () => {
       .mockResolvedValueOnce('quickstart')
       .mockResolvedValueOnce('local')
       .mockResolvedValueOnce('test')
-      .mockResolvedValueOnce('social-only')
+      .mockResolvedValueOnce('custom')
       .mockResolvedValueOnce('start-managed');
     mocks.promptInput
       .mockResolvedValueOnce('admin')
@@ -490,7 +507,7 @@ describe('configure command', () => {
       .mockResolvedValueOnce('quickstart')
       .mockResolvedValueOnce('local')
       .mockResolvedValueOnce('test')
-      .mockResolvedValueOnce('social-only')
+      .mockResolvedValueOnce('custom')
       .mockResolvedValueOnce('start-managed');
     mocks.promptInput
       .mockResolvedValueOnce('admin')

@@ -36,10 +36,10 @@ Uruc 的出发点很直接：今天互联网上的大多数工具，本质上仍
 
 这里有两个需要分开的事实：
 
-- 仓库里当前内置并维护的插件包是 [`packages/plugins/social`](../packages/plugins/social)。
-- 当前已提交的城市配置 [`packages/server/uruc.city.json`](../packages/server/uruc.city.json) 里，同时启用了 `uruc.social` 和 `uruc.chess`。
+- 仓库当前在 [`packages/plugins`](../packages/plugins) 下提交了多份本地插件包。
+- 当前已提交的城市配置 [`packages/server/uruc.city.json`](../packages/server/uruc.city.json) 里，实际启用了 `uruc.social`。
 
-这两件事相关，但并不等价。`uruc.social` 是这个仓库内置的插件包；`uruc.chess` 则是通过城市配置中声明的 `official` source 载入的插件。生成后的城市锁文件 [`packages/server/uruc.city.lock.json`](../packages/server/uruc.city.lock.json) 会把运行时实际启动的插件 revision 固定下来。
+这两件事相关，但并不等价。仓库内容决定了 `uruc configure` 在 `custom` 预设下会自动枚举哪些本地 bundled 插件；生成后的城市锁文件 [`packages/server/uruc.city.lock.json`](../packages/server/uruc.city.lock.json) 则会把运行时真正启动的插件 revision 固定下来。
 
 换句话说，仓库里 `packages/plugins` 下有什么，与某一座城市当前真正启用了什么，是两个不同层面。城市最终由 config 和 lock 定义，而不只由仓库里有哪些目录决定。
 

@@ -12,6 +12,7 @@ import {
 } from '../lib/admin.js';
 import { hasFlag, readOption } from '../lib/argv.js';
 import {
+  BUNDLED_PLUGINS,
   DEFAULT_PLUGIN_PRESET,
   DEFAULT_PLUGIN_STORE_DIR,
   detectBundledPluginState,
@@ -79,8 +80,8 @@ interface ConfigureResult {
 const packageRoot = getPackageRoot();
 
 const BUNDLED_PLUGIN_LABELS: Record<BundledPluginId, string> = {
-  'uruc.social': 'Social',
-};
+  ...Object.fromEntries(BUNDLED_PLUGINS.map((plugin) => [plugin.pluginId, plugin.label])),
+} as Record<BundledPluginId, string>;
 
 const copy = {
   'zh-CN': {
@@ -142,12 +143,10 @@ const copy = {
     githubIdPrompt: 'GitHub Client ID',
     githubSecretPrompt: 'GitHub Client Secret',
     pluginPresetPrompt: '这座城市想用哪套插件预设？',
-    presetSocial: 'social-only',
-    presetSocialDesc: '启用内置 social 插件',
     presetEmpty: 'empty-core',
     presetEmptyDesc: '只启动主城核心，不启用任何 bundled 插件',
     presetCustom: 'custom',
-    presetCustomDesc: '手动决定是否启用内置 social 插件',
+    presetCustomDesc: '自动枚举仓库内的 bundled 插件，并逐个确认启用状态',
     editSourcesPrompt: '是否顺手调整插件 source？',
     sourceActionPrompt: '要怎么处理当前 source？',
     sourceAdd: '添加 source',
@@ -239,12 +238,10 @@ const copy = {
     githubIdPrompt: 'GitHub Client ID',
     githubSecretPrompt: 'GitHub Client Secret',
     pluginPresetPrompt: 'Which bundled plugin preset should this city use?',
-    presetSocial: 'social-only',
-    presetSocialDesc: 'Enable the bundled social plugin',
     presetEmpty: 'empty-core',
     presetEmptyDesc: 'Run only the city core with no bundled plugins enabled',
     presetCustom: 'custom',
-    presetCustomDesc: 'Choose whether to enable the bundled social plugin',
+    presetCustomDesc: 'Auto-discover bundled plugins from this repo and confirm them one by one',
     editSourcesPrompt: 'Adjust plugin sources while we are here?',
     sourceActionPrompt: 'How should Uruc update the current sources?',
     sourceAdd: 'Add source',
@@ -336,12 +333,10 @@ const copy = {
     githubIdPrompt: 'GitHub Client ID',
     githubSecretPrompt: 'GitHub Client Secret',
     pluginPresetPrompt: '이 도시는 어떤 bundled 플러그인 프리셋을 사용할까요?',
-    presetSocial: 'social-only',
-    presetSocialDesc: '내장 social 플러그인을 활성화',
     presetEmpty: 'empty-core',
     presetEmptyDesc: 'bundled 플러그인 없이 도시 코어만 실행',
     presetCustom: 'custom',
-    presetCustomDesc: '내장 social 플러그인 활성화를 직접 선택',
+    presetCustomDesc: '이 저장소의 bundled 플러그인을 자동으로 열거하고 하나씩 활성화 여부를 확인',
     editSourcesPrompt: '이 자리에서 plugin source 도 조정할까요?',
     sourceActionPrompt: '현재 source 를 어떻게 처리할까요?',
     sourceAdd: 'source 추가',
@@ -613,7 +608,6 @@ async function choosePluginPreset(lang: UiLanguage, defaultPreset: ConfigurePlug
   return await promptChoice(
     text(lang, 'pluginPresetPrompt'),
     [
-      { value: 'social-only', label: text(lang, 'presetSocial'), description: text(lang, 'presetSocialDesc') },
       { value: 'empty-core', label: text(lang, 'presetEmpty'), description: text(lang, 'presetEmptyDesc') },
       { value: 'custom', label: text(lang, 'presetCustom'), description: text(lang, 'presetCustomDesc') },
     ],
@@ -623,9 +617,14 @@ async function choosePluginPreset(lang: UiLanguage, defaultPreset: ConfigurePlug
 }
 
 async function chooseCustomBundledPlugins(lang: UiLanguage, defaults: BundledPluginState): Promise<BundledPluginState> {
-  return {
-    'uruc.social': await promptConfirm(pluginTogglePrompt(lang, 'uruc.social'), defaults['uruc.social'], lang),
-  };
+  const entries: Array<[BundledPluginId, boolean]> = [];
+  for (const plugin of BUNDLED_PLUGINS) {
+    entries.push([
+      plugin.pluginId,
+      await promptConfirm(pluginTogglePrompt(lang, plugin.pluginId), defaults[plugin.pluginId], lang),
+    ]);
+  }
+  return Object.fromEntries(entries);
 }
 
 async function editSources(lang: UiLanguage, sources: CityPluginSource[]): Promise<CityPluginSource[]> {

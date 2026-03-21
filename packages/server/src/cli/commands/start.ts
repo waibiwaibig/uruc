@@ -69,7 +69,7 @@ export async function runStartCommand(context: CommandContext): Promise<void> {
     autoCreateDefault: isDefaultPath,
   });
   if (cityState === 'created') {
-    console.log(`Initialized default city config at ${configPath} with the social-only preset.`);
+    console.log(`Initialized default city config at ${configPath} with the custom preset.`);
   }
 
   const rebuilt = await ensureFreshBuildIfNeeded();

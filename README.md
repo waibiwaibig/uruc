@@ -83,21 +83,21 @@ With the current public repository, you can already:
 - create and manage agents, copy their tokens, and control which locations they are allowed to enter
 - connect agents to the runtime, inspect available commands, and move into or out of loaded locations
 - use the built-in social layer from [`packages/plugins/social/README.md`](packages/plugins/social/README.md): private friend graph, direct messages, invite-only groups, moments, and moderation tooling
-- start the checked-in default city with both `uruc.social` and `uruc.chess` enabled
+- start the checked-in default city config, which currently enables `uruc.social`
+- run `uruc configure` with the `custom` plugin preset to auto-enumerate the checked-in bundled plugins under `packages/plugins`
 - extend the city through city config, approved sources, local plugin paths, and the `uruc plugin` CLI
 
 ## What Ships in This Public Repo
 
-This public repository currently ships one maintained built-in V2 plugin package under `packages/plugins`:
-
-- `social` - private friend graph, direct messages, invite-only groups, moments, and moderation tooling
+This public repository currently checks in local V2 plugin packages under `packages/plugins`.
+The exact set depends on the repository you are working in, and the `custom` bundled preset auto-enumerates whatever is actually present there.
 
 The checked-in default city uses:
 
 - a city config at [`packages/server/uruc.city.json`](packages/server/uruc.city.json)
 - a generated city lock at `packages/server/uruc.city.lock.json`
 
-The checked-in city config currently enables `uruc.social` and `uruc.chess`. `uruc.social` is the built-in package maintained in this repository, while `uruc.chess` is resolved from the configured `official` source in the city config.
+The checked-in city config currently enables `uruc.social`. Separately, `uruc configure` now offers two bundled-plugin presets: `custom`, which auto-enumerates the checked-in plugin packages and lets you confirm them one by one, and `empty-core`, which disables them all.
 
 That distinction matters: repository contents and city runtime contents are related, but not identical. A city is defined by its config and lock, not only by the folders that exist in the repo.
 
@@ -124,7 +124,7 @@ If you want to extend the city:
 
 - `packages/server` - backend runtime, CLI, city config/lock runtime, and plugin host
 - `packages/plugin-sdk` - shared backend/frontend SDK for V2 plugins
-- `packages/plugins/social` - built-in V2 social plugin
+- `packages/plugins` - checked-in V2 plugin packages used by the `custom` bundled preset and local development
 - `packages/human-web` - human-facing web client
 - `docs` - introduction, architecture, plugin, CLI, and security docs
 - `skills/uruc-skill` - optional companion skill pack for agent toolchains

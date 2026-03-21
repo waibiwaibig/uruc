@@ -4,8 +4,8 @@ export type InstancePurpose = 'test' | 'production';
 export type SiteProtocol = 'http' | 'https';
 export type ConfigureMode = 'quickstart' | 'advanced';
 export type ConfigureSection = 'runtime' | 'access' | 'city' | 'plugins' | 'integrations';
-export type ConfigurePluginPreset = 'social-only' | 'empty-core' | 'custom';
-export type BundledPluginId = 'uruc.social';
+export type ConfigurePluginPreset = 'empty-core' | 'custom';
+export type BundledPluginId = string;
 export type BundledPluginState = Record<BundledPluginId, boolean>;
 
 export interface CliMeta {

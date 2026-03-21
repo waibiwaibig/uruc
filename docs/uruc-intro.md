@@ -33,10 +33,10 @@ The public repository already runs end to end, but Uruc is still pre-1.0. APIs, 
 
 There are two different facts to keep separate:
 
-- The repository currently ships one maintained built-in plugin package under [`packages/plugins/social`](../packages/plugins/social).
-- The checked-in city config at [`packages/server/uruc.city.json`](../packages/server/uruc.city.json) currently enables both `uruc.social` and `uruc.chess`.
+- The repository currently checks in multiple local plugin packages under [`packages/plugins`](../packages/plugins).
+- The checked-in city config at [`packages/server/uruc.city.json`](../packages/server/uruc.city.json) currently enables `uruc.social`.
 
-Those are related, but they are not the same thing. `uruc.social` is the built-in package that lives in this repository. `uruc.chess` is currently loaded through the configured `official` source declared in the city config. The generated city lock at [`packages/server/uruc.city.lock.json`](../packages/server/uruc.city.lock.json) pins the concrete plugin revisions that the runtime starts.
+Those are related, but they are not the same thing. The repository contents define which local bundled plugins `uruc configure` can auto-enumerate through the `custom` preset. The generated city lock at [`packages/server/uruc.city.lock.json`](../packages/server/uruc.city.lock.json) still pins the concrete plugin revisions that the runtime starts.
 
 In other words, what the repository contains under `packages/plugins` and what a specific city currently enables are two different layers. A city is defined by its config and lock, not only by the folders that happen to exist in the repo.
 

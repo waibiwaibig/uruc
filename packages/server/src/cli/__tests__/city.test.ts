@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'fs/promises';
 import os from 'os';
 import path from 'path';
 
@@ -15,15 +15,33 @@ import { getPackageRoot } from '../../runtime-paths.js';
 
 const tempDirs: string[] = [];
 
+async function expectedBundledPluginIdsFromRepo(): Promise<string[]> {
+  const pluginsRoot = path.resolve(getPackageRoot(), '..', 'plugins');
+  const entries = await readdir(pluginsRoot, { withFileTypes: true });
+  const pluginIds: string[] = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const manifestPath = path.join(pluginsRoot, entry.name, 'package.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as { urucPlugin?: { pluginId?: string } };
+    if (manifest.urucPlugin?.pluginId) {
+      pluginIds.push(manifest.urucPlugin.pluginId);
+    }
+  }
+
+  return pluginIds.sort();
+}
+
 afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
 describe('city runtime preparation', () => {
-  it('writes the social-only bundled plugin state into a new city config', async () => {
+  it('writes the custom bundled plugin state into a new city config', async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-city-'));
     tempDirs.push(tempRoot);
     const cityConfigPath = path.join(tempRoot, 'uruc.city.json');
+    const expectedBundledPluginIds = await expectedBundledPluginIdsFromRepo();
 
     const config = await ensureCityConfig({
       configPath: cityConfigPath,
@@ -32,8 +50,30 @@ describe('city runtime preparation', () => {
       pluginStoreDir: DEFAULT_PLUGIN_STORE_DIR,
     });
 
-    expect(config.plugins['uruc.social']?.enabled).toBe(true);
-    expect(config.plugins['uruc.social']?.devOverridePath).toContain('plugins/social');
+    expect(Object.keys(config.plugins).sort()).toEqual(expectedBundledPluginIds);
+    for (const pluginId of expectedBundledPluginIds) {
+      expect(config.plugins[pluginId]?.enabled).toBe(true);
+      expect(config.plugins[pluginId]?.devOverridePath).toContain('plugins/');
+    }
+  });
+
+  it('writes the empty-core preset with all bundled plugins disabled', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-city-'));
+    tempDirs.push(tempRoot);
+    const cityConfigPath = path.join(tempRoot, 'uruc.city.json');
+    const expectedBundledPluginIds = await expectedBundledPluginIdsFromRepo();
+
+    const config = await ensureCityConfig({
+      configPath: cityConfigPath,
+      packageRoot: getPackageRoot(),
+      preset: 'empty-core',
+      pluginStoreDir: DEFAULT_PLUGIN_STORE_DIR,
+    });
+
+    expect(Object.keys(config.plugins).sort()).toEqual(expectedBundledPluginIds);
+    for (const pluginId of expectedBundledPluginIds) {
+      expect(config.plugins[pluginId]?.enabled).toBe(false);
+    }
   });
 
   it('writes the official marketplace source into a fresh city config', async () => {
@@ -61,6 +101,7 @@ describe('city runtime preparation', () => {
     const cityConfigPath = path.join(tempRoot, 'uruc.city.json');
     const cityLockPath = path.join(tempRoot, 'uruc.city.lock.json');
     const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+    const expectedBundledPluginIds = await expectedBundledPluginIdsFromRepo();
 
     const result = await prepareCityRuntime({
       configPath: cityConfigPath,
@@ -76,8 +117,10 @@ describe('city runtime preparation', () => {
     const rawLock = JSON.parse(await readFile(cityLockPath, 'utf8')) as { plugins: Record<string, { revision: string }> };
 
     expect(result).toBe('created');
-    expect(config.plugins['uruc.social']?.enabled).toBe(true);
-    expect(lock.plugins['uruc.social']?.enabled).toBe(true);
-    expect(rawLock.plugins['uruc.social']?.revision).toBeTruthy();
+    for (const pluginId of expectedBundledPluginIds) {
+      expect(config.plugins[pluginId]?.enabled).toBe(true);
+      expect(lock.plugins[pluginId]?.enabled).toBe(true);
+      expect(rawLock.plugins[pluginId]?.revision).toBeTruthy();
+    }
   });
 });

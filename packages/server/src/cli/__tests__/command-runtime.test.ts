@@ -32,7 +32,7 @@ vi.mock('../lib/env.js', () => ({
 }));
 
 vi.mock('../lib/city.js', () => ({
-  DEFAULT_PLUGIN_PRESET: 'social-only',
+  DEFAULT_PLUGIN_PRESET: 'custom',
   prepareCityRuntime: mocks.prepareCityRuntime,
 }));
 
@@ -82,7 +82,7 @@ describe('CLI runtime command messaging', () => {
     await runStartCommand({ args: [], json: false });
 
     expect(mocks.prepareCityRuntime).toHaveBeenCalledWith(expect.objectContaining({
-      defaultPreset: 'social-only',
+      defaultPreset: 'custom',
       autoCreateDefault: true,
     }));
     expect(log).toHaveBeenCalledWith(expect.stringContaining('Initialized default city config'));
@@ -141,7 +141,7 @@ describe('CLI runtime command messaging', () => {
     await runRestartCommand({ args: [], json: false });
 
     expect(mocks.prepareCityRuntime).toHaveBeenCalledWith(expect.objectContaining({
-      defaultPreset: 'social-only',
+      defaultPreset: 'custom',
       autoCreateDefault: true,
     }));
     expect(mocks.restartRuntime).toHaveBeenCalledTimes(1);

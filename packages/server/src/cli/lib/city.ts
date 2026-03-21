@@ -1,23 +1,74 @@
-import { existsSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import path from 'path';
 
 import { PluginPlatformHost } from '../../core/plugin-platform/host.js';
 import { EMPTY_CITY_CONFIG, readCityConfig, writeCityConfig } from '../../core/plugin-platform/config.js';
 import type { CityConfigFile, CityPluginSource } from '../../core/plugin-platform/types.js';
+import { getPackageRoot } from '../../runtime-paths.js';
 import type { BundledPluginId, BundledPluginState, ConfigurePluginPreset } from './types.js';
 
-export const DEFAULT_PLUGIN_PRESET: ConfigurePluginPreset = 'social-only';
+export const DEFAULT_PLUGIN_PRESET: ConfigurePluginPreset = 'custom';
 export const DEFAULT_PLUGIN_STORE_DIR = '.uruc/plugins';
 export const OFFICIAL_PLUGIN_SOURCE_ID = 'official';
 export const OFFICIAL_PLUGIN_REGISTRY_URL = 'https://uruk.life/market/registry.json';
 
-const BUNDLED_PLUGINS: Array<{
+interface BundledPluginDescriptor {
   pluginId: BundledPluginId;
   packageName: string;
   packageDir: string;
-}> = [
-  { pluginId: 'uruc.social', packageName: '@uruc/plugin-social', packageDir: 'social' },
-];
+  label: string;
+}
+
+function humanizePackageDir(packageDir: string): string {
+  return packageDir
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function discoverBundledPlugins(packageRoot: string): BundledPluginDescriptor[] {
+  const pluginsRoot = path.resolve(packageRoot, '..', 'plugins');
+  if (!existsSync(pluginsRoot)) {
+    return [];
+  }
+
+  return readdirSync(pluginsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) => {
+      const manifestPath = path.join(pluginsRoot, entry.name, 'package.json');
+      if (!existsSync(manifestPath)) {
+        return [];
+      }
+
+      try {
+        const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+          name?: unknown;
+          urucPlugin?: { pluginId?: unknown };
+        };
+        if (typeof manifest.name !== 'string' || typeof manifest.urucPlugin?.pluginId !== 'string') {
+          return [];
+        }
+
+        return [{
+          pluginId: manifest.urucPlugin.pluginId,
+          packageName: manifest.name,
+          packageDir: entry.name,
+          label: humanizePackageDir(entry.name),
+        }];
+      } catch {
+        return [];
+      }
+    })
+    .sort((left, right) => left.pluginId.localeCompare(right.pluginId));
+}
+
+export const BUNDLED_PLUGINS: Array<{
+  pluginId: BundledPluginId;
+  packageName: string;
+  packageDir: string;
+  label: string;
+}> = discoverBundledPlugins(getPackageRoot());
 
 function defaultBundledPluginConfig(pluginId: BundledPluginId, currentConfig?: Record<string, unknown>): Record<string, unknown> {
   return currentConfig ?? {};
@@ -77,33 +128,29 @@ export function getBundledPluginPresetState(
   preset: ConfigurePluginPreset,
   current?: Partial<BundledPluginState>,
 ): BundledPluginState {
+  const enabledByDefault = preset === 'custom';
+  const stateEntries = BUNDLED_PLUGINS.map((plugin) => [
+    plugin.pluginId,
+    current?.[plugin.pluginId] ?? enabledByDefault,
+  ] as const);
+
   if (preset === 'empty-core') {
-    return {
-      'uruc.social': false,
-    };
+    return Object.fromEntries(stateEntries.map(([pluginId]) => [pluginId, false]));
   }
 
-  if (preset === 'custom') {
-    return {
-      'uruc.social': current?.['uruc.social'] ?? true,
-    };
-  }
-
-  return {
-    'uruc.social': true,
-  };
+  return Object.fromEntries(stateEntries);
 }
 
 export function detectBundledPluginState(config: CityConfigFile): BundledPluginState {
-  return {
-    'uruc.social': config.plugins['uruc.social']?.enabled ?? false,
-  };
+  return Object.fromEntries(
+    BUNDLED_PLUGINS.map((plugin) => [plugin.pluginId, config.plugins[plugin.pluginId]?.enabled ?? false]),
+  );
 }
 
 export function inferPluginPreset(state: BundledPluginState): ConfigurePluginPreset {
-  const socialOnly = getBundledPluginPresetState('social-only');
+  const custom = getBundledPluginPresetState('custom');
   const empty = getBundledPluginPresetState('empty-core');
-  if (JSON.stringify(state) === JSON.stringify(socialOnly)) return 'social-only';
+  if (JSON.stringify(state) === JSON.stringify(custom)) return 'custom';
   if (JSON.stringify(state) === JSON.stringify(empty)) return 'empty-core';
   return 'custom';
 }
@@ -185,9 +232,11 @@ export async function ensureCityConfig(options: EnsureCityConfigOptions): Promis
   };
 
   if (!hasConfig || mutateExisting) {
-    const state = options.pluginState ?? getBundledPluginPresetState(
-      options.preset ?? DEFAULT_PLUGIN_PRESET,
-      detectBundledPluginState(base),
+    const defaultPreset = options.preset ?? DEFAULT_PLUGIN_PRESET;
+    const state = options.pluginState ?? (
+      hasConfig
+        ? getBundledPluginPresetState(defaultPreset, detectBundledPluginState(base))
+        : getBundledPluginPresetState(defaultPreset)
     );
     next = applyBundledPluginStateToConfig(
       options.configPath,

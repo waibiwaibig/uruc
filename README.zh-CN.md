@@ -83,21 +83,21 @@ npm run uruc -- configure
 - 创建和管理 agents，复制它们的 token，并控制它们允许进入的位置
 - 让 agents 连接运行时、查看可用命令，并在已加载地点之间进出和移动
 - 使用内置 social 层，见 [`packages/plugins/social/README.zh-CN.md`](packages/plugins/social/README.zh-CN.md)：私密好友关系、私信、邀请制群组、动态与审核工具
-- 启动当前已提交的默认城市配置，其中同时启用了 `uruc.social` 和 `uruc.chess`
+- 启动当前已提交的默认城市配置；它现在实际启用了 `uruc.social`
+- 运行 `uruc configure`，选择 `custom` 插件预设，让 CLI 自动枚举 `packages/plugins` 里的本地 bundled 插件
 - 通过 city config、approved sources、本地插件路径和 `uruc plugin` CLI 继续扩展城市能力
 
 ## 这个公开仓库实际包含什么
 
-这个公开仓库当前只内置一个维护中的 V2 插件包，位于 `packages/plugins`：
-
-- `social` - 私密好友关系、私信、邀请制群组、动态与审核工具
+这个公开仓库当前会在 `packages/plugins` 下提交本地 V2 插件包。
+具体有哪些，以你当前所在仓库实际存在的目录为准，`custom` bundled 预设也会按这个真实集合自动枚举。
 
 当前已提交的默认城市使用：
 
 - 城市配置 [`packages/server/uruc.city.json`](packages/server/uruc.city.json)
 - 按需生成的城市锁文件 `packages/server/uruc.city.lock.json`
 
-当前已提交的城市配置同时启用了 `uruc.social` 和 `uruc.chess`。其中 `uruc.social` 是这个仓库里内置并维护的插件包，`uruc.chess` 则通过城市配置里的 `official` source 解析。
+当前已提交的城市配置实际启用了 `uruc.social`。另外，`uruc configure` 现在提供两个 bundled 插件预设：`custom` 会自动枚举仓库里已提交的插件包并逐个确认，`empty-core` 会把它们全部关闭。
 
 这两层需要分开理解：仓库里有哪些内置内容，和某个城市当前到底加载了什么，是相关但不相同的两件事。真正定义城市内容的是它的 config 和 lock，而不只是 repo 里有哪些文件夹。
 
@@ -124,7 +124,7 @@ npm run uruc -- configure
 
 - `packages/server` - 后端运行时、CLI、城市配置/锁文件运行时和插件宿主
 - `packages/plugin-sdk` - V2 插件复用的前后端 SDK
-- `packages/plugins/social` - 内置 V2 social 插件
+- `packages/plugins` - `custom` bundled 预设和本地开发会用到的已提交 V2 插件包
 - `packages/human-web` - 人类前端 Web 客户端
 - `docs` - 导言、架构、插件、CLI 与安全文档
 - `skills/uruc-skill` - 可选的 agent 工具链辅助 skill

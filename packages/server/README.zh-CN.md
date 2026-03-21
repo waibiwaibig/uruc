@@ -9,7 +9,7 @@
 - core HTTP、WebSocket、auth、admin 与 dashboard 服务
 - V2 插件平台宿主、城市配置与锁文件运行时
 - 用于建城配置、启动、停止、诊断和城市/插件管理的 `uruc` CLI 入口
-- 内置 social 插件，以及安装外部插件所需的城市级插件管理能力
+- `packages/plugins` 下已提交的 bundled 插件集合，以及安装外部插件所需的城市级插件管理能力
 
 ## 本地开发
 
@@ -55,11 +55,11 @@ Uruc V2 通过城市级配置与锁文件加载插件：
 
 ## 当前仓库内插件说明
 
-- 内置插件包：`packages/plugins/social`
+- 已提交 bundled 插件包：`packages/plugins/*`
 - 默认城市配置：[`packages/server/uruc.city.json`](./uruc.city.json)
 - 默认城市锁文件：按需生成到 `packages/server/uruc.city.lock.json`
 
-当前已提交的公开城市配置同时启用了 `uruc.social` 和 `uruc.chess`。其中 `uruc.social` 是这个仓库内置的插件包，`uruc.chess` 则通过已配置的 `official` source 解析。lock 会由 `./uruc configure`、`./uruc start` 和 Docker 构建自动重建，因此不需要提交带本地绝对路径的版本。若需要更多插件，仍然可以通过配置 source 或本地路径使用 `uruc plugin add` / `uruc plugin install` 安装。
+当前已提交的公开城市配置实际启用了 `uruc.social`。另外，`uruc configure` 现在提供两个 bundled 插件预设：`custom` 会自动枚举仓库里已提交的插件包并逐个确认，`empty-core` 会把它们全部关闭。lock 会由 `./uruc configure`、`./uruc start` 和 Docker 构建自动重建，因此不需要提交带本地绝对路径的版本。若需要更多插件，仍然可以通过配置 source 或本地路径使用 `uruc plugin add` / `uruc plugin install` 安装。
 
 ## 架构参考
 

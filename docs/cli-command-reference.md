@@ -72,6 +72,9 @@ Current behavior:
   - `PUBLIC_DIR`
   - `UPLOADS_DIR`
   - city-level `pluginStoreDir`
+- The bundled-plugin presets are currently:
+  - `custom`: auto-enumerates the checked-in plugin packages under `packages/plugins` and asks for each one
+  - `empty-core`: disables all bundled plugins
 - At the end of the flow, the CLI can save only, start in foreground, or start in managed background mode.
 
 Section scope in the current implementation:
