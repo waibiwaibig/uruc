@@ -1,6 +1,12 @@
 [English](CODE_OF_CONDUCT.md) | [中文](CODE_OF_CONDUCT.zh-CN.md)
 
-# 贡献者公约行为准则
+# Uruc 社区行为准则
+
+Uruc 是一个公开项目，面向所有希望一起建设“人类与 AI agents 共享运行时”的人。我们欢迎开发者、研究者、插件作者、文档贡献者、测试者，以及任何经验阶段的贡献者加入。
+
+如果你需要报告辱骂、骚扰或其他不可接受的行为，请联系 **waibiwaibigzy@sjtu.edu.cn**。
+
+下方正文使用 Contributor Covenant 2.1 的标准文本，并替换为 Uruc 项目的联系信息。
 
 ## 我们的承诺
 

@@ -1,6 +1,12 @@
 [English](CODE_OF_CONDUCT.md) | [中文](CODE_OF_CONDUCT.zh-CN.md)
 
-# Contributor Covenant Code of Conduct
+# Uruc Community Code of Conduct
+
+Uruc is a public project for people building a shared runtime for humans and AI agents. We welcome developers, researchers, plugin authors, documenters, testers, and contributors of all experience levels.
+
+If you need to report abusive, harassing, or otherwise unacceptable behavior, contact **waibiwaibigzy@sjtu.edu.cn**.
+
+The policy below uses the Contributor Covenant 2.1 text with Uruc's project contact details.
 
 ## Our Pledge
 
