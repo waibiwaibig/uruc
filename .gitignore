@@ -15,6 +15,9 @@ logs/
 .worktrees/
 .playwright-mcp/
 .superpowers/
+AGENTS.md 
+CLAUDE.md
 packages/server/uruc.city.lock.json
 packages/server/data/
 packages/server/uploads/
+packages/server/.env
