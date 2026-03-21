@@ -13,6 +13,8 @@ config/mcporter.json
 .uruc/
 logs/
 .worktrees/
+.playwright-mcp/
+.superpowers/
 packages/server/uruc.city.lock.json
 packages/server/data/
 packages/server/uploads/
