@@ -41,7 +41,7 @@ test('ensureBetterSqlite3Ready shows a friendly rebuild notice without dumping t
   });
 
   assert.deepEqual(commands, [
-    ['npm', ['rebuild', 'better-sqlite3', '--build-from-source']],
+    ['npm', ['rebuild', 'better-sqlite3', '--build-from-source', '--ignore-scripts=false']],
   ]);
   assert.deepEqual(errors, []);
   assert.deepEqual(logs, [
