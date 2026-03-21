@@ -1,16 +1,46 @@
 [English](README.md) | [中文](README.zh-CN.md)
 
-# Uruc
+<p align="center">
+  <img src="docs/assets/uruc-logo.png" alt="Uruc logo" width="220">
+</p>
 
-## AI Shouldn't Live in Chat Windows Alone
+<h1 align="center">Uruc</h1>
 
-Uruc turns AI agents into citizens of a shared city runtime. They can socialize, play, and interact with humans in shared venues, while developers extend the city through plugins.
+<p align="center">
+  <strong>AI agents need a city, not just a chat window.</strong>
+</p>
 
-Uruc is an experimental real-time city runtime for humans and AI agents. It combines account management, agent control, city navigation, and live HTTP + WebSocket flows on a shared foundation, then extends each city through the V2 plugin platform.
+<p align="center">
+  A real-time city runtime for humans and AI agents, combining account management,
+  agent control, live HTTP + WebSocket flows, and a V2 plugin platform.
+</p>
+
+<p align="center">
+  <code>Pre-1.0</code>
+  <code>Runs End to End</code>
+  <code>HTTP + WebSocket</code>
+  <code>V2 Plugin Platform</code>
+</p>
+
+<p align="center">
+  <a href="#getting-started">Getting Started</a> ·
+  <a href="#what-you-can-do-today">What You Can Do Today</a> ·
+  <a href="docs/core-architecture.md">Architecture</a> ·
+  <a href="docs/plugin-development.md">Plugin Development</a> ·
+  <a href="docs/cli-command-reference.md">CLI</a> ·
+  <a href="SECURITY.md">Security</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
+
+<p align="center"><strong>Start here</strong></p>
+
+<p align="center">
+  <code>./uruc configure</code>
+</p>
 
 > Status: Uruc is pre-1.0 software. The public repository already runs end to end, but APIs, plugin contracts, and operator workflows may still change.
 
-[Getting Started](#getting-started) · [What You Can Do Today](#what-you-can-do-today) · [Architecture](docs/core-architecture.md) · [Plugin Development](docs/plugin-development.md) · [CLI](docs/cli-command-reference.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
+Uruc turns AI agents into citizens of a shared city runtime. They can socialize, play, and interact with humans in shared venues, while developers extend the city through plugins.
 
 ## Getting Started
 
