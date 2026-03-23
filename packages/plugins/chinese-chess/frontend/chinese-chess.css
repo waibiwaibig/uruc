@@ -1,0 +1,1560 @@
+.chinese-chess-com-shell {
+  --chinese-chess-shell-bg: #1f1f1b;
+  --chinese-chess-shell-bg-soft: #292924;
+  --chinese-chess-shell-panel: rgba(49, 49, 44, 0.9);
+  --chinese-chess-shell-panel-strong: rgba(61, 61, 54, 0.96);
+  --chinese-chess-shell-panel-soft: rgba(41, 41, 36, 0.82);
+  --chinese-chess-shell-line: rgba(255, 255, 255, 0.08);
+  --chinese-chess-shell-line-strong: rgba(255, 255, 255, 0.16);
+  --chinese-chess-shell-text: #f4f3ed;
+  --chinese-chess-shell-text-dim: rgba(244, 243, 237, 0.66);
+  --chinese-chess-shell-text-muted: rgba(244, 243, 237, 0.48);
+  --chinese-chess-shell-green: #83b64a;
+  --chinese-chess-shell-green-strong: #92c95a;
+  --chinese-chess-shell-green-deep: #5c8530;
+  --chinese-chess-shell-red: #bd5a50;
+  --chinese-chess-shell-gold: #d4bb72;
+  --chinese-chess-shell-magenta: rgba(174, 92, 255, 0.15);
+  --chinese-chess-shell-cyan: rgba(81, 188, 255, 0.14);
+  --chinese-chess-board-light: #edeed1;
+  --chinese-chess-board-dark: #779556;
+  --chinese-chess-board-highlight: rgba(246, 246, 105, 0.22);
+  --chinese-chess-board-target: rgba(132, 182, 73, 0.22);
+  --chinese-chess-board-target-ring: rgba(194, 236, 108, 0.64);
+  --chinese-chess-piece-white-fill: #fffdf7;
+  --chinese-chess-piece-white-stroke: #c7b190;
+  --chinese-chess-piece-black-fill: #41342d;
+  --chinese-chess-piece-black-stroke: #17120f;
+  position: relative;
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  height: 100vh;
+  margin: 0;
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+  color: var(--chinese-chess-shell-text);
+  font-family: "Avenir Next", "Segoe UI Variable", "Helvetica Neue", sans-serif;
+  animation: none;
+}
+
+.page-wrap.chinese-chess-com-shell {
+  width: 100%;
+  max-width: none;
+}
+
+body:has(.chinese-chess-com-shell) {
+  background:
+    radial-gradient(circle at top left, rgba(201, 105, 255, 0.14), transparent 28%),
+    radial-gradient(circle at top right, rgba(84, 188, 255, 0.12), transparent 32%),
+    linear-gradient(180deg, #161613 0%, #1b1a17 42%, #121210 100%);
+  overflow-x: hidden;
+  overflow-y: hidden;
+}
+
+body:has(.chinese-chess-com-shell) .game-shell {
+  min-height: 100vh;
+  background: transparent;
+}
+
+body:has(.chinese-chess-com-shell) .game-shell__header {
+  display: none;
+}
+
+body:has(.chinese-chess-com-shell) .game-shell__main {
+  padding-bottom: 0;
+}
+
+.chinese-chess-com-shell__ambience {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 14% 12%, var(--chinese-chess-shell-magenta), transparent 24%),
+    radial-gradient(circle at 82% 10%, var(--chinese-chess-shell-cyan), transparent 26%),
+    radial-gradient(circle at 48% 92%, rgba(131, 182, 74, 0.1), transparent 22%);
+  filter: blur(4px);
+}
+
+.chinese-chess-inline-notice {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 18px;
+  border: 1px solid var(--chinese-chess-shell-line);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.22);
+  line-height: 1.45;
+}
+
+.chinese-chess-notice-stack {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  z-index: 40;
+  display: grid;
+  gap: 10px;
+  width: min(calc(100vw - 24px), 560px);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.chinese-chess-notice-stack .chinese-chess-inline-notice {
+  pointer-events: auto;
+}
+
+.chinese-chess-inline-notice--info {
+  background: rgba(55, 59, 77, 0.78);
+}
+
+.chinese-chess-inline-notice--error {
+  background: rgba(108, 39, 39, 0.82);
+}
+
+.chinese-chess-inline-notice__row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chinese-chess-inline-link {
+  color: var(--chinese-chess-shell-green-strong);
+  text-decoration: none;
+}
+
+.chinese-chess-inline-link:hover {
+  text-decoration: underline;
+}
+
+.chinese-chess-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.chinese-chess-com-layout {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: grid;
+  grid-template-columns: fit-content(760px) minmax(420px, 540px);
+  gap: 16px;
+  align-items: stretch;
+  justify-content: center;
+  min-height: 0;
+}
+
+.chinese-chess-nav-rail,
+.chinese-chess-main-stage,
+.chinese-chess-panel-card,
+.promotion-card {
+  border: 1px solid var(--chinese-chess-shell-line);
+  background:
+    linear-gradient(180deg, rgba(61, 61, 54, 0.94), rgba(35, 35, 31, 0.94));
+  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(22px);
+}
+
+.chinese-chess-nav-rail,
+.chinese-chess-mobile-toolbar {
+  display: none;
+}
+
+.chinese-chess-nav-rail__brand {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+
+.chinese-chess-nav-rail__brand-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  color: #12240a;
+  background: linear-gradient(180deg, var(--chinese-chess-shell-green-strong), var(--chinese-chess-shell-green));
+  box-shadow: 0 12px 24px rgba(131, 182, 74, 0.28);
+}
+
+.chinese-chess-nav-rail__brand-copy {
+  display: grid;
+  gap: 3px;
+  justify-items: center;
+  text-align: center;
+}
+
+.chinese-chess-nav-rail__eyebrow,
+.chinese-chess-stage-label {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--chinese-chess-shell-text-muted);
+}
+
+.chinese-chess-nav-rail__brand-copy strong {
+  font-family: "Avenir Next Condensed", "Arial Narrow", sans-serif;
+  font-size: 1.2rem;
+  line-height: 1;
+  letter-spacing: 0.05em;
+}
+
+.chinese-chess-nav-rail__brand-copy span:last-child {
+  font-size: 0.74rem;
+  line-height: 1.35;
+  color: var(--chinese-chess-shell-text-dim);
+}
+
+.chinese-chess-nav-rail__menu,
+.chinese-chess-nav-rail__actions,
+.chinese-chess-nav-rail__summary {
+  display: grid;
+  gap: 10px;
+}
+
+.chinese-chess-nav-link,
+.chinese-chess-nav-action,
+.chinese-chess-mobile-tab,
+.chinese-chess-mobile-action {
+  border: 1px solid transparent;
+  color: var(--chinese-chess-shell-text);
+  text-decoration: none;
+  transition: transform 140ms ease, background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.chinese-chess-nav-link {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 10px 8px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--chinese-chess-shell-text-dim);
+}
+
+.chinese-chess-nav-link:hover,
+.chinese-chess-nav-action:hover,
+.chinese-chess-mobile-tab:hover,
+.chinese-chess-mobile-action:hover {
+  transform: translateY(-1px);
+  border-color: var(--chinese-chess-shell-line-strong);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--chinese-chess-shell-text);
+}
+
+.chinese-chess-nav-link span {
+  font-size: 0.71rem;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.chinese-chess-nav-stat {
+  display: grid;
+  gap: 5px;
+  padding: 11px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.chinese-chess-nav-stat span {
+  font-size: 0.68rem;
+  line-height: 1.2;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--chinese-chess-shell-text-muted);
+}
+
+.chinese-chess-nav-stat strong {
+  font-size: 0.92rem;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.chinese-chess-nav-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+}
+
+.chinese-chess-nav-action span {
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.chinese-chess-main-column,
+.chinese-chess-right-rail {
+  min-width: 0;
+  min-height: 0;
+}
+
+.chinese-chess-main-column {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.chinese-chess-main-stage {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 0;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 24px;
+}
+
+.chinese-chess-main-stage.is-live {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.chinese-chess-main-stage.is-lobby {
+  justify-content: center;
+}
+
+.chinese-chess-stage-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chinese-chess-stage-badges--sidebar {
+  justify-content: flex-start;
+}
+
+.chinese-chess-stage-badge,
+.chinese-chess-panel-pill,
+.chinese-chess-com-shell .info-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--chinese-chess-shell-text-dim);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.chinese-chess-panel-pill--watching {
+  color: #d8f3b2;
+  border-color: rgba(146, 201, 90, 0.26);
+  background: rgba(146, 201, 90, 0.16);
+}
+
+.chinese-chess-stage-badge--warn {
+  color: #ffd695;
+  border-color: rgba(255, 214, 149, 0.24);
+  background: rgba(255, 180, 73, 0.12);
+}
+
+.chinese-chess-stage-center {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+}
+
+.chinese-chess-stage-center--lobby {
+  align-items: center;
+}
+
+.chinese-chess-stage-center--live {
+  flex: 1;
+  align-items: center;
+}
+
+.chinese-chess-board-shell {
+  display: grid;
+  gap: 6px;
+  min-height: 0;
+  justify-items: center;
+}
+
+.chinese-chess-board-shell--preview,
+.chinese-chess-board-shell--live {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.result-banner__head,
+.result-banner__body,
+.chinese-chess-room-card__head,
+.chinese-chess-leaderboard-item__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.board-wrap {
+  position: relative;
+  min-height: 0;
+  padding: 4px;
+  border-radius: 18px;
+  background: rgba(12, 12, 10, 0.3);
+  display: grid;
+  place-items: center;
+}
+
+.board-wrap::before {
+  display: none;
+}
+
+.board-wrap--lounge,
+.board-wrap--live {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.board-wrap--live {
+  padding: 0;
+  background: transparent;
+}
+
+.chinese-chess-result-overlay {
+  position: absolute;
+  inset: 18px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: radial-gradient(circle at center, rgba(12, 12, 10, 0.06), rgba(12, 12, 10, 0.28) 72%, transparent 100%);
+}
+
+.chinese-chess-result-overlay__card {
+  position: relative;
+  width: min(calc(100% - 28px), 360px);
+  display: grid;
+  gap: 10px;
+  padding: 18px 18px 16px;
+  border-radius: 24px;
+  border: 1px solid rgba(246, 246, 180, 0.34);
+  background: linear-gradient(180deg, rgba(39, 45, 30, 0.94), rgba(25, 28, 21, 0.94));
+  box-shadow: 0 24px 52px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(18px);
+  pointer-events: auto;
+  text-align: center;
+}
+
+.chinese-chess-result-overlay__card strong {
+  font-family: "Avenir Next Condensed", "Arial Narrow", sans-serif;
+  font-size: 1.55rem;
+  line-height: 1.05;
+  letter-spacing: 0.03em;
+}
+
+.chinese-chess-result-overlay__room {
+  font-size: 0.82rem;
+  color: var(--chinese-chess-shell-text-dim);
+}
+
+.chinese-chess-result-overlay__meta {
+  display: grid;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: var(--chinese-chess-shell-text-dim);
+}
+
+.chinese-chess-result-overlay__delta {
+  font-size: 0.84rem;
+  color: #f3f0d6;
+}
+
+.chinese-chess-result-overlay__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--chinese-chess-shell-text);
+  cursor: pointer;
+}
+
+.chinese-chess-board {
+  width: min(100%, calc(100vh - 160px), calc(100vw - 640px), 720px);
+  margin: 0 auto;
+  aspect-ratio: 1;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-rows: repeat(8, minmax(0, 1fr));
+  overflow: hidden;
+  border-radius: 16px;
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(0, 0, 0, 0.55);
+}
+
+.board-wrap--lounge .chinese-chess-board {
+  width: min(100%, calc(100vh - 200px), calc(100vw - 640px), 740px);
+}
+
+.chinese-chess-square {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  min-width: 0;
+  min-height: 0;
+  transition: filter 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+button.chinese-chess-square {
+  cursor: pointer;
+}
+
+.chinese-chess-square.light {
+  background: var(--chinese-chess-board-light);
+}
+
+.chinese-chess-square.dark {
+  background: var(--chinese-chess-board-dark);
+}
+
+button.chinese-chess-square:hover {
+  filter: brightness(1.03);
+}
+
+.chinese-chess-square.selected {
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.46);
+}
+
+.chinese-chess-square.target {
+  box-shadow:
+    inset 0 0 0 4px var(--chinese-chess-board-target-ring),
+    inset 0 0 0 999px var(--chinese-chess-board-target);
+}
+
+.chinese-chess-square.last-move {
+  box-shadow: inset 0 0 0 999px rgba(246, 246, 105, 0.2);
+}
+
+.chinese-chess-square.last-move-from {
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 238, 186, 0.96),
+    inset 0 0 0 999px rgba(234, 197, 92, 0.26);
+}
+
+.chinese-chess-square.last-move-to {
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 249, 214, 0.98),
+    0 0 0 2px rgba(250, 243, 144, 0.36),
+    inset 0 0 0 999px rgba(246, 246, 105, 0.4);
+}
+
+.chinese-chess-square.drag-source {
+  box-shadow: inset 0 0 0 4px rgba(146, 201, 90, 0.88);
+}
+
+.chinese-chess-piece {
+  width: 84%;
+  height: 84%;
+  filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.24));
+  pointer-events: none;
+}
+
+.chinese-chess-mark {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  color: rgba(26, 23, 20, 0.46);
+}
+
+.chinese-chess-square.dark .chinese-chess-mark {
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.chinese-chess-mark.file {
+  right: 6px;
+  bottom: 4px;
+}
+
+.chinese-chess-mark.rank {
+  left: 6px;
+  top: 4px;
+}
+
+.chinese-chess-seat-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  width: min(100%, calc(100vh - 160px), calc(100vw - 640px), 720px);
+  gap: 8px;
+  align-items: center;
+  min-height: 58px;
+  padding: 4px 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(23, 23, 20, 0.56);
+}
+
+.chinese-chess-seat-card.is-active {
+  border-color: rgba(146, 201, 90, 0.38);
+  box-shadow: 0 0 0 1px rgba(146, 201, 90, 0.16), 0 8px 18px rgba(0, 0, 0, 0.16);
+}
+
+.chinese-chess-seat-card__identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chinese-chess-seat-card__avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #14140f;
+  background: linear-gradient(180deg, #f8f7f0, #d8d3c1);
+}
+
+.chinese-chess-seat-card__avatar.is-self {
+  background: linear-gradient(180deg, var(--chinese-chess-shell-green-strong), var(--chinese-chess-shell-green));
+}
+
+.chinese-chess-seat-card__copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.chinese-chess-panel-pill-row,
+.pill-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chinese-chess-seat-card__name {
+  min-width: 0;
+  font-size: 0.8rem;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chinese-chess-seat-card__detail {
+  min-height: 0.6rem;
+  font-size: 0.62rem;
+  line-height: 0.6rem;
+  color: var(--chinese-chess-shell-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chinese-chess-seat-card__detail.is-placeholder {
+  opacity: 0;
+}
+
+.chinese-chess-seat-card__clock {
+  min-width: 76px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  text-align: center;
+  font-size: clamp(0.96rem, 1.35vw, 1.2rem);
+  line-height: 1;
+  color: var(--chinese-chess-shell-text);
+  background: rgba(11, 11, 10, 0.46);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.chinese-chess-com-shell .tiny {
+  font-size: 0.76rem;
+}
+
+.chinese-chess-com-shell .muted {
+  color: var(--chinese-chess-shell-text-muted);
+}
+
+.chinese-chess-com-shell .mono {
+  font-family: var(--font-mono);
+}
+
+.result-banner {
+  padding: 15px 16px;
+  border-radius: 22px;
+  border: 1px solid rgba(146, 201, 90, 0.22);
+  background: rgba(116, 157, 64, 0.14);
+}
+
+.result-banner__head strong {
+  font-size: 1.05rem;
+}
+
+.result-banner__body {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--chinese-chess-shell-text-dim);
+}
+
+.result-banner__delta {
+  margin-top: 10px;
+  font-size: 0.84rem;
+  color: var(--chinese-chess-shell-text);
+}
+
+.chinese-chess-right-rail {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 14px;
+  position: relative;
+  width: min(100%, 540px);
+  max-height: 100%;
+  overflow: hidden;
+  padding-right: 4px;
+}
+
+.chinese-chess-sidebar-meta {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.chinese-chess-panel-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 24px;
+}
+
+.chinese-chess-panel-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chinese-chess-panel-card__header h2,
+.promotion-card h3 {
+  margin: 4px 0 0;
+  font-size: 1.02rem;
+  line-height: 1.2;
+}
+
+.chinese-chess-panel-card__summary {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.chinese-chess-panel-card__summary p,
+.promotion-card__copy {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--chinese-chess-shell-text-dim);
+}
+
+.chinese-chess-workspace-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+  border-radius: 20px;
+  border: 1px solid var(--chinese-chess-shell-line);
+  background: linear-gradient(180deg, rgba(53, 53, 48, 0.94), rgba(33, 33, 29, 0.94));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+}
+
+.chinese-chess-workspace-tab {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  min-height: 62px;
+  padding: 8px 6px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--chinese-chess-shell-text-dim);
+  cursor: pointer;
+  transition: transform 140ms ease, background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.chinese-chess-workspace-tab:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.chinese-chess-workspace-tab.is-active {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--chinese-chess-shell-text);
+}
+
+.chinese-chess-workspace-tab span {
+  font-size: 0.76rem;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.chinese-chess-panel-card--workspace {
+  position: relative;
+  min-height: 0;
+  overflow: auto;
+  align-content: start;
+}
+
+.chinese-chess-panel-card--workspace::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chinese-chess-panel-card--workspace::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.chinese-chess-launch-card,
+.chinese-chess-room-detail {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.chinese-chess-launch-card__time {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.chinese-chess-field {
+  display: grid;
+  gap: 8px;
+}
+
+.chinese-chess-field__label {
+  font-size: 0.72rem;
+  line-height: 1.2;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--chinese-chess-shell-text-muted);
+}
+
+.chinese-chess-field__control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--chinese-chess-shell-text);
+}
+
+.chinese-chess-field__control input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.chinese-chess-field__control input::placeholder {
+  color: var(--chinese-chess-shell-text-muted);
+}
+
+.chinese-chess-field__control--search {
+  padding-left: 12px;
+}
+
+.chinese-chess-room-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.chinese-chess-room-watch-banner {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(146, 201, 90, 0.18);
+  background: rgba(146, 201, 90, 0.08);
+}
+
+.chinese-chess-room-watch-banner__copy {
+  display: grid;
+  gap: 3px;
+}
+
+.chinese-chess-room-watch-banner__copy strong {
+  font-size: 0.98rem;
+  line-height: 1.2;
+}
+
+.chinese-chess-room-watch-banner__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chinese-chess-room-watch-banner__actions .app-btn {
+  width: auto;
+  min-width: 0;
+}
+
+.chinese-chess-visibility-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.chinese-chess-visibility-toggle__option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--chinese-chess-shell-text-dim);
+  transition: transform 140ms ease, border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+.chinese-chess-visibility-toggle__option:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--chinese-chess-shell-text);
+}
+
+.chinese-chess-visibility-toggle__option.is-active {
+  color: var(--chinese-chess-shell-text);
+  border-color: rgba(146, 201, 90, 0.28);
+  background: rgba(146, 201, 90, 0.12);
+}
+
+.chinese-chess-room-detail.is-current {
+  border-color: rgba(146, 201, 90, 0.22);
+  background: rgba(146, 201, 90, 0.08);
+}
+
+.chinese-chess-room-detail__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chinese-chess-room-detail__header h3 {
+  margin: 4px 0 0;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.chinese-chess-room-detail__copy,
+.chinese-chess-room-detail__hint {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--chinese-chess-shell-text-dim);
+}
+
+.chinese-chess-room-detail__body {
+  display: grid;
+  gap: 8px;
+}
+
+.chinese-chess-room-detail__player {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.chinese-chess-room-detail__actions {
+  display: grid;
+  gap: 8px;
+}
+
+.chinese-chess-room-detail--directory .chinese-chess-room-detail__actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.chinese-chess-room-detail-modal {
+  position: absolute;
+  top: 104px;
+  left: 14px;
+  right: 14px;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.chinese-chess-room-detail--floating {
+  pointer-events: auto;
+  box-shadow: 0 30px 64px rgba(0, 0, 0, 0.42);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)),
+    rgba(34, 35, 32, 0.98);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.chinese-chess-room-detail__header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chinese-chess-room-detail__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--chinese-chess-shell-text);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transition: transform 140ms ease, background-color 140ms ease;
+}
+
+.chinese-chess-room-detail__close:hover {
+  transform: translateY(-1px);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.chinese-chess-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.chinese-chess-stat-card {
+  display: grid;
+  gap: 6px;
+  padding: 13px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.chinese-chess-stat-card span {
+  font-size: 0.72rem;
+  line-height: 1.2;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--chinese-chess-shell-text-muted);
+}
+
+.chinese-chess-stat-card strong {
+  font-size: 1.18rem;
+  line-height: 1.2;
+}
+
+.chinese-chess-inline-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(146, 201, 90, 0.22);
+  background: rgba(146, 201, 90, 0.12);
+}
+
+.chinese-chess-inline-result span {
+  font-size: 0.8rem;
+  color: var(--chinese-chess-shell-text-dim);
+}
+
+.chinese-chess-action-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.chinese-chess-com-shell .app-btn {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--chinese-chess-shell-text);
+  font-weight: 700;
+  box-shadow: none;
+  transition: transform 140ms ease, background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.chinese-chess-com-shell .app-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.chinese-chess-com-shell .app-btn.secondary {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.chinese-chess-com-shell .app-btn.ghost {
+  background: transparent;
+}
+
+.chinese-chess-com-shell .app-btn.chinese-chess-cta {
+  color: #13240b;
+  border-color: rgba(154, 216, 88, 0.68);
+  background: linear-gradient(180deg, var(--chinese-chess-shell-green-strong), var(--chinese-chess-shell-green));
+  box-shadow: 0 16px 28px rgba(131, 182, 74, 0.22);
+}
+
+.chinese-chess-com-shell .app-btn:disabled,
+.chinese-chess-nav-action:disabled,
+.chinese-chess-mobile-action:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.chinese-chess-panel-empty {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  color: var(--chinese-chess-shell-text-dim);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.chinese-chess-scroll {
+  max-height: 260px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.chinese-chess-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chinese-chess-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.chinese-chess-right-rail::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chinese-chess-right-rail::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.move-list,
+.chinese-chess-room-list,
+.chinese-chess-leaderboard-list,
+.chinese-chess-activity-list {
+  display: grid;
+  gap: 10px;
+}
+
+.move-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.move-row__index {
+  color: var(--chinese-chess-shell-text-muted);
+  font-size: 0.8rem;
+}
+
+.move-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  color: var(--chinese-chess-shell-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.move-pill.is-latest {
+  border-color: rgba(244, 235, 143, 0.4);
+  background: rgba(206, 182, 83, 0.22);
+  box-shadow: 0 0 0 1px rgba(244, 235, 143, 0.18);
+  font-weight: 700;
+}
+
+.chinese-chess-room-card,
+.chinese-chess-leaderboard-item,
+.chinese-chess-activity-item {
+  display: grid;
+  gap: 10px;
+  padding: 12px 13px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.chinese-chess-room-card--selectable {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease, background-color 140ms ease;
+}
+
+.chinese-chess-room-card--selectable:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.chinese-chess-room-card--selectable.is-selected {
+  border-color: rgba(146, 201, 90, 0.34);
+  background: rgba(146, 201, 90, 0.1);
+}
+
+.chinese-chess-room-card__head,
+.chinese-chess-leaderboard-item__head {
+  font-size: 0.82rem;
+  color: var(--chinese-chess-shell-text-dim);
+}
+
+.chinese-chess-room-card__head strong,
+.chinese-chess-leaderboard-item__head strong {
+  color: var(--chinese-chess-shell-text);
+}
+
+.chinese-chess-room-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--chinese-chess-shell-text-dim);
+}
+
+.chinese-chess-room-card__players,
+.chinese-chess-leaderboard-item__meta,
+.chinese-chess-activity-item {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--chinese-chess-shell-text-dim);
+}
+
+.chinese-chess-leaderboard-item__name {
+  font-size: 0.92rem;
+  line-height: 1.3;
+}
+
+.chinese-chess-rank {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chinese-chess-sidebar-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 2px 0;
+  color: var(--chinese-chess-shell-text);
+  font-size: 0.88rem;
+}
+
+.promotion-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(11, 11, 9, 0.72);
+  backdrop-filter: blur(16px);
+}
+
+.promotion-card {
+  width: min(560px, 100%);
+  padding: 22px;
+  border-radius: 28px;
+}
+
+.promotion-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.promotion-option {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 112px;
+  padding: 12px 8px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--chinese-chess-shell-text);
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease, background-color 140ms ease;
+}
+
+.promotion-option:hover {
+  transform: translateY(-1px);
+  border-color: rgba(146, 201, 90, 0.36);
+  background: rgba(146, 201, 90, 0.1);
+}
+
+.promotion-piece {
+  width: 56px;
+  height: 56px;
+}
+
+.promotion-card__actions {
+  margin-top: 16px;
+}
+
+.chinese-chess-scroll--workspace {
+  max-height: min(32vh, 320px);
+}
+
+.chinese-chess-float-orb {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.chinese-chess-float-orb.is-dragging {
+  user-select: none;
+}
+
+.chinese-chess-float-orb__core {
+  width: 68px;
+  height: 68px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(154, 216, 88, 0.46);
+  background: linear-gradient(180deg, var(--chinese-chess-shell-green-strong), var(--chinese-chess-shell-green));
+  color: #12210a;
+  box-shadow: 0 18px 32px rgba(131, 182, 74, 0.26);
+  cursor: grab;
+  touch-action: none;
+}
+
+.chinese-chess-float-orb.is-dragging .chinese-chess-float-orb__core {
+  cursor: grabbing;
+}
+
+.chinese-chess-float-orb__menu {
+  display: grid;
+  gap: 8px;
+  min-width: 160px;
+  padding: 10px;
+  border-radius: 22px;
+  border: 1px solid var(--chinese-chess-shell-line);
+  background: linear-gradient(180deg, rgba(50, 50, 44, 0.96), rgba(29, 29, 26, 0.96));
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.26);
+}
+
+.chinese-chess-float-orb__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--chinese-chess-shell-text);
+  cursor: pointer;
+}
+
+@media (max-width: 1260px) {
+  .chinese-chess-com-layout {
+    grid-template-columns: fit-content(680px) minmax(340px, 430px);
+  }
+
+  .chinese-chess-board,
+  .chinese-chess-seat-card {
+    width: min(100%, calc(100vh - 160px), calc(100vw - 520px), 660px);
+  }
+
+  .board-wrap--lounge .chinese-chess-board {
+    width: min(100%, calc(100vh - 200px), calc(100vw - 520px), 680px);
+  }
+}
+
+@media (max-width: 1040px) {
+  .chinese-chess-com-shell {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+    padding: 14px 14px 22px;
+  }
+
+  body:has(.chinese-chess-com-shell) {
+    overflow-y: auto;
+  }
+
+  .chinese-chess-com-layout {
+    flex: none;
+    grid-template-columns: 1fr;
+    justify-content: stretch;
+  }
+
+  .chinese-chess-right-rail {
+    position: static;
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+    grid-template-rows: auto auto auto;
+  }
+
+  .chinese-chess-board,
+  .chinese-chess-seat-card,
+  .board-wrap--lounge .chinese-chess-board {
+    width: min(100%, calc(100vw - 48px), 720px);
+  }
+
+  .chinese-chess-workspace-tabs {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .chinese-chess-float-orb {
+    left: 16px !important;
+    top: auto !important;
+    bottom: 16px;
+  }
+}
+
+@media (max-width: 760px) {
+  .chinese-chess-notice-stack {
+    top: 10px;
+    width: min(calc(100vw - 16px), 560px);
+  }
+
+  .chinese-chess-main-stage,
+  .chinese-chess-panel-card,
+  .promotion-card {
+    border-radius: 22px;
+  }
+
+  .chinese-chess-main-stage {
+    padding: 12px;
+  }
+
+  .chinese-chess-board-shell,
+  .board-wrap {
+    padding: 6px;
+  }
+
+  .chinese-chess-seat-card {
+    grid-template-columns: 1fr;
+  }
+
+  .chinese-chess-seat-card__clock {
+    width: 100%;
+  }
+
+  .chinese-chess-workspace-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .chinese-chess-workspace-tab {
+    min-height: 64px;
+  }
+
+  .chinese-chess-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chinese-chess-room-search,
+  .chinese-chess-room-detail--directory .chinese-chess-room-detail__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .chinese-chess-room-detail-modal {
+    top: 112px;
+    left: 12px;
+    right: 12px;
+  }
+
+  .chinese-chess-room-detail__header {
+    flex-direction: column;
+  }
+
+  .chinese-chess-room-detail__header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .chinese-chess-float-orb__menu {
+    min-width: 144px;
+  }
+
+  .promotion-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

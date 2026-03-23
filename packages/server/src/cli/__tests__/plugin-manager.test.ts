@@ -19,6 +19,7 @@ const tempDirs: string[] = [];
 const servers: Server[] = [];
 const execFileAsync = promisify(execFile);
 const originalEnv = {
+  URUC_SERVER_ENV_PATH: process.env.URUC_SERVER_ENV_PATH,
   CITY_CONFIG_PATH: process.env.CITY_CONFIG_PATH,
   CITY_LOCK_PATH: process.env.CITY_LOCK_PATH,
   PLUGIN_STORE_DIR: process.env.PLUGIN_STORE_DIR,
@@ -258,6 +259,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   vi.restoreAllMocks();
+  process.env.URUC_SERVER_ENV_PATH = originalEnv.URUC_SERVER_ENV_PATH;
   process.env.CITY_CONFIG_PATH = originalEnv.CITY_CONFIG_PATH;
   process.env.CITY_LOCK_PATH = originalEnv.CITY_LOCK_PATH;
   process.env.PLUGIN_STORE_DIR = originalEnv.PLUGIN_STORE_DIR;
@@ -274,6 +276,31 @@ afterEach(async () => {
 });
 
 describe('plugin manager', () => {
+  it('loads city paths from URUC_SERVER_ENV_PATH for plugin commands', async () => {
+    const runtime = await createTempRuntime();
+    const envPath = path.join(runtime.tempRoot, 'server.env');
+    await writeFile(envPath, [
+      `CITY_CONFIG_PATH=${runtime.cityConfigPath}`,
+      `CITY_LOCK_PATH=${runtime.cityLockPath}`,
+      `PLUGIN_STORE_DIR=${runtime.pluginStoreDir}`,
+    ].join('\n') + '\n', 'utf8');
+
+    delete process.env.CITY_CONFIG_PATH;
+    delete process.env.CITY_LOCK_PATH;
+    delete process.env.PLUGIN_STORE_DIR;
+    process.env.URUC_SERVER_ENV_PATH = envPath;
+
+    const { runPluginCommand } = await import('../plugin-manager.js');
+    await runPluginCommand(['install', runtime.packageV1]);
+
+    const config = await readCityConfig(runtime.cityConfigPath);
+    expect(config.plugins['acme.venue']).toMatchObject({
+      pluginId: 'acme.venue',
+      packageName: '@acme/plugin-venue',
+      enabled: true,
+    });
+  });
+
   it('installs a marketplace plugin by alias from the official source', async () => {
     const runtime = await createTempRuntime();
     const chessPackage = path.join(runtime.tempRoot, 'packages', 'chess');

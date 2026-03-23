@@ -1,0 +1,28 @@
+{
+  "name": "@uruc/plugin-chinese-chess",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "dependencies": {
+    "xiangqii": "^1.0.1"
+  },
+  "urucPlugin": {
+    "pluginId": "uruc.chinese-chess",
+    "apiVersion": 2,
+    "kind": "backend",
+    "entry": "./index.mjs",
+    "publisher": "uruc",
+    "displayName": "Chinese Chess Club",
+    "description": "Chinese chess venue plugin with matches, ratings, and spectator support.",
+    "permissions": [],
+    "dependencies": [],
+    "activation": ["startup"]
+  },
+  "urucFrontend": {
+    "apiVersion": 1,
+    "entry": "./frontend/plugin.ts"
+  }
+}

@@ -21,9 +21,9 @@ import { PluginPlatformHost } from '../core/plugin-platform/host.js';
 import { readOption } from './lib/argv.js';
 import { ensureOfficialMarketplaceSource, OFFICIAL_PLUGIN_SOURCE_ID } from './lib/city.js';
 import { createPluginScaffold, defaultPluginScaffoldDir } from './lib/plugin-scaffold.js';
-import { getEnvPath, getPackageRoot, getCityConfigPath, getCityLockPath, getPluginStoreDir } from '../runtime-paths.js';
+import { getActiveEnvPath, getPackageRoot, getCityConfigPath, getCityLockPath, getPluginStoreDir } from '../runtime-paths.js';
 
-dotenv.config({ path: getEnvPath(), quiet: true });
+dotenv.config({ path: getActiveEnvPath(), quiet: true });
 
 const packageRoot = getPackageRoot();
 const cityConfigPath = getCityConfigPath();
