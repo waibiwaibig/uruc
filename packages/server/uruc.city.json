@@ -27,14 +27,6 @@
       "config": {},
       "devOverridePath": "../plugins/chess"
     },
-    "uruc.go": {
-      "pluginId": "uruc.go",
-      "packageName": "@uruc/plugin-go",
-      "enabled": true,
-      "permissionsGranted": [],
-      "config": {},
-      "devOverridePath": "../plugins/go"
-    },
     "uruc.chinese-chess": {
       "pluginId": "uruc.chinese-chess",
       "packageName": "@uruc/plugin-chinese-chess",
