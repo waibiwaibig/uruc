@@ -96,8 +96,6 @@ const en = {
       roomNamePlaceholder: 'Optional room title',
       publicRoom: 'Public',
       privateRoom: 'Private',
-      currentBoard: 'Current board',
-      watchedBoard: 'Watched board',
       currentRoomTitle: 'Current room',
       selectedRoomTitle: 'Selected room',
       currentRoomEmpty: 'Create a room or join one from the room list to start playing.',

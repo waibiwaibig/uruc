@@ -16,15 +16,20 @@
   --chinese-chess-shell-gold: #d4bb72;
   --chinese-chess-shell-magenta: rgba(174, 92, 255, 0.15);
   --chinese-chess-shell-cyan: rgba(81, 188, 255, 0.14);
-  --chinese-chess-board-light: #edeed1;
-  --chinese-chess-board-dark: #779556;
-  --chinese-chess-board-highlight: rgba(246, 246, 105, 0.22);
-  --chinese-chess-board-target: rgba(132, 182, 73, 0.22);
-  --chinese-chess-board-target-ring: rgba(194, 236, 108, 0.64);
-  --chinese-chess-piece-white-fill: #fffdf7;
-  --chinese-chess-piece-white-stroke: #c7b190;
-  --chinese-chess-piece-black-fill: #41342d;
-  --chinese-chess-piece-black-stroke: #17120f;
+  --chinese-chess-board-wood: #d7b074;
+  --chinese-chess-board-wood-soft: #e3c58c;
+  --chinese-chess-board-wood-deep: #b27d45;
+  --chinese-chess-board-frame: #5f3417;
+  --chinese-chess-board-frame-deep: #2a170d;
+  --chinese-chess-board-line: rgba(73, 38, 15, 0.88);
+  --chinese-chess-board-star: rgba(73, 38, 15, 0.92);
+  --chinese-chess-board-highlight: rgba(244, 211, 94, 0.2);
+  --chinese-chess-board-target: rgba(170, 36, 23, 0.18);
+  --chinese-chess-board-target-ring: rgba(170, 36, 23, 0.64);
+  --chinese-chess-piece-surface: #f3e2bc;
+  --chinese-chess-piece-rim: #86542d;
+  --chinese-chess-piece-red-ink: #a42d1b;
+  --chinese-chess-piece-black-ink: #1c1612;
   position: relative;
   width: 100%;
   max-width: none;
@@ -109,6 +114,15 @@ body:has(.chinese-chess-com-shell) .game-shell__main {
   pointer-events: auto;
 }
 
+.chinese-chess-com-shell.has-floating-notices .chinese-chess-com-layout {
+  --chinese-chess-stage-width: min(
+    calc((100vh - 148px) * 0.845),
+    calc(100vw - var(--chinese-chess-rail-width) - 72px),
+    1120px
+  );
+  padding-top: clamp(58px, 8vh, 84px);
+}
+
 .chinese-chess-inline-notice--info {
   background: rgba(55, 59, 77, 0.78);
 }
@@ -146,11 +160,19 @@ body:has(.chinese-chess-com-shell) .game-shell__main {
 }
 
 .chinese-chess-com-layout {
+  --chinese-chess-rail-width: min(430px, calc(100vw - 48px));
+  --chinese-chess-stage-width: min(
+    calc((100vh - 92px) * 0.845),
+    calc(100vw - var(--chinese-chess-rail-width) - 72px),
+    1120px
+  );
   position: relative;
   z-index: 1;
   flex: 1;
   display: grid;
-  grid-template-columns: fit-content(760px) minmax(420px, 540px);
+  width: min(100%, calc(var(--chinese-chess-stage-width) + var(--chinese-chess-rail-width) + 16px));
+  margin-inline: auto;
+  grid-template-columns: minmax(0, var(--chinese-chess-stage-width)) minmax(0, var(--chinese-chess-rail-width));
   gap: 16px;
   align-items: stretch;
   justify-content: center;
@@ -319,9 +341,9 @@ body:has(.chinese-chess-com-shell) .game-shell__main {
 .chinese-chess-main-stage {
   display: flex;
   flex-direction: column;
-  flex: 0 0 auto;
-  width: fit-content;
-  max-width: 100%;
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: none;
   min-height: 0;
   gap: 6px;
   padding: 8px 10px;
@@ -396,19 +418,6 @@ body:has(.chinese-chess-com-shell) .game-shell__main {
   align-items: center;
 }
 
-.chinese-chess-board-shell {
-  display: grid;
-  gap: 6px;
-  min-height: 0;
-  justify-items: center;
-}
-
-.chinese-chess-board-shell--preview,
-.chinese-chess-board-shell--live {
-  width: fit-content;
-  max-width: 100%;
-}
-
 .result-banner__head,
 .result-banner__body,
 .chinese-chess-room-card__head,
@@ -419,78 +428,68 @@ body:has(.chinese-chess-com-shell) .game-shell__main {
   gap: 12px;
 }
 
-.board-wrap {
+.chinese-chess-board-wrap {
   position: relative;
+  width: 100%;
+  max-width: 100%;
   min-height: 0;
-  padding: 4px;
-  border-radius: 18px;
-  background: rgba(12, 12, 10, 0.3);
+  padding: 14px 0;
   display: grid;
   place-items: center;
-}
-
-.board-wrap::before {
-  display: none;
-}
-
-.board-wrap--lounge,
-.board-wrap--live {
-  width: fit-content;
-  max-width: 100%;
-}
-
-.board-wrap--live {
-  padding: 0;
-  background: transparent;
 }
 
 .chinese-chess-result-overlay {
   position: absolute;
-  inset: 18px;
+  inset: 18px 0;
   z-index: 5;
   display: grid;
   place-items: center;
   pointer-events: none;
-  background: radial-gradient(circle at center, rgba(12, 12, 10, 0.06), rgba(12, 12, 10, 0.28) 72%, transparent 100%);
+  background: radial-gradient(circle at center, rgba(40, 20, 8, 0.08), rgba(27, 16, 10, 0.34) 72%, transparent 100%);
 }
 
 .chinese-chess-result-overlay__card {
   position: relative;
-  width: min(calc(100% - 28px), 360px);
+  width: min(calc(100% - 28px), 388px);
   display: grid;
-  gap: 10px;
-  padding: 18px 18px 16px;
-  border-radius: 24px;
-  border: 1px solid rgba(246, 246, 180, 0.34);
-  background: linear-gradient(180deg, rgba(39, 45, 30, 0.94), rgba(25, 28, 21, 0.94));
-  box-shadow: 0 24px 52px rgba(0, 0, 0, 0.34);
-  backdrop-filter: blur(18px);
+  gap: 12px;
+  padding: 22px 20px 18px;
+  border-radius: 28px;
+  border: 1px solid rgba(129, 77, 37, 0.6);
+  background:
+    linear-gradient(180deg, rgba(255, 243, 220, 0.84), rgba(227, 194, 141, 0.86)),
+    linear-gradient(180deg, rgba(124, 70, 30, 0.94), rgba(77, 43, 18, 0.98));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+    0 26px 56px rgba(0, 0, 0, 0.34);
   pointer-events: auto;
   text-align: center;
+  color: #241811;
 }
 
 .chinese-chess-result-overlay__card strong {
-  font-family: "Avenir Next Condensed", "Arial Narrow", sans-serif;
+  font-family: "Kaiti SC", "STKaiti", "Noto Serif SC", serif;
   font-size: 1.55rem;
   line-height: 1.05;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.06em;
 }
 
 .chinese-chess-result-overlay__room {
   font-size: 0.82rem;
-  color: var(--chinese-chess-shell-text-dim);
+  color: rgba(36, 24, 17, 0.72);
 }
 
 .chinese-chess-result-overlay__meta {
   display: grid;
   gap: 4px;
   font-size: 0.82rem;
-  color: var(--chinese-chess-shell-text-dim);
+  color: rgba(36, 24, 17, 0.72);
 }
 
 .chinese-chess-result-overlay__delta {
   font-size: 0.84rem;
-  color: #f3f0d6;
+  color: var(--chinese-chess-piece-red-ink);
+  font-weight: 700;
 }
 
 .chinese-chess-result-overlay__close {
@@ -503,166 +502,249 @@ body:has(.chinese-chess-com-shell) .game-shell__main {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--chinese-chess-shell-text);
+  border: 1px solid rgba(58, 35, 20, 0.16);
+  background: rgba(91, 55, 31, 0.1);
+  color: #3c2417;
   cursor: pointer;
 }
 
-.chinese-chess-board {
-  width: min(100%, calc(100vh - 160px), calc(100vw - 640px), 720px);
-  margin: 0 auto;
-  aspect-ratio: 1;
-  display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  grid-template-rows: repeat(8, minmax(0, 1fr));
-  overflow: hidden;
-  border-radius: 16px;
-  box-shadow:
-    0 18px 40px rgba(0, 0, 0, 0.28),
-    0 0 0 1px rgba(0, 0, 0, 0.55);
-}
-
-.board-wrap--lounge .chinese-chess-board {
-  width: min(100%, calc(100vh - 200px), calc(100vw - 640px), 740px);
-}
-
-.chinese-chess-square {
+.chinese-chess-board-stage {
   position: relative;
+  width: 100%;
   display: grid;
-  place-items: center;
-  aspect-ratio: 1;
-  padding: 0;
-  margin: 0;
-  border: 0;
-  min-width: 0;
-  min-height: 0;
-  transition: filter 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+  justify-items: center;
 }
 
-button.chinese-chess-square {
-  cursor: pointer;
-}
-
-.chinese-chess-square.light {
-  background: var(--chinese-chess-board-light);
-}
-
-.chinese-chess-square.dark {
-  background: var(--chinese-chess-board-dark);
-}
-
-button.chinese-chess-square:hover {
-  filter: brightness(1.03);
-}
-
-.chinese-chess-square.selected {
-  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.46);
-}
-
-.chinese-chess-square.target {
+.chinese-chess-board-stage__table {
+  position: relative;
+  width: 100%;
+  padding: 18px 16px 20px;
+  border-radius: 34px;
+  background:
+    linear-gradient(180deg, rgba(122, 68, 28, 0.68), rgba(58, 31, 14, 0.82)),
+    radial-gradient(circle at top, rgba(255, 223, 168, 0.12), transparent 58%);
+  border: 1px solid rgba(120, 70, 34, 0.5);
   box-shadow:
-    inset 0 0 0 4px var(--chinese-chess-board-target-ring),
-    inset 0 0 0 999px var(--chinese-chess-board-target);
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -16px 28px rgba(39, 21, 9, 0.22),
+    0 24px 54px rgba(0, 0, 0, 0.28);
 }
 
-.chinese-chess-square.last-move {
-  box-shadow: inset 0 0 0 999px rgba(246, 246, 105, 0.2);
-}
-
-.chinese-chess-square.last-move-from {
+.chinese-chess-board-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 9 / 10.65;
+  padding: 18px;
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, var(--chinese-chess-board-wood-soft), var(--chinese-chess-board-wood) 46%, var(--chinese-chess-board-wood-deep));
   box-shadow:
-    inset 0 0 0 3px rgba(255, 238, 186, 0.96),
-    inset 0 0 0 999px rgba(234, 197, 92, 0.26);
+    inset 0 0 0 3px rgba(110, 63, 28, 0.32),
+    inset 0 0 0 12px rgba(88, 48, 20, 0.08),
+    0 18px 40px rgba(0, 0, 0, 0.22);
 }
 
-.chinese-chess-square.last-move-to {
-  box-shadow:
-    inset 0 0 0 3px rgba(255, 249, 214, 0.98),
-    0 0 0 2px rgba(250, 243, 144, 0.36),
-    inset 0 0 0 999px rgba(246, 246, 105, 0.4);
+.chinese-chess-board-grid {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  grid-template-rows: repeat(10, minmax(0, 1fr));
+  align-items: center;
+  justify-items: center;
 }
 
-.chinese-chess-square.drag-source {
-  box-shadow: inset 0 0 0 4px rgba(146, 201, 90, 0.88);
-}
-
-.chinese-chess-piece {
-  width: 84%;
-  height: 84%;
-  filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.24));
+.chinese-chess-board-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
   pointer-events: none;
 }
 
-.chinese-chess-mark {
+.chinese-chess-board-overlay line,
+.chinese-chess-board-star {
+  stroke: var(--chinese-chess-board-line);
+  stroke-width: 0.08;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chinese-chess-board-star {
+  stroke: var(--chinese-chess-board-star);
+  fill: none;
+}
+
+.chinese-chess-river {
   position: absolute;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1;
-  text-transform: uppercase;
-  color: rgba(26, 23, 20, 0.46);
-}
-
-.chinese-chess-square.dark .chinese-chess-mark {
-  color: rgba(255, 255, 255, 0.58);
-}
-
-.chinese-chess-mark.file {
-  right: 6px;
-  bottom: 4px;
-}
-
-.chinese-chess-mark.rank {
-  left: 6px;
-  top: 4px;
-}
-
-.chinese-chess-seat-card {
+  left: 9%;
+  right: 9%;
+  top: 50%;
+  z-index: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  width: min(100%, calc(100vh - 160px), calc(100vw - 640px), 720px);
-  gap: 8px;
+  grid-template-columns: 1fr 1fr;
   align-items: center;
-  min-height: 58px;
-  padding: 4px 8px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  background: rgba(23, 23, 20, 0.56);
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
-.chinese-chess-seat-card.is-active {
-  border-color: rgba(146, 201, 90, 0.38);
-  box-shadow: 0 0 0 1px rgba(146, 201, 90, 0.16), 0 8px 18px rgba(0, 0, 0, 0.16);
+.chinese-chess-river span {
+  justify-self: center;
+  font-family: "STKaiti", "Kaiti SC", "BiauKai", "KaiTi", "Noto Serif SC", serif;
+  font-size: clamp(1.4rem, 2.5vw, 2.2rem);
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  color: rgba(84, 41, 17, 0.82);
+  text-shadow:
+    0 1px 0 rgba(255, 244, 223, 0.46),
+    0 4px 8px rgba(101, 56, 23, 0.1);
 }
 
-.chinese-chess-seat-card__identity {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.chinese-chess-seat-card__avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 9px;
+.chinese-chess-board-intersection {
+  position: relative;
+  z-index: 2;
+  width: 82%;
+  max-width: 60px;
+  aspect-ratio: 1;
   display: grid;
   place-items: center;
-  font-size: 0.72rem;
-  font-weight: 800;
-  color: #14140f;
-  background: linear-gradient(180deg, #f8f7f0, #d8d3c1);
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  transition: transform 120ms ease, filter 120ms ease;
 }
 
-.chinese-chess-seat-card__avatar.is-self {
-  background: linear-gradient(180deg, var(--chinese-chess-shell-green-strong), var(--chinese-chess-shell-green));
+button.chinese-chess-board-intersection.is-interactive {
+  cursor: pointer;
 }
 
-.chinese-chess-seat-card__copy {
+button.chinese-chess-board-intersection:disabled {
+  opacity: 1;
+}
+
+.chinese-chess-board-intersection:hover .chinese-chess-piece,
+.chinese-chess-board-intersection.is-selected .chinese-chess-piece {
+  transform: translateY(-1px);
+}
+
+.chinese-chess-board-intersection::before {
+  content: "";
+  position: absolute;
+  inset: 14%;
+  border-radius: 999px;
+  opacity: 0;
+  transform: scale(0.88);
+  transition: opacity 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+}
+
+.chinese-chess-board-intersection.is-target::before {
+  opacity: 1;
+  box-shadow:
+    inset 0 0 0 3px var(--chinese-chess-board-target-ring),
+    0 0 0 6px rgba(170, 36, 23, 0.08);
+}
+
+.chinese-chess-board-intersection.is-selected::before {
+  opacity: 1;
+  box-shadow: inset 0 0 0 3px rgba(126, 74, 37, 0.56);
+}
+
+.chinese-chess-board-intersection.is-last-move::before {
+  opacity: 1;
+  box-shadow:
+    inset 0 0 0 2px rgba(201, 140, 37, 0.56),
+    0 0 0 7px rgba(244, 211, 94, 0.12);
+}
+
+.chinese-chess-board-node {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(77, 42, 19, 0.22);
+}
+
+.chinese-chess-piece {
+  position: absolute;
+  inset: 6%;
+  display: block;
+  pointer-events: none;
+  transition: transform 120ms ease;
+}
+
+.chinese-chess-piece::before {
+  content: "";
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  bottom: 6%;
+  height: 18%;
+  border-radius: 999px;
+  background: radial-gradient(circle at center, rgba(54, 29, 11, 0.34), rgba(54, 29, 11, 0.04) 70%, transparent 100%);
+  filter: blur(4px);
+  transform: translateY(12%);
+  opacity: 0.78;
+}
+
+.chinese-chess-piece--capture {
+  position: relative;
+  inset: auto;
+  width: 36px;
+  height: 36px;
+}
+
+.chinese-chess-piece-image,
+.chinese-chess-piece-fallback {
+  position: relative;
+  z-index: 1;
+}
+
+.chinese-chess-piece-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 7px 10px rgba(0, 0, 0, 0.24))
+    drop-shadow(0 1px 0 rgba(255, 250, 240, 0.26));
+}
+
+.chinese-chess-piece-fallback {
   display: grid;
-  gap: 1px;
-  min-width: 0;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  border: 2px solid var(--chinese-chess-piece-rim);
+  background:
+    radial-gradient(circle at 30% 28%, rgba(255, 248, 238, 0.92), rgba(255, 247, 231, 0.72) 22%, transparent 23%),
+    radial-gradient(circle at 40% 34%, rgba(255, 255, 255, 0.4), transparent 44%),
+    linear-gradient(180deg, #fcf1d8, var(--chinese-chess-piece-surface));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -6px 10px rgba(133, 84, 45, 0.16),
+    0 5px 12px rgba(0, 0, 0, 0.22);
+  font-family: "Kaiti SC", "STKaiti", "Noto Serif SC", serif;
+  font-size: clamp(1rem, 2vw, 1.5rem);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.chinese-chess-piece--capture .chinese-chess-piece-image {
+  filter:
+    drop-shadow(0 4px 6px rgba(0, 0, 0, 0.18))
+    drop-shadow(0 1px 0 rgba(255, 250, 240, 0.2));
+}
+
+.chinese-chess-piece--capture::before {
+  left: 18%;
+  right: 18%;
+  bottom: 8%;
+  height: 16%;
 }
 
 .chinese-chess-panel-pill-row,
@@ -673,39 +755,147 @@ button.chinese-chess-square:hover {
   gap: 6px;
 }
 
-.chinese-chess-seat-card__name {
+.chinese-chess-board-player-badge {
+  position: absolute;
+  left: clamp(-8px, -0.7vw, -2px);
+  z-index: 4;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  width: min(42%, 188px);
+  min-height: 34px;
+  padding: 5px 10px 5px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 70, 34, 0.48);
+  background:
+    linear-gradient(180deg, rgba(255, 238, 207, 0.16), rgba(96, 53, 24, 0.3)),
+    rgba(58, 31, 14, 0.88);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 12px 22px rgba(0, 0, 0, 0.2);
+  color: #fff3df;
+  pointer-events: none;
+}
+
+.chinese-chess-board-player-badge--top {
+  top: 14px;
+}
+
+.chinese-chess-board-player-badge--bottom {
+  bottom: 14px;
+}
+
+.chinese-chess-board-player-badge.is-active {
+  border-color: rgba(207, 150, 72, 0.66);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 227, 181, 0.18),
+    0 0 0 1px rgba(207, 150, 72, 0.18),
+    0 12px 24px rgba(0, 0, 0, 0.22);
+}
+
+.chinese-chess-board-player-badge__avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 0.63rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #22150e;
+  background:
+    linear-gradient(180deg, rgba(255, 246, 227, 0.98), rgba(222, 187, 124, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.52),
+    0 2px 4px rgba(42, 20, 8, 0.2);
+}
+
+.chinese-chess-board-player-badge__avatar.is-self {
+  background:
+    linear-gradient(180deg, rgba(247, 221, 170, 0.98), rgba(205, 147, 73, 0.96));
+}
+
+.chinese-chess-board-player-badge__status {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 243, 222, 0.28);
+  box-shadow: 0 0 0 3px rgba(255, 243, 222, 0.04);
+}
+
+.chinese-chess-board-player-badge__status.is-ready {
+  background: #93d06e;
+  box-shadow: 0 0 0 3px rgba(147, 208, 110, 0.12);
+}
+
+.chinese-chess-board-player-badge__status.is-waiting {
+  background: #e4c37d;
+  box-shadow: 0 0 0 3px rgba(228, 195, 125, 0.12);
+}
+
+.chinese-chess-board-player-badge__status.is-offline,
+.chinese-chess-board-player-badge__status.is-empty {
+  background: rgba(255, 243, 222, 0.24);
+  box-shadow: 0 0 0 3px rgba(255, 243, 222, 0.04);
+}
+
+.chinese-chess-board-player-badge__name {
   min-width: 0;
-  font-size: 0.8rem;
-  line-height: 1.1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.chinese-chess-seat-card__detail {
-  min-height: 0.6rem;
-  font-size: 0.62rem;
-  line-height: 0.6rem;
-  color: var(--chinese-chess-shell-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.chinese-chess-seat-card__detail.is-placeholder {
-  opacity: 0;
-}
-
-.chinese-chess-seat-card__clock {
-  min-width: 76px;
-  padding: 6px 8px;
-  border-radius: 10px;
-  text-align: center;
-  font-size: clamp(0.96rem, 1.35vw, 1.2rem);
+  font-size: 0.76rem;
   line-height: 1;
-  color: var(--chinese-chess-shell-text);
-  background: rgba(11, 11, 10, 0.46);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chinese-chess-board-player-badge__clock {
+  min-width: 58px;
+  padding: 0 6px 0 4px;
+  text-align: right;
+  font-size: clamp(0.82rem, 1vw, 0.94rem);
+  line-height: 1;
+  color: #fff6e6;
+}
+
+.chinese-chess-captures {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.chinese-chess-capture-row {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(120, 70, 34, 0.32);
+  background:
+    linear-gradient(180deg, rgba(255, 241, 216, 0.08), rgba(70, 39, 18, 0.22)),
+    rgba(40, 23, 12, 0.62);
+}
+
+.chinese-chess-capture-row > span {
+  font-size: 0.76rem;
+  line-height: 1.2;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(244, 243, 237, 0.66);
+}
+
+.chinese-chess-capture-row > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 38px;
+}
+
+.chinese-chess-capture-piece {
+  display: inline-flex;
+  align-items: center;
 }
 
 .chinese-chess-com-shell .tiny {
@@ -748,10 +938,15 @@ button.chinese-chess-square:hover {
   grid-template-rows: auto auto minmax(0, 1fr);
   gap: 14px;
   position: relative;
-  width: min(100%, 540px);
+  width: 100%;
   max-height: 100%;
   overflow: hidden;
-  padding-right: 4px;
+  justify-items: center;
+  align-content: start;
+}
+
+.chinese-chess-right-rail > * {
+  width: 100%;
 }
 
 .chinese-chess-sidebar-meta {
@@ -1432,16 +1627,20 @@ button.chinese-chess-square:hover {
 
 @media (max-width: 1260px) {
   .chinese-chess-com-layout {
-    grid-template-columns: fit-content(680px) minmax(340px, 430px);
+    --chinese-chess-rail-width: min(400px, calc(100vw - 48px));
+    --chinese-chess-stage-width: min(
+      calc((100vh - 96px) * 0.845),
+      calc(100vw - var(--chinese-chess-rail-width) - 64px),
+      960px
+    );
   }
 
-  .chinese-chess-board,
-  .chinese-chess-seat-card {
-    width: min(100%, calc(100vh - 160px), calc(100vw - 520px), 660px);
-  }
-
-  .board-wrap--lounge .chinese-chess-board {
-    width: min(100%, calc(100vh - 200px), calc(100vw - 520px), 680px);
+  .chinese-chess-com-shell.has-floating-notices .chinese-chess-com-layout {
+    --chinese-chess-stage-width: min(
+      calc((100vh - 144px) * 0.845),
+      calc(100vw - var(--chinese-chess-rail-width) - 64px),
+      960px
+    );
   }
 }
 
@@ -1459,6 +1658,10 @@ button.chinese-chess-square:hover {
 
   .chinese-chess-com-layout {
     flex: none;
+    --chinese-chess-rail-width: min(calc(100vw - 40px), 760px);
+    --chinese-chess-stage-width: min(calc(100vw - 40px), 760px);
+    width: 100%;
+    margin-inline: 0;
     grid-template-columns: 1fr;
     justify-content: stretch;
   }
@@ -1468,14 +1671,11 @@ button.chinese-chess-square:hover {
     width: 100%;
     max-height: none;
     overflow: visible;
-    padding-right: 0;
     grid-template-rows: auto auto auto;
   }
 
-  .chinese-chess-board,
-  .chinese-chess-seat-card,
-  .board-wrap--lounge .chinese-chess-board {
-    width: min(100%, calc(100vw - 48px), 720px);
+  .chinese-chess-right-rail > * {
+    width: 100%;
   }
 
   .chinese-chess-workspace-tabs {
@@ -1495,6 +1695,10 @@ button.chinese-chess-square:hover {
     width: min(calc(100vw - 16px), 560px);
   }
 
+  .chinese-chess-com-shell.has-floating-notices .chinese-chess-com-layout {
+    padding-top: clamp(72px, 12vh, 108px);
+  }
+
   .chinese-chess-main-stage,
   .chinese-chess-panel-card,
   .promotion-card {
@@ -1505,17 +1709,28 @@ button.chinese-chess-square:hover {
     padding: 12px;
   }
 
-  .chinese-chess-board-shell,
-  .board-wrap {
-    padding: 6px;
+  .chinese-chess-board-wrap {
+    padding: 10px 0;
   }
 
-  .chinese-chess-seat-card {
+  .chinese-chess-board-player-badge {
+    left: clamp(-4px, -0.3vw, 0px);
+    width: min(52vw, 176px);
+    min-height: 32px;
+    padding-right: 8px;
+  }
+
+  .chinese-chess-board-player-badge__name {
+    font-size: 0.72rem;
+  }
+
+  .chinese-chess-board-player-badge__clock {
+    min-width: 54px;
+    font-size: 0.8rem;
+  }
+
+  .chinese-chess-captures {
     grid-template-columns: 1fr;
-  }
-
-  .chinese-chess-seat-card__clock {
-    width: 100%;
   }
 
   .chinese-chess-workspace-tabs {

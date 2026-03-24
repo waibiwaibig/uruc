@@ -96,8 +96,6 @@ const zhCN = {
       roomNamePlaceholder: '可选房间标题',
       publicRoom: '公开',
       privateRoom: '私密',
-      currentBoard: '当前棋盘',
-      watchedBoard: '观战棋盘',
       currentRoomTitle: '当前房间',
       selectedRoomTitle: '选中房间',
       currentRoomEmpty: '创建房间或从右侧房间列表加入一局。',

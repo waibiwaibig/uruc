@@ -36,6 +36,7 @@ import type {
   ChineseChessTurnPromptPayload,
   ChineseChessWatchRoomPayload,
 } from './types';
+import { pieceAssetUrl } from './piece-assets';
 
 const CHINESE_CHESS_LOCATION_ID = 'uruc.chinese-chess.chinese-chess-club';
 const CHINESE_CHESS_COMMAND = (id: string) => `uruc.chinese-chess.${id}@v1`;
@@ -44,6 +45,24 @@ const FILES_RED = FILES;
 const FILES_BLACK = [...FILES].reverse() as typeof FILES;
 const RANKS_RED = ['9', '8', '7', '6', '5', '4', '3', '2', '1', '0'] as const;
 const RANKS_BLACK = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'] as const;
+const BOARD_VERTICAL_GUIDES = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5] as const;
+const BOARD_HORIZONTAL_GUIDES = [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5] as const;
+const BOARD_STAR_POINTS = [
+  { x: 1.5, y: 2.5, edge: 'full' as const },
+  { x: 7.5, y: 2.5, edge: 'full' as const },
+  { x: 0.5, y: 3.5, edge: 'left' as const },
+  { x: 2.5, y: 3.5, edge: 'full' as const },
+  { x: 4.5, y: 3.5, edge: 'full' as const },
+  { x: 6.5, y: 3.5, edge: 'full' as const },
+  { x: 8.5, y: 3.5, edge: 'right' as const },
+  { x: 1.5, y: 7.5, edge: 'full' as const },
+  { x: 7.5, y: 7.5, edge: 'full' as const },
+  { x: 0.5, y: 6.5, edge: 'left' as const },
+  { x: 2.5, y: 6.5, edge: 'full' as const },
+  { x: 4.5, y: 6.5, edge: 'full' as const },
+  { x: 6.5, y: 6.5, edge: 'full' as const },
+  { x: 8.5, y: 6.5, edge: 'right' as const },
+] as const;
 const DEFAULT_CLOCK_MS = 10 * 60 * 1000;
 const INITIAL_POSITION_FEN = 'rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR r';
 const MAX_TOASTS = 4;
@@ -52,19 +71,19 @@ const INITIAL_COUNTS = {
   black: { k: 1, a: 2, b: 2, n: 2, r: 2, c: 2, p: 5 },
 };
 const PIECE_GLYPHS: Record<string, string> = {
-  K: '帅',
+  K: '帥',
   A: '仕',
   B: '相',
-  N: '马',
-  R: '车',
+  N: '傌',
+  R: '俥',
   C: '炮',
   P: '兵',
-  k: '将',
+  k: '將',
   a: '士',
   b: '象',
-  n: '马',
-  r: '车',
-  c: '炮',
+  n: '馬',
+  r: '車',
+  c: '砲',
   p: '卒',
 };
 
@@ -137,6 +156,29 @@ function agentNameLabel(name: string | undefined | null, fallback: string) {
   return name?.trim() || fallback;
 }
 
+function buildStarMarkPath(x: number, y: number, edge: 'full' | 'left' | 'right') {
+  const arm = 0.16;
+  const inset = 0.14;
+  const cross = 0.08;
+  const segments: string[] = [];
+
+  if (edge !== 'right') {
+    segments.push(
+      `M ${x - inset - arm} ${y - inset} h ${arm} v ${cross}`,
+      `M ${x - inset - arm} ${y + inset} h ${arm} v ${-cross}`,
+    );
+  }
+
+  if (edge !== 'left') {
+    segments.push(
+      `M ${x + inset + arm} ${y - inset} h ${-arm} v ${cross}`,
+      `M ${x + inset + arm} ${y + inset} h ${-arm} v ${-cross}`,
+    );
+  }
+
+  return segments.join(' ');
+}
+
 function reduceRooms(rooms: ChineseChessRoomSummary[], matchId: string, room?: ChineseChessRoomSummary) {
   const next = rooms.filter((entry) => entry.matchId !== matchId);
   if (room) next.push(room);
@@ -180,15 +222,49 @@ function deriveCapturedPieces(board: string[][]) {
 
   for (const [piece, total] of Object.entries(INITIAL_COUNTS.red)) {
     const missing = total - currentCounts.red[piece as keyof typeof currentCounts.red];
-    for (let index = 0; index < missing; index += 1) redCaptured.push(PIECE_GLYPHS[piece] ?? piece);
+    for (let index = 0; index < missing; index += 1) redCaptured.push(piece);
   }
 
   for (const [piece, total] of Object.entries(INITIAL_COUNTS.black)) {
     const missing = total - currentCounts.black[piece as keyof typeof currentCounts.black];
-    for (let index = 0; index < missing; index += 1) blackCaptured.push(PIECE_GLYPHS[piece] ?? piece);
+    for (let index = 0; index < missing; index += 1) blackCaptured.push(piece);
   }
 
   return { red: redCaptured, black: blackCaptured };
+}
+
+function renderPieceSprite(piece: string, variant: 'board' | 'capture' = 'board') {
+  const side = pieceSide(piece);
+  const src = pieceAssetUrl(piece);
+  const label = PIECE_GLYPHS[piece] ?? piece;
+
+  return (
+    <span
+      className={[
+        'chinese-chess-piece',
+        `chinese-chess-piece--${variant}`,
+        side ? `is-${side}` : '',
+      ].filter(Boolean).join(' ')}
+      aria-hidden={variant === 'board' ? 'true' : undefined}
+      aria-label={variant === 'capture' ? label : undefined}
+      role={variant === 'capture' ? 'img' : undefined}
+    >
+      {src ? (
+        <img
+          className="chinese-chess-piece-image"
+          src={src}
+          alt=""
+          draggable={false}
+          loading="eager"
+          decoding="async"
+        />
+      ) : (
+        <span className="chinese-chess-piece-fallback" aria-hidden="true">
+          {label}
+        </span>
+      )}
+    </span>
+  );
 }
 
 function roomSummaryFromState(
@@ -681,6 +757,7 @@ export function ChineseChessPage() {
   const detailState = detailRoom && inspectedRoom?.summary.matchId === detailRoom.matchId ? inspectedRoom.state : null;
   const isWatchingSelectedRoom = !!detailRoom && inspectedRoom?.summary.matchId === detailRoom.matchId;
   const activeResultOverlay = resultOverlay && boardMatch && resultOverlay.matchId === boardMatch.matchId ? resultOverlay : null;
+  const hasFloatingNotices = !connectedAgent || !!runtime.error || !!busyCommand || toasts.length > 0;
   const recordWins = rating?.wins ?? 0;
   const recordLosses = rating?.losses ?? 0;
   const recordDraws = rating?.draws ?? 0;
@@ -783,7 +860,7 @@ export function ChineseChessPage() {
     setOrbDragging(false);
   };
 
-  const renderPlayerCard = (seatSide: ChineseChessSide, player: ChineseChessPlayer | null, clockMs: number) => {
+  const renderBoardPlayerBadge = (position: 'top' | 'bottom', player: ChineseChessPlayer | null, clockMs: number) => {
     const displayName = agentNameLabel(player?.agentName, t('play:chineseChess.page.pendingPlayer'));
     const isSelf = player?.agentId === connectedAgent?.id;
     const detailLabel = !player
@@ -793,92 +870,119 @@ export function ChineseChessPage() {
         : player.ready
           ? t('play:chineseChess.page.ready')
           : '\u00a0';
-    const isTurnCard = !!player?.side && !boardMatch?.result && activeSide === player.side;
+    const isTurnBadge = !!player?.side && !boardMatch?.result && activeSide === player.side;
+    const statusTone = !player
+      ? 'is-empty'
+      : !player.connected
+        ? 'is-offline'
+        : player.ready
+          ? 'is-ready'
+          : 'is-waiting';
 
     return (
-      <div className={`chinese-chess-seat-card chinese-chess-seat-card--${seatSide} ${isTurnCard ? 'is-active' : ''}`}>
-        <div className="chinese-chess-seat-card__identity">
-          <div className={`chinese-chess-seat-card__avatar ${isSelf ? 'is-self' : ''}`}>{agentMonogram(displayName)}</div>
-          <div className="chinese-chess-seat-card__copy">
-            <strong className="chinese-chess-seat-card__name">{displayName}</strong>
-            <span className={`chinese-chess-seat-card__detail ${detailLabel.trim() === '' ? 'is-placeholder' : ''}`}>{detailLabel}</span>
-          </div>
-        </div>
-        <div className="chinese-chess-seat-card__meta">
-          <span className="chinese-chess-seat-card__side">{formatSide(player?.side ?? seatSide)}</span>
-          <span className="chinese-chess-seat-card__clock mono">{formatClock(clockMs)}</span>
-        </div>
+      <div
+        className={[
+          'chinese-chess-board-player-badge',
+          `chinese-chess-board-player-badge--${position}`,
+          isTurnBadge ? 'is-active' : '',
+          isSelf ? 'is-self' : '',
+        ].filter(Boolean).join(' ')}
+        title={detailLabel.trim() ? detailLabel : undefined}
+      >
+        <span className={`chinese-chess-board-player-badge__avatar ${isSelf ? 'is-self' : ''}`}>{agentMonogram(displayName)}</span>
+        <span className={`chinese-chess-board-player-badge__status ${statusTone}`} aria-hidden="true" />
+        <strong className="chinese-chess-board-player-badge__name">{displayName}</strong>
+        <span className="chinese-chess-board-player-badge__clock mono">{formatClock(clockMs)}</span>
+        {detailLabel.trim() ? <span className="chinese-chess-visually-hidden">{detailLabel}</span> : null}
       </div>
     );
   };
 
-  const renderBoard = (matrix: string[][], interactive: boolean, showHistory: boolean) => (
-    <div className="chinese-chess-board-shell">
-      <div className="chinese-chess-files top">
-        {boardFiles.map((file) => (
-          <span key={`top-${file}`}>{file}</span>
-        ))}
-      </div>
-      <div className="chinese-chess-ranks left">
-        {boardRanks.map((rank) => (
-          <span key={`left-${rank}`}>{rank}</span>
-        ))}
-      </div>
-      <div className={`chinese-chess-board ${showHistory ? 'is-live' : 'is-preview'}`}>
-        <svg className="chinese-chess-board-overlay" viewBox="0 0 9 10" preserveAspectRatio="none" aria-hidden="true">
-          <line x1="3" y1="0" x2="5" y2="2" />
-          <line x1="5" y1="0" x2="3" y2="2" />
-          <line x1="3" y1="7" x2="5" y2="9" />
-          <line x1="5" y1="7" x2="3" y2="9" />
-        </svg>
-        <div className="chinese-chess-river">
-          <span>{t('play:chineseChess.page.riverChu')}</span>
-          <span>{t('play:chineseChess.page.riverHan')}</span>
+  const renderBoard = (
+    matrix: string[][],
+    interactive: boolean,
+    showHistory: boolean,
+    topBadge: React.ReactNode,
+    bottomBadge: React.ReactNode,
+  ) => {
+    const riverLabels = resolvedOrientation === 'red'
+      ? [t('play:chineseChess.page.riverChu'), t('play:chineseChess.page.riverHan')]
+      : [t('play:chineseChess.page.riverHan'), t('play:chineseChess.page.riverChu')];
+
+    return (
+      <div className="chinese-chess-board-stage">
+        <div className={`chinese-chess-board-stage__table ${showHistory ? 'is-live' : 'is-preview'}`}>
+          {topBadge}
+          <div className="chinese-chess-board-frame">
+            <div className={`chinese-chess-board-grid ${showHistory ? 'is-live' : 'is-preview'}`}>
+              <svg className="chinese-chess-board-overlay" viewBox="0 0 9 10" preserveAspectRatio="none" aria-hidden="true">
+                {BOARD_HORIZONTAL_GUIDES.map((y) => (
+                  <line key={`h-${y}`} x1="0.5" y1={y} x2="8.5" y2={y} />
+                ))}
+                {BOARD_VERTICAL_GUIDES.map((x, index) => (
+                  index === 0 || index === BOARD_VERTICAL_GUIDES.length - 1 ? (
+                    <line key={`v-${x}`} x1={x} y1="0.5" x2={x} y2="9.5" />
+                  ) : (
+                    <React.Fragment key={`v-${x}`}>
+                      <line x1={x} y1="0.5" x2={x} y2="4.5" />
+                      <line x1={x} y1="5.5" x2={x} y2="9.5" />
+                    </React.Fragment>
+                  )
+                ))}
+                <line x1="3.5" y1="0.5" x2="5.5" y2="2.5" />
+                <line x1="5.5" y1="0.5" x2="3.5" y2="2.5" />
+                <line x1="3.5" y1="7.5" x2="5.5" y2="9.5" />
+                <line x1="5.5" y1="7.5" x2="3.5" y2="9.5" />
+                {BOARD_STAR_POINTS.map((point) => (
+                  <path
+                    key={`star-${point.x}-${point.y}`}
+                    className="chinese-chess-board-star"
+                    d={buildStarMarkPath(point.x, point.y, point.edge)}
+                  />
+                ))}
+              </svg>
+              <div className="chinese-chess-river" aria-hidden="true">
+                <span>{riverLabels[0]}</span>
+                <span>{riverLabels[1]}</span>
+              </div>
+              {boardRanks.map((rank, rowIndex) =>
+                boardFiles.map((file, colIndex) => {
+                  const square = `${file}${rank}`;
+                  const piece = pieceAtSquare(matrix, square);
+                  const isSelected = interactive && selectedSquare === square;
+                  const isTarget = interactive && activeTargets.has(square);
+                  const isLastMove = showHistory && (lastMove?.from === square || lastMove?.to === square);
+
+                  return (
+                    <button
+                      key={square}
+                      type="button"
+                      className={[
+                        'chinese-chess-board-intersection',
+                        piece ? 'has-piece' : '',
+                        interactive ? 'is-interactive' : 'is-static',
+                        isSelected ? 'is-selected' : '',
+                        isTarget ? 'is-target' : '',
+                        isLastMove ? 'is-last-move' : '',
+                      ].filter(Boolean).join(' ')}
+                      style={{ gridColumn: colIndex + 1, gridRow: rowIndex + 1 }}
+                      onClick={() => handleBoardSquareClick(square)}
+                      disabled={!interactive}
+                      data-square={square}
+                      aria-label={`${square}${piece ? ` ${PIECE_GLYPHS[piece]}` : ''}`}
+                    >
+                      {piece ? renderPieceSprite(piece) : <span className="chinese-chess-board-node" aria-hidden="true" />}
+                    </button>
+                  );
+                }),
+              )}
+            </div>
+          </div>
+          {bottomBadge}
         </div>
-        {boardRanks.map((rank) =>
-          boardFiles.map((file) => {
-            const square = `${file}${rank}`;
-            const piece = pieceAtSquare(matrix, square);
-            const isSelected = interactive && selectedSquare === square;
-            const isTarget = interactive && activeTargets.has(square);
-            const isLastMove = showHistory && (lastMove?.from === square || lastMove?.to === square);
-            return (
-              <button
-                key={square}
-                type="button"
-                className={[
-                  'chinese-chess-cell',
-                  piece ? 'has-piece' : '',
-                  isSelected ? 'is-selected' : '',
-                  isTarget ? 'is-target' : '',
-                  isLastMove ? 'is-last-move' : '',
-                ].filter(Boolean).join(' ')}
-                onClick={() => handleBoardSquareClick(square)}
-                disabled={!interactive}
-                aria-label={`${square}${piece ? ` ${PIECE_GLYPHS[piece]}` : ''}`}
-              >
-                {piece ? (
-                  <span className={`chinese-chess-piece ${pieceSide(piece) === 'red' ? 'is-red' : 'is-black'}`}>
-                    {PIECE_GLYPHS[piece] ?? piece}
-                  </span>
-                ) : null}
-              </button>
-            );
-          }),
-        )}
       </div>
-      <div className="chinese-chess-ranks right">
-        {boardRanks.map((rank) => (
-          <span key={`right-${rank}`}>{rank}</span>
-        ))}
-      </div>
-      <div className="chinese-chess-files bottom">
-        {boardFiles.map((file) => (
-          <span key={`bottom-${file}`}>{file}</span>
-        ))}
-      </div>
-    </div>
-  );
+    );
+  };
 
   const renderWorkspaceActions = () => {
     if (!currentMatch) return null;
@@ -1445,7 +1549,7 @@ export function ChineseChessPage() {
   );
 
   return (
-    <div className="page-wrap chinese-chess-com-shell">
+    <div className={`page-wrap chinese-chess-com-shell ${hasFloatingNotices ? 'has-floating-notices' : ''}`}>
       <div className="chinese-chess-com-shell__ambience" aria-hidden="true" />
 
       <div className="chinese-chess-notice-stack">
@@ -1482,29 +1586,32 @@ export function ChineseChessPage() {
           <section className="chinese-chess-main-stage is-live" id="play">
             {!boardMatch ? (
               <div className="chinese-chess-stage-center chinese-chess-stage-center--live">
-                {renderPlayerCard(boardTopSide, null, DEFAULT_CLOCK_MS)}
                 <div className="chinese-chess-board-wrap chinese-chess-board-wrap--live">
-                  {renderBoard(previewBoardMatrix, false, false)}
+                  {renderBoard(
+                    previewBoardMatrix,
+                    false,
+                    false,
+                    renderBoardPlayerBadge('top', null, DEFAULT_CLOCK_MS),
+                    renderBoardPlayerBadge(
+                      'bottom',
+                      connectedAgent
+                        ? {
+                            agentId: connectedAgent.id,
+                            userId: '',
+                            agentName: connectedAgent.name,
+                            side: boardBottomSide,
+                            ready: false,
+                            connected: true,
+                            disconnectDeadlineAt: null,
+                          }
+                        : null,
+                      DEFAULT_CLOCK_MS,
+                    ),
+                  )}
                 </div>
-                {renderPlayerCard(
-                  boardBottomSide,
-                  connectedAgent
-                    ? {
-                        agentId: connectedAgent.id,
-                        userId: '',
-                        agentName: connectedAgent.name,
-                        side: boardBottomSide,
-                        ready: false,
-                        connected: true,
-                        disconnectDeadlineAt: null,
-                      }
-                    : null,
-                  DEFAULT_CLOCK_MS,
-                )}
               </div>
             ) : (
               <div className="chinese-chess-stage-center chinese-chess-stage-center--live">
-                {renderPlayerCard(boardTopSide, topStagePlayer, resolveDisplayedClock(topStagePlayer, boardTopSide))}
                 <div className="chinese-chess-board-wrap chinese-chess-board-wrap--live">
                   {activeResultOverlay ? (
                     <div className="chinese-chess-result-overlay" role="status" aria-live="polite">
@@ -1534,17 +1641,34 @@ export function ChineseChessPage() {
                       </div>
                     </div>
                   ) : null}
-                  {renderBoard(boardMatrix, yourTurn, true)}
+                  {renderBoard(
+                    boardMatrix,
+                    yourTurn,
+                    true,
+                    renderBoardPlayerBadge('top', topStagePlayer, resolveDisplayedClock(topStagePlayer, boardTopSide)),
+                    renderBoardPlayerBadge('bottom', bottomStagePlayer, resolveDisplayedClock(bottomStagePlayer, boardBottomSide)),
+                  )}
                 </div>
-                {renderPlayerCard(boardBottomSide, bottomStagePlayer, resolveDisplayedClock(bottomStagePlayer, boardBottomSide))}
                 <div className="chinese-chess-captures">
                   <div className="chinese-chess-capture-row">
                     <span>{t('play:chineseChess.page.redLosses')}</span>
-                    <div>{boardCaptured.red.length > 0 ? boardCaptured.red.map((piece, index) => <i key={`red-${piece}-${index}`}>{piece}</i>) : <em>{t('play:chineseChess.page.none')}</em>}</div>
+                    <div>
+                      {boardCaptured.red.length > 0 ? boardCaptured.red.map((piece, index) => (
+                        <span key={`red-${piece}-${index}`} className="chinese-chess-capture-piece">
+                          {renderPieceSprite(piece, 'capture')}
+                        </span>
+                      )) : <em>{t('play:chineseChess.page.none')}</em>}
+                    </div>
                   </div>
                   <div className="chinese-chess-capture-row">
                     <span>{t('play:chineseChess.page.blackLosses')}</span>
-                    <div>{boardCaptured.black.length > 0 ? boardCaptured.black.map((piece, index) => <i key={`black-${piece}-${index}`}>{piece}</i>) : <em>{t('play:chineseChess.page.none')}</em>}</div>
+                    <div>
+                      {boardCaptured.black.length > 0 ? boardCaptured.black.map((piece, index) => (
+                        <span key={`black-${piece}-${index}`} className="chinese-chess-capture-piece">
+                          {renderPieceSprite(piece, 'capture')}
+                        </span>
+                      )) : <em>{t('play:chineseChess.page.none')}</em>}
+                    </div>
                   </div>
                 </div>
               </div>

@@ -165,6 +165,17 @@ describe('ChineseChessPage layout', () => {
     expect(html).toContain('play:chineseChess.tabs.rooms');
     expect(html).toContain('chinese-chess-float-orb');
     expect(html).toContain('chinese-chess-scroll');
+    expect(html).toContain('chinese-chess-board-stage');
+    expect(html).toContain('chinese-chess-board-frame');
+    expect(html).toContain('chinese-chess-board-grid');
+    expect(html).toContain('chinese-chess-board-overlay');
+    expect(html).toContain('play:chineseChess.page.riverChu');
+    expect(html).toContain('play:chineseChess.page.riverHan');
+    expect(html).toContain('chinese-chess-piece-image');
+    expect(html).toContain('chinese-chess-board-player-badge');
+    expect(html).toContain('chinese-chess-board-player-badge--top');
+    expect(html).toContain('chinese-chess-board-player-badge--bottom');
+    expect(html).not.toContain('chinese-chess-seat-card');
   });
 
   it('opens selected room details in a closable floating panel', async () => {
