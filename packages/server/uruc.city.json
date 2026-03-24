@@ -18,22 +18,6 @@
       "permissionsGranted": [],
       "devOverridePath": "../plugins/social",
       "config": {}
-    },
-    "uruc.chess": {
-      "pluginId": "uruc.chess",
-      "packageName": "@uruc/plugin-chess",
-      "enabled": false,
-      "permissionsGranted": [],
-      "config": {},
-      "devOverridePath": "../plugins/chess"
-    },
-    "uruc.chinese-chess": {
-      "pluginId": "uruc.chinese-chess",
-      "packageName": "@uruc/plugin-chinese-chess",
-      "enabled": true,
-      "permissionsGranted": [],
-      "config": {},
-      "devOverridePath": "../plugins/chinese-chess"
     }
   },
   "pluginStoreDir": ".uruc/plugins"

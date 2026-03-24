@@ -1,9 +1,9 @@
 import dotenv from 'dotenv';
 
 import { readCityConfig, writeCityConfig } from '../core/plugin-platform/config.js';
-import { getActiveEnvPath, getCityConfigPath } from '../runtime-paths.js';
+import { getEnvPath, getCityConfigPath } from '../runtime-paths.js';
 
-dotenv.config({ path: getActiveEnvPath(), quiet: true });
+dotenv.config({ path: getEnvPath(), quiet: true });
 
 const cityConfigPath = getCityConfigPath();
 
