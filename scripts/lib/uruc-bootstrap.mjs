@@ -4,6 +4,13 @@ export const BETTER_SQLITE3_REBUILD_NOTICE =
 export const BETTER_SQLITE3_REBUILD_SUCCESS =
   '[uruc] better-sqlite3 native module rebuilt successfully.';
 
+export const BETTER_SQLITE3_REBUILD_ARGS = [
+  'rebuild',
+  'better-sqlite3',
+  '--build-from-source',
+  '--ignore-scripts=false',
+];
+
 export function ensureBetterSqlite3Ready({
   probeBetterSqlite3,
   runCommand,
@@ -15,7 +22,7 @@ export function ensureBetterSqlite3Ready({
   if (probe.status === 0) return;
 
   log(BETTER_SQLITE3_REBUILD_NOTICE);
-  runCommand('npm', ['rebuild', 'better-sqlite3', '--build-from-source']);
+  runCommand('npm', BETTER_SQLITE3_REBUILD_ARGS);
 
   const finalProbe = probeBetterSqlite3();
   if (finalProbe.status !== 0) {
