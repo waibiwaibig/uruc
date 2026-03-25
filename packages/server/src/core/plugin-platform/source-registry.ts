@@ -127,6 +127,49 @@ async function readRegistryDocument(source: CityPluginSource, baseDir: string): 
   };
 }
 
+export async function listPluginSourceCatalog(options: {
+  sources: CityPluginSource[];
+  baseDir: string;
+  sourceId?: string;
+}): Promise<Array<SourceRegistryRelease & {
+  sourceId: string;
+  registry: string;
+  registryLocation: string;
+}>> {
+  const candidates = options.sourceId
+    ? options.sources.filter((source) => source.id === options.sourceId)
+    : options.sources;
+
+  if (candidates.length === 0) {
+    return [];
+  }
+
+  const releases: Array<SourceRegistryRelease & {
+    sourceId: string;
+    registry: string;
+    registryLocation: string;
+  }> = [];
+  for (const source of candidates) {
+    const { registry, registryLocation } = await readRegistryDocument(source, options.baseDir);
+    for (const release of registry.packages) {
+      releases.push({
+        ...release,
+        sourceId: source.id,
+        registry: source.registry,
+        registryLocation,
+      });
+    }
+  }
+
+  return releases.sort((left, right) => {
+    const pluginCompare = left.pluginId.localeCompare(right.pluginId);
+    if (pluginCompare !== 0) {
+      return pluginCompare;
+    }
+    return compareVersions(right.version, left.version);
+  });
+}
+
 function resolveRegistryLocation(registryLocation: string, target: string): string {
   if (isHttpUrl(target)) {
     return target;

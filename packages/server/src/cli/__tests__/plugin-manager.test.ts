@@ -14,6 +14,7 @@ import { readCityConfig, readCityLock, writeCityConfig } from '../../core/plugin
 import { PluginPlatformHost } from '../../core/plugin-platform/host.js';
 import { HookRegistry } from '../../core/plugin-system/hook-registry.js';
 import { ServiceRegistry } from '../../core/plugin-system/service-registry.js';
+import type { CommandContext } from '../lib/types.js';
 
 const tempDirs: string[] = [];
 const servers: Server[] = [];
@@ -182,6 +183,7 @@ async function createTempRuntime(): Promise<{
 async function writeRegistry(
   registryDir: string,
   packages: Array<{
+    alias?: string;
     pluginId: string;
     packageName: string;
     version: string;
@@ -252,6 +254,15 @@ async function startRegistryServer(options: {
   return `http://127.0.0.1:${address.port}`;
 }
 
+async function runPlugin(args: string[], overrides: Partial<CommandContext> = {}): Promise<void> {
+  const { runPluginCommand } = await import('../plugin-manager.js');
+  await runPluginCommand({
+    args,
+    json: false,
+    ...overrides,
+  });
+}
+
 beforeEach(() => {
   vi.resetModules();
 });
@@ -274,7 +285,7 @@ afterEach(async () => {
 });
 
 describe('plugin manager', () => {
-  it('installs a marketplace plugin by alias from the official source', async () => {
+  it('installs a marketplace plugin by alias through plugin install from the official source', async () => {
     const runtime = await createTempRuntime();
     const chessPackage = path.join(runtime.tempRoot, 'packages', 'chess');
     await createFrontendPluginPackage(chessPackage, {
@@ -284,8 +295,7 @@ describe('plugin manager', () => {
       publisher: 'uruc',
     });
     const packedDir = path.join(runtime.tempRoot, 'packed-official');
-    const { runPluginCommand } = await import('../plugin-manager.js');
-    await runPluginCommand(['pack', chessPackage, '--out', packedDir]);
+    await runPlugin(['pack', chessPackage, '--out', packedDir]);
     const tarballs = (await readdir(packedDir)).filter((entry) => entry.endsWith('.tgz'));
     const tarballPath = path.join(packedDir, tarballs[0]!);
     const tarball = await readFile(tarballPath);
@@ -316,7 +326,7 @@ describe('plugin manager', () => {
     ];
     await writeCityConfig(runtime.cityConfigPath, configBefore);
 
-    await runPluginCommand(['add', '@uruc/chess']);
+    await runPlugin(['install', '@uruc/chess']);
 
     const host = new PluginPlatformHost({
       configPath: runtime.cityConfigPath,
@@ -397,19 +407,14 @@ describe('plugin manager', () => {
     ];
     await writeCityConfig(runtime.cityConfigPath, configBefore);
 
-    const { runPluginCommand } = await import('../plugin-manager.js');
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
-      throw new Error(`process.exit:${code ?? 0}`);
-    }) as any);
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    await expect(runPluginCommand(['add', '@uruc/chess'])).rejects.toThrow('process.exit:1');
+    await expect(runPlugin(['install', '@uruc/chess'])).rejects.toThrow(/integrity/i);
     const config = await readCityConfig(runtime.cityConfigPath);
     expect(config.plugins['uruc.chess']).toBeUndefined();
-    expect(errorSpy).toHaveBeenCalled();
+  });
 
-    exitSpy.mockRestore();
-    errorSpy.mockRestore();
+  it('fails with a migration hint when using the removed plugin add command', async () => {
+    await createTempRuntime();
+    await expect(runPlugin(['add', '@uruc/chess'])).rejects.toThrow(/plugin install/i);
   });
 
   it('installs a plugin by pluginId from a configured source and locks it as a package source', async () => {
@@ -424,8 +429,7 @@ describe('plugin manager', () => {
       },
     ]);
 
-    const { runPluginCommand } = await import('../plugin-manager.js');
-    await runPluginCommand(['install', 'acme.venue', '--source', 'local']);
+    await runPlugin(['install', 'acme.venue', '--source', 'local']);
 
     const config = await readCityConfig(runtime.cityConfigPath);
     const lock = await readCityLock(runtime.cityLockPath);
@@ -472,10 +476,9 @@ describe('plugin manager', () => {
       },
     ]);
 
-    const { runPluginCommand } = await import('../plugin-manager.js');
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    await runPluginCommand(['install', 'acme.venue', '--source', 'local']);
+    await runPlugin(['install', 'acme.venue', '--source', 'local']);
 
     const config = await readCityConfig(runtime.cityConfigPath);
     const lock = await readCityLock(runtime.cityLockPath);
@@ -488,7 +491,7 @@ describe('plugin manager', () => {
     warnSpy.mockRestore();
   });
 
-  it('installs a local override plugin that imports the sdk backend entrypoint', async () => {
+  it('links a local workspace plugin that imports the sdk backend entrypoint', async () => {
     const runtime = await createTempRuntime();
     const localPlugin = path.join(runtime.tempRoot, 'packages', 'local-sdk-plugin');
 
@@ -513,8 +516,7 @@ export default defineBackendPlugin({
 `,
     });
 
-    const { runPluginCommand } = await import('../plugin-manager.js');
-    await runPluginCommand(['install', localPlugin]);
+    await runPlugin(['link', localPlugin]);
 
     const host = new PluginPlatformHost({
       configPath: runtime.cityConfigPath,
@@ -544,7 +546,7 @@ export default defineBackendPlugin({
     await host.stopAll();
   });
 
-  it('does not replace a local override during update', async () => {
+  it('does not replace a linked local override during update', async () => {
     const runtime = await createTempRuntime();
     const localPlugin = path.join(runtime.tempRoot, 'packages', 'local-sdk-plugin');
 
@@ -558,13 +560,97 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
 `,
     });
 
-    const { runPluginCommand } = await import('../plugin-manager.js');
-    await runPluginCommand(['install', localPlugin]);
-    await runPluginCommand(['update']);
+    await runPlugin(['link', localPlugin]);
+    await runPlugin(['update']);
 
     const config = await readCityConfig(runtime.cityConfigPath);
     expect(config.plugins['acme.local-sdk']?.devOverridePath).toBeTruthy();
     expect(config.plugins['acme.local-sdk']?.source).toBeUndefined();
+  });
+
+  it('lists scanned workspace, source, and installed plugins in json mode', async () => {
+    const runtime = await createTempRuntime();
+    const localPlugin = path.join(runtime.tempRoot, 'packages', 'local-sdk-plugin');
+    await createPluginPackage(localPlugin, {
+      pluginId: 'acme.local-sdk',
+      packageName: '@acme/plugin-local-sdk',
+      version: '1.0.0',
+      publisher: 'acme',
+    });
+    await writeRegistry(runtime.registryDir, [
+      {
+        alias: '@acme/venue',
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.0.0',
+        publisher: 'acme',
+        path: runtime.packageV1,
+      },
+    ]);
+
+    await runPlugin(['link', localPlugin]);
+    await runPlugin(['install', 'acme.venue', '--source', 'local']);
+
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await runPlugin(['scan'], { json: true });
+
+    const payload = JSON.parse(logSpy.mock.calls.flat().join('\n')) as {
+      workspace: Array<{ pluginId: string }>;
+      sources: Array<{ pluginId: string; sourceId: string }>;
+      installed: Array<{ pluginId: string; installOrigin: string; runtimeStorePath?: string }>;
+    };
+
+    expect(payload.workspace.some((entry) => entry.pluginId === 'uruc.social')).toBe(true);
+    expect(payload.sources).toContainEqual(expect.objectContaining({
+      pluginId: 'acme.venue',
+      sourceId: 'local',
+    }));
+    expect(payload.installed).toContainEqual(expect.objectContaining({
+      pluginId: 'acme.local-sdk',
+      installOrigin: 'linked-path',
+      runtimeStorePath: expect.stringContaining(path.join('.uruc', 'plugins', 'acme.local-sdk')),
+    }));
+    expect(payload.installed).toContainEqual(expect.objectContaining({
+      pluginId: 'acme.venue',
+      installOrigin: 'source-registry',
+      runtimeStorePath: expect.stringContaining(path.join('.uruc', 'plugins', 'acme.venue')),
+    }));
+
+    logSpy.mockRestore();
+  });
+
+  it('manages plugin sources through the plugin source subcommand', async () => {
+    const runtime = await createTempRuntime();
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await runPlugin(['source', 'add', 'official', 'https://example.com/registry.json']);
+    await runPlugin(['source', 'list'], { json: true });
+    let payload = JSON.parse(logSpy.mock.calls.at(-1)?.[0] as string) as Array<{ id: string; registry: string }>;
+    expect(payload).toContainEqual({
+      id: 'official',
+      type: 'npm',
+      registry: 'https://example.com/registry.json',
+    });
+
+    await runPlugin(['source', 'remove', 'official']);
+    await runPlugin(['source', 'list'], { json: true });
+    payload = JSON.parse(logSpy.mock.calls.at(-1)?.[0] as string) as Array<{ id: string; registry: string }>;
+    expect(payload.some((entry) => entry.id === 'official')).toBe(false);
+
+    logSpy.mockRestore();
+  });
+
+  it('fails with a migration hint when using plugin install with a local path', async () => {
+    const runtime = await createTempRuntime();
+    const localPlugin = path.join(runtime.tempRoot, 'packages', 'local-sdk-plugin');
+    await createPluginPackage(localPlugin, {
+      pluginId: 'acme.local-sdk',
+      packageName: '@acme/plugin-local-sdk',
+      version: '1.0.0',
+      publisher: 'acme',
+    });
+
+    await expect(runPlugin(['install', localPlugin])).rejects.toThrow(/plugin link/i);
   });
 
   it('updates a source-backed plugin to the newest available release and records rollback history', async () => {
@@ -579,8 +665,7 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
       },
     ]);
 
-    const { runPluginCommand } = await import('../plugin-manager.js');
-    await runPluginCommand(['install', 'acme.venue', '--source', 'local']);
+    await runPlugin(['install', 'acme.venue', '--source', 'local']);
 
     await writeRegistry(runtime.registryDir, [
       {
@@ -599,7 +684,7 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
       },
     ]);
 
-    await runPluginCommand(['update', 'acme.venue']);
+    await runPlugin(['update', 'acme.venue']);
 
     const config = await readCityConfig(runtime.cityConfigPath);
     const lock = await readCityLock(runtime.cityLockPath);
@@ -637,9 +722,8 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
       },
     ]);
 
-    const { runPluginCommand } = await import('../plugin-manager.js');
-    await runPluginCommand(['install', 'acme.venue', '--source', 'local']);
-    await runPluginCommand(['install', 'acme.failing', '--source', 'local']);
+    await runPlugin(['install', 'acme.venue', '--source', 'local']);
+    await runPlugin(['install', 'acme.failing', '--source', 'local']);
 
     await writeRegistry(runtime.registryDir, [
       {
@@ -660,7 +744,7 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
 
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    await runPluginCommand(['update']);
+    await runPlugin(['update']);
 
     const config = await readCityConfig(runtime.cityConfigPath);
     const lock = await readCityLock(runtime.cityLockPath);
@@ -686,11 +770,10 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
       },
     ]);
 
-    const { runPluginCommand } = await import('../plugin-manager.js');
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    await runPluginCommand(['install', 'acme.venue', '--source', 'local']);
-    await runPluginCommand(['doctor']);
+    await runPlugin(['install', 'acme.venue', '--source', 'local']);
+    await runPlugin(['doctor']);
 
     expect(logSpy).toHaveBeenCalledWith('✓ City plugin configuration is healthy');
     logSpy.mockRestore();
@@ -708,10 +791,9 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
     };
     await writeCityConfig(runtime.cityConfigPath, configBefore);
 
-    const { runPluginCommand } = await import('../plugin-manager.js');
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    await runPluginCommand(['doctor']);
+    await runPlugin(['doctor']);
 
     expect(process.exitCode).not.toBe(1);
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Plugin doctor warnings:'));
@@ -721,7 +803,7 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
     logSpy.mockRestore();
   });
 
-  it('uninstalls a configured plugin by removing it from city config and lock state', async () => {
+  it('removes a configured plugin by deleting it from city config and lock state', async () => {
     const runtime = await createTempRuntime();
     await writeRegistry(runtime.registryDir, [
       {
@@ -733,10 +815,9 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
       },
     ]);
 
-    const { runPluginCommand } = await import('../plugin-manager.js');
-    await runPluginCommand(['install', 'acme.venue', '--source', 'local']);
-    await runPluginCommand(['uninstall', 'acme.venue']);
-    await runPluginCommand(['update']);
+    await runPlugin(['install', 'acme.venue', '--source', 'local']);
+    await runPlugin(['remove', 'acme.venue']);
+    await runPlugin(['update']);
 
     const config = await readCityConfig(runtime.cityConfigPath);
     const lock = await readCityLock(runtime.cityLockPath);
@@ -745,19 +826,43 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
     expect(lock.plugins['acme.venue']).toBeUndefined();
   });
 
-  it('fails with a clear error when uninstalling a plugin that is not configured', async () => {
+  it('fails with a clear error when removing a plugin that is not configured', async () => {
     await createTempRuntime();
-    const { runPluginCommand } = await import('../plugin-manager.js');
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
-      throw new Error(`process.exit:${code ?? 0}`);
-    }) as any);
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(runPlugin(['remove', 'acme.missing'])).rejects.toThrow('Plugin acme.missing is not configured');
+  });
 
-    await expect(runPluginCommand(['uninstall', 'acme.missing'])).rejects.toThrow('process.exit:1');
-    expect(errorSpy).toHaveBeenCalledWith('Error: Plugin acme.missing is not configured');
+  it('fails with a migration hint when using the removed plugin uninstall command', async () => {
+    await createTempRuntime();
+    await expect(runPlugin(['uninstall', 'acme.missing'])).rejects.toThrow(/plugin remove/i);
+  });
 
-    exitSpy.mockRestore();
-    errorSpy.mockRestore();
+  it('unlinks a linked local plugin but rejects unlink for source-backed plugins', async () => {
+    const runtime = await createTempRuntime();
+    const localPlugin = path.join(runtime.tempRoot, 'packages', 'local-sdk-plugin');
+    await createPluginPackage(localPlugin, {
+      pluginId: 'acme.local-sdk',
+      packageName: '@acme/plugin-local-sdk',
+      version: '1.0.0',
+      publisher: 'acme',
+    });
+    await writeRegistry(runtime.registryDir, [
+      {
+        pluginId: 'acme.venue',
+        packageName: '@acme/plugin-venue',
+        version: '1.0.0',
+        publisher: 'acme',
+        path: runtime.packageV1,
+      },
+    ]);
+
+    await runPlugin(['link', localPlugin]);
+    await runPlugin(['install', 'acme.venue', '--source', 'local']);
+    await runPlugin(['unlink', 'acme.local-sdk']);
+    await expect(runPlugin(['unlink', 'acme.venue'])).rejects.toThrow(/plugin remove/i);
+
+    const config = await readCityConfig(runtime.cityConfigPath);
+    expect(config.plugins['acme.local-sdk']).toBeUndefined();
+    expect(config.plugins['acme.venue']).toBeDefined();
   });
 
   it('keeps files in place during plugin gc dry-run', async () => {
@@ -772,8 +877,7 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
       },
     ]);
 
-    const { runPluginCommand } = await import('../plugin-manager.js');
-    await runPluginCommand(['install', 'acme.venue', '--source', 'local']);
+    await runPlugin(['install', 'acme.venue', '--source', 'local']);
     await writeRegistry(runtime.registryDir, [
       {
         pluginId: 'acme.venue',
@@ -790,7 +894,7 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
         path: runtime.packageV2,
       },
     ]);
-    await runPluginCommand(['update', 'acme.venue']);
+    await runPlugin(['update', 'acme.venue']);
 
     const pluginRoot = path.join(runtime.pluginStoreDir, 'acme.venue');
     const orphanRevision = path.join(runtime.pluginStoreDir, 'orphan.plugin', 'dry-run-revision');
@@ -798,7 +902,7 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
     const before = (await readdir(pluginRoot)).sort();
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    await runPluginCommand(['gc', '--dry-run']);
+    await runPlugin(['gc', '--dry-run']);
 
     const after = (await readdir(pluginRoot)).sort();
     expect(after).toEqual(before);
@@ -808,8 +912,6 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
 
   it('plugin gc removes unused revisions but keeps the current and most recent rollback revision', async () => {
     const runtime = await createTempRuntime();
-    const { runPluginCommand } = await import('../plugin-manager.js');
-
     await writeRegistry(runtime.registryDir, [
       {
         pluginId: 'acme.venue',
@@ -819,7 +921,7 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
         path: runtime.packageV1,
       },
     ]);
-    await runPluginCommand(['install', 'acme.venue', '--source', 'local']);
+    await runPlugin(['install', 'acme.venue', '--source', 'local']);
     await writeRegistry(runtime.registryDir, [
       {
         pluginId: 'acme.venue',
@@ -836,7 +938,7 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
         path: runtime.packageV2,
       },
     ]);
-    await runPluginCommand(['update', 'acme.venue']);
+    await runPlugin(['update', 'acme.venue']);
 
     await writeRegistry(runtime.registryDir, [
       {
@@ -861,8 +963,8 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
         path: runtime.packageV3,
       },
     ]);
-    await runPluginCommand(['update', 'acme.venue']);
-    await runPluginCommand(['disable', 'acme.venue']);
+    await runPlugin(['update', 'acme.venue']);
+    await runPlugin(['disable', 'acme.venue']);
 
     const lockBeforeGc = await readCityLock(runtime.cityLockPath);
     const currentRevision = lockBeforeGc.plugins['acme.venue']!.revision;
@@ -872,7 +974,7 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
     const orphanRevision = path.join(runtime.pluginStoreDir, 'orphan.plugin', 'dead-revision');
     await mkdir(orphanRevision, { recursive: true });
 
-    await runPluginCommand(['gc']);
+    await runPlugin(['gc']);
 
     const pluginRevisions = (await readdir(path.join(runtime.pluginStoreDir, 'acme.venue'))).sort();
     expect(pluginRevisions).toContain(currentRevision);
@@ -885,10 +987,8 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
   it('creates a backend-only plugin scaffold that validates as a V2 package', async () => {
     const runtime = await createTempRuntime();
     const outputDir = path.join(runtime.tempRoot, 'generated', 'acme-demo');
-    const { runPluginCommand } = await import('../plugin-manager.js');
-
-    await runPluginCommand(['create', 'acme.demo', '--dir', outputDir]);
-    await runPluginCommand(['validate', outputDir]);
+    await runPlugin(['create', 'acme.demo', '--dir', outputDir]);
+    await runPlugin(['validate', outputDir]);
 
     const pkg = JSON.parse(await readFile(path.join(outputDir, 'package.json'), 'utf8')) as Record<string, any>;
     const backendEntry = await readFile(path.join(outputDir, 'index.mjs'), 'utf8');
@@ -911,8 +1011,7 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
     });
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    const { runPluginCommand } = await import('../plugin-manager.js');
-    await runPluginCommand(['pack', pluginRoot, '--out', outputDir]);
+    await runPlugin(['pack', pluginRoot, '--out', outputDir]);
 
     const tarballs = (await readdir(outputDir)).filter((entry) => entry.endsWith('.tgz'));
     expect(tarballs).toHaveLength(1);
@@ -935,10 +1034,8 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
   it('creates a dual-entry plugin scaffold with stable frontend SDK imports', async () => {
     const runtime = await createTempRuntime();
     const outputDir = path.join(runtime.tempRoot, 'generated', 'acme-demo-ui');
-    const { runPluginCommand } = await import('../plugin-manager.js');
-
-    await runPluginCommand(['create', 'acme.demo-ui', '--frontend', '--dir', outputDir]);
-    await runPluginCommand(['validate', outputDir]);
+    await runPlugin(['create', 'acme.demo-ui', '--frontend', '--dir', outputDir]);
+    await runPlugin(['validate', outputDir]);
 
     const pkg = JSON.parse(await readFile(path.join(outputDir, 'package.json'), 'utf8')) as Record<string, any>;
     const frontendEntry = await readFile(path.join(outputDir, 'frontend', 'plugin.ts'), 'utf8');
@@ -957,12 +1054,6 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
   it('rejects plugin packages that declare the host sdk as a runtime dependency', async () => {
     const runtime = await createTempRuntime();
     const pluginRoot = path.join(runtime.tempRoot, 'packages', 'acme-runtime-sdk');
-    const { runPluginCommand } = await import('../plugin-manager.js');
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
-      throw new Error(`process.exit:${code ?? 0}`);
-    }) as any);
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
     await createPluginPackage(pluginRoot, {
       pluginId: 'acme.runtime-sdk',
       packageName: '@acme/plugin-runtime-sdk',
@@ -973,10 +1064,6 @@ export default defineBackendPlugin({ pluginId: 'acme.local-sdk', async setup() {
       },
     });
 
-    await expect(runPluginCommand(['validate', pluginRoot])).rejects.toThrow('process.exit:1');
-    expect(errorSpy.mock.calls.flat().join('\n')).toContain('@uruc/plugin-sdk');
-
-    exitSpy.mockRestore();
-    errorSpy.mockRestore();
+    await expect(runPlugin(['validate', pluginRoot])).rejects.toThrow('@uruc/plugin-sdk');
   });
 });

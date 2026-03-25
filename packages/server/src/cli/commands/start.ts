@@ -2,7 +2,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 
 import { rootEnvExists, serverEnvExists } from '../lib/env.js';
-import { DEFAULT_PLUGIN_PRESET, DEFAULT_PLUGIN_STORE_DIR, prepareCityRuntime } from '../lib/city.js';
+import { DEFAULT_PLUGIN_STORE_DIR, prepareCityRuntime } from '../lib/city.js';
 import { parseEnvFile } from '../lib/env.js';
 import { assertConfiguredPortsAvailable, getRuntimeStatus, startBackground, startForeground, type ManagedRuntimeMode } from '../lib/runtime.js';
 import type { CommandContext } from '../lib/types.js';
@@ -65,11 +65,10 @@ export async function runStartCommand(context: CommandContext): Promise<void> {
     lockPath: getCityLockPath(),
     packageRoot: getPackageRoot(),
     pluginStoreDir: getPluginStoreDir(),
-    defaultPreset: DEFAULT_PLUGIN_PRESET,
     autoCreateDefault: isDefaultPath,
   });
   if (cityState === 'created') {
-    console.log(`Initialized default city config at ${configPath} with the custom preset.`);
+    console.log(`Initialized default city config at ${configPath}.`);
   }
 
   const rebuilt = await ensureFreshBuildIfNeeded();

@@ -161,6 +161,40 @@ function toRelativePluginPath(configPath: string, packageRoot: string, packageDi
   return relative === '' ? '.' : relative;
 }
 
+export function linkWorkspacePluginsToConfig(
+  configPath: string,
+  packageRoot: string,
+  config: CityConfigFile,
+  pluginIds: string[] = BUNDLED_PLUGINS.map((plugin) => plugin.pluginId),
+): CityConfigFile {
+  const next: CityConfigFile = {
+    ...EMPTY_CITY_CONFIG,
+    ...config,
+    apiVersion: 2,
+    approvedPublishers: Array.from(new Set(['uruc', ...(config.approvedPublishers ?? [])])),
+    pluginStoreDir: config.pluginStoreDir ?? DEFAULT_PLUGIN_STORE_DIR,
+    plugins: { ...(config.plugins ?? {}) },
+    sources: ensureOfficialMarketplaceSource(config.sources ?? []),
+  };
+
+  for (const workspacePlugin of BUNDLED_PLUGINS.filter((plugin) => pluginIds.includes(plugin.pluginId))) {
+    const current = next.plugins[workspacePlugin.pluginId] ?? { pluginId: workspacePlugin.pluginId };
+    next.plugins[workspacePlugin.pluginId] = {
+      ...current,
+      pluginId: workspacePlugin.pluginId,
+      packageName: workspacePlugin.packageName,
+      enabled: current.enabled ?? true,
+      permissionsGranted: current.permissionsGranted ?? [],
+      config: current.config ?? {},
+      devOverridePath: toRelativePluginPath(configPath, packageRoot, workspacePlugin.packageDir),
+      source: undefined,
+      version: undefined,
+    };
+  }
+
+  return next;
+}
+
 export function applyBundledPluginStateToConfig(
   configPath: string,
   packageRoot: string,
@@ -231,12 +265,18 @@ export async function ensureCityConfig(options: EnsureCityConfigOptions): Promis
     sources: ensureOfficialMarketplaceSource(base.sources ?? []),
   };
 
-  if (!hasConfig || mutateExisting) {
+  const shouldApplyWorkspacePluginState = options.pluginState !== undefined
+    || options.preset !== undefined
+    || (hasConfig && mutateExisting);
+
+  if (shouldApplyWorkspacePluginState) {
     const defaultPreset = options.preset ?? DEFAULT_PLUGIN_PRESET;
     const state = options.pluginState ?? (
-      hasConfig
-        ? getBundledPluginPresetState(defaultPreset, detectBundledPluginState(base))
-        : getBundledPluginPresetState(defaultPreset)
+      options.preset !== undefined
+        ? (hasConfig
+          ? getBundledPluginPresetState(defaultPreset, detectBundledPluginState(base))
+          : getBundledPluginPresetState(defaultPreset))
+        : getBundledPluginPresetState(defaultPreset, detectBundledPluginState(base))
     );
     next = applyBundledPluginStateToConfig(
       options.configPath,
@@ -269,7 +309,6 @@ export async function syncCityLock(options: SyncCityLockOptions): Promise<void> 
 }
 
 export interface PrepareCityRuntimeOptions extends SyncCityLockOptions {
-  defaultPreset?: ConfigurePluginPreset;
   autoCreateDefault?: boolean;
 }
 
@@ -282,10 +321,9 @@ export async function prepareCityRuntime(options: PrepareCityRuntimeOptions): Pr
     await ensureCityConfig({
       configPath: options.configPath,
       packageRoot: options.packageRoot,
-      preset: options.defaultPreset ?? DEFAULT_PLUGIN_PRESET,
       pluginStoreDir: DEFAULT_PLUGIN_STORE_DIR,
       createIfMissing: true,
-      mutateExisting: true,
+      mutateExisting: false,
     });
     await syncCityLock(options);
     return 'created';

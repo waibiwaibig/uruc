@@ -49,9 +49,9 @@ function fieldLabel(lang: ConfigureAnswers['lang'], key: string): string {
       index: '搜索引擎收录',
       db: '数据库',
       cityConfig: '城市配置',
-      preset: '插件预设',
-      enabledPlugins: '启用插件',
+      localPlugins: '本地插件接入',
       pluginStore: '插件存储',
+      pluginSources: '插件源',
       runtime: '运行环境',
       yes: '是',
       no: '否',
@@ -75,9 +75,9 @@ function fieldLabel(lang: ConfigureAnswers['lang'], key: string): string {
       index: 'Search indexing',
       db: 'Database',
       cityConfig: 'City config',
-      preset: 'Plugin preset',
-      enabledPlugins: 'Enabled plugins',
+      localPlugins: 'Local plugin onboarding',
       pluginStore: 'Plugin store',
+      pluginSources: 'Plugin sources',
       runtime: 'Runtime',
       yes: 'yes',
       no: 'no',
@@ -101,9 +101,9 @@ function fieldLabel(lang: ConfigureAnswers['lang'], key: string): string {
       index: '검색 색인',
       db: '데이터베이스',
       cityConfig: '도시 설정',
-      preset: '플러그인 프리셋',
-      enabledPlugins: '활성화된 플러그인',
+      localPlugins: '로컬 플러그인 연결',
       pluginStore: '플러그인 스토어',
+      pluginSources: '플러그인 소스',
       runtime: '런타임',
       yes: '예',
       no: '아니요',
@@ -116,18 +116,6 @@ function fieldLabel(lang: ConfigureAnswers['lang'], key: string): string {
     },
   } as const;
   return table[lang][key as keyof typeof table['zh-CN']];
-}
-
-function presetLabel(preset: ConfigureAnswers['pluginPreset']): string {
-  if (preset === 'empty-core') return 'empty-core';
-  return 'custom';
-}
-
-function enabledBundledPlugins(answers: ConfigureAnswers): string {
-  return Object.entries(answers.bundledPluginState)
-    .filter(([, enabled]) => enabled)
-    .map(([pluginId]) => pluginId)
-    .join(', ') || 'none';
 }
 
 export function rememberConfiguration(answers: ConfigureAnswers): void {
@@ -152,7 +140,7 @@ export function rememberConfiguration(answers: ConfigureAnswers): void {
 export function getConfigureActions(): string[] {
   return [
     '写入 packages/server/.env',
-    '确保 uruc.city.json 存在并应用当前插件预设',
+    '确保 uruc.city.json 存在并保留当前已安装插件配置',
     '同步 uruc.city.lock.json',
     '记录 .uruc/cli.json 元数据',
     '按需同步管理员账号',
@@ -177,9 +165,9 @@ export function getConfigureSummaryLines(answers: ConfigureAnswers): string[] {
     `${fieldLabel(lang, 'index')}: ${answers.noindex ? fieldLabel(lang, 'blocked') : fieldLabel(lang, 'allowed')}`,
     `${fieldLabel(lang, 'db')}: ${answers.dbPath}`,
     `${fieldLabel(lang, 'cityConfig')}: ${answers.cityConfigPath}`,
-    `${fieldLabel(lang, 'preset')}: ${presetLabel(answers.pluginPreset)}`,
-    `${fieldLabel(lang, 'enabledPlugins')}: ${enabledBundledPlugins(answers)}`,
+    `${fieldLabel(lang, 'localPlugins')}: ${lang === 'zh-CN' ? '按需扫描并接入' : lang === 'en' ? 'scan and link on demand' : '필요 시 스캔 후 연결'}`,
     `${fieldLabel(lang, 'pluginStore')}: ${answers.pluginStoreDir}`,
+    `${fieldLabel(lang, 'pluginSources')}: ${lang === 'zh-CN' ? '使用 uruc plugin source 管理' : lang === 'en' ? 'managed via uruc plugin source' : 'uruc plugin source 로 관리'}`,
     `${fieldLabel(lang, 'runtime')}: ${os.platform()} ${os.release()}`,
   ];
 }

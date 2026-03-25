@@ -66,7 +66,7 @@ Generated files:
 The current plugin resolver checks `approvedPublishers` in the city config.
 
 For example, if your plugin id is `acme.echo`, the publisher is `acme`.
-If the active city config only approves `uruc`, local install will fail until you add `acme`.
+If the active city config only approves `uruc`, local linking or source-backed install will fail until you add `acme`.
 
 Current example city config:
 
@@ -80,23 +80,29 @@ Example edit:
 }
 ```
 
-### Validate, install, and run
+### Validate, link, and run during local development
 
 ```bash
 ./uruc plugin validate packages/plugins/acme-echo
-./uruc plugin install packages/plugins/acme-echo
+./uruc plugin link packages/plugins/acme-echo
 ./uruc start
 ./uruc plugin inspect acme.echo
 ./uruc plugin doctor
 ./uruc doctor
 ```
 
+Mental model for that flow:
+
+- `packages/plugins/acme-echo` is your workspace source package
+- `uruc plugin link ...` records a local override in the city config
+- `uruc start` materializes the linked plugin into `.uruc/plugins/*` before boot
+
 If you are developing against a running managed instance, use `./uruc restart` after backend changes.
 The current start and restart paths automatically rebuild stale server and web assets before boot.
 
 ### Pack for the official marketplace
 
-If you want the plugin to work through `uruc plugin add` / source-backed installs, publish a packed artifact instead of raw source.
+If you want the plugin to work through `uruc plugin install <pluginId|alias>` / source-backed installs, publish a packed artifact instead of raw source.
 
 ```bash
 ./uruc plugin pack packages/plugins/acme-echo --out dist/plugins
@@ -730,6 +736,6 @@ If you are an AI coding agent creating a new plugin in this repo, use this seque
 6. If the plugin publisher is not already approved, add it to the active city config's `approvedPublishers`.
 7. Keep frontend entry at `frontend/plugin.ts` or `frontend/plugin.tsx` if you want the checked-in web app to discover it.
 8. Validate with `./uruc plugin validate <path>`.
-9. Install with `./uruc plugin install <path>`.
+9. Link local development builds with `./uruc plugin link <path>`.
 10. Check `./uruc plugin inspect <pluginId>` and `./uruc plugin doctor`.
 11. Start or restart Uruc and verify the backend plugin actually reports as started.

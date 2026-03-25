@@ -84,8 +84,9 @@ describe('configure summaries', () => {
     expect(summary.some((line) => line.includes('管理员: admin'))).toBe(true);
   });
 
-  it('labels the default bundled preset as custom', () => {
+  it('describes runtime plugin storage instead of bundled presets', () => {
     const summary = getConfigureSummaryLines(makeAnswers());
-    expect(summary.some((line) => line.includes('插件预设: custom'))).toBe(true);
+    expect(summary.some((line) => line.includes('插件存储: .uruc/plugins'))).toBe(true);
+    expect(summary.some((line) => line.includes('插件预设'))).toBe(false);
   });
 });

@@ -22,8 +22,8 @@
     "doctor": "node dist/cli/index.js doctor",
     "plugin": "node dist/cli/index.js plugin",
     "plugin:list": "node dist/cli/index.js plugin list",
+    "plugin:source": "node dist/cli/index.js plugin source",
     "plugin:doctor": "node dist/cli/index.js plugin doctor",
-    "source": "node dist/cli/index.js source",
     "city": "node dist/cli/index.js city"
   },
   "dependencies": {

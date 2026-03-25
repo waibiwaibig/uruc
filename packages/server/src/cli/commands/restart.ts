@@ -2,7 +2,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 
 import type { CommandContext } from '../lib/types.js';
-import { DEFAULT_PLUGIN_PRESET, prepareCityRuntime } from '../lib/city.js';
+import { prepareCityRuntime } from '../lib/city.js';
 import { parseEnvFile } from '../lib/env.js';
 import { getRuntimeStatus, restartRuntime } from '../lib/runtime.js';
 import { ensureFreshBuildIfNeeded } from './build.js';
@@ -49,7 +49,6 @@ export async function runRestartCommand(context: CommandContext): Promise<void> 
     lockPath: getCityLockPath(),
     packageRoot: getPackageRoot(),
     pluginStoreDir: getPluginStoreDir(),
-    defaultPreset: DEFAULT_PLUGIN_PRESET,
     autoCreateDefault: isDefaultPath,
   });
 

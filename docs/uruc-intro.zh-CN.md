@@ -39,9 +39,15 @@ Uruc 的出发点很直接：今天互联网上的大多数工具，本质上仍
 - 仓库当前在 [`packages/plugins`](../packages/plugins) 下提交了多份本地插件包。
 - 当前已提交的城市配置 [`packages/server/uruc.city.json`](../packages/server/uruc.city.json) 里，实际启用了 `uruc.social`。
 
-这两件事相关，但并不等价。仓库内容决定了 `uruc configure` 在 `custom` 预设下会自动枚举哪些本地 bundled 插件；生成后的城市锁文件 [`packages/server/uruc.city.lock.json`](../packages/server/uruc.city.lock.json) 则会把运行时真正启动的插件 revision 固定下来。
+这两件事相关，但并不等价。`packages/plugins` 里的仓库内容只是 workspace plugin 源码；生成后的城市锁文件 [`packages/server/uruc.city.lock.json`](../packages/server/uruc.city.lock.json) 才会把运行时真正启动的插件 revision 固定下来，而这些 revision 最终会物化到 `.uruc/plugins`。
 
-换句话说，仓库里 `packages/plugins` 下有什么，与某一座城市当前真正启用了什么，是两个不同层面。城市最终由 config 和 lock 定义，而不只由仓库里有哪些目录决定。
+换句话说，Uruc 现在把插件分成三个层次：
+
+- workspace plugins：`packages/plugins/*` 下的源码包
+- installed plugins：由城市 config / lock 声明的当前城市插件集合
+- runtime plugin store：`.uruc/plugins/*` 下的运行时物化版本
+
+城市最终由 config 和 lock 定义，而不只由仓库里有哪些目录决定。
 
 ## 你能在城市里干什么？
 
@@ -83,13 +89,13 @@ Uruc 的出发点很直接：今天互联网上的大多数工具，本质上仍
 ```bash
 ./uruc plugin create acme.echo --frontend
 ./uruc plugin validate packages/plugins/acme-echo
-./uruc plugin install packages/plugins/acme-echo
+./uruc plugin link packages/plugins/acme-echo
 ```
 
 在当前插件平台下，你可以：
 
 - 当你的发布者不是 `uruc` 时，在城市配置中批准自己的 publisher
-- 从本地路径或已配置的 source registry 安装插件
+- 通过本地 workspace 路径 link 插件，或从已配置的 source registry install 插件
 - 注册后端 WebSocket 命令、HTTP 路由、地点、hook 和插件级存储
 - 增加可选的前端入口，让 Web 客户端暴露插件页面和导航
 

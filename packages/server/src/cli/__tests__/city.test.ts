@@ -95,32 +95,31 @@ describe('city runtime preparation', () => {
     }));
   });
 
-  it('auto-creates a default city config and lock during runtime preparation', async () => {
+  it('auto-creates an empty default city config and lock during runtime preparation', async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-city-'));
     tempDirs.push(tempRoot);
     const cityConfigPath = path.join(tempRoot, 'uruc.city.json');
     const cityLockPath = path.join(tempRoot, 'uruc.city.lock.json');
     const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
-    const expectedBundledPluginIds = await expectedBundledPluginIdsFromRepo();
 
     const result = await prepareCityRuntime({
       configPath: cityConfigPath,
       lockPath: cityLockPath,
       packageRoot: getPackageRoot(),
       pluginStoreDir,
-      defaultPreset: DEFAULT_PLUGIN_PRESET,
       autoCreateDefault: true,
     });
 
     const config = await readCityConfig(cityConfigPath);
     const lock = await readCityLock(cityLockPath);
-    const rawLock = JSON.parse(await readFile(cityLockPath, 'utf8')) as { plugins: Record<string, { revision: string }> };
 
     expect(result).toBe('created');
-    for (const pluginId of expectedBundledPluginIds) {
-      expect(config.plugins[pluginId]?.enabled).toBe(true);
-      expect(lock.plugins[pluginId]?.enabled).toBe(true);
-      expect(rawLock.plugins[pluginId]?.revision).toBeTruthy();
-    }
+    expect(config.plugins).toEqual({});
+    expect(lock.plugins).toEqual({});
+    expect(config.sources).toContainEqual(expect.objectContaining({
+      id: 'official',
+      type: 'npm',
+      registry: 'https://uruk.life/uruchub/registry.json',
+    }));
   });
 });

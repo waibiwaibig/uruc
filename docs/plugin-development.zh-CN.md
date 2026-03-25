@@ -66,7 +66,7 @@
 当前插件解析器会检查城市配置中的 `approvedPublishers`。
 
 例如你的插件 id 是 `acme.echo`，那么 publisher 就是 `acme`。
-如果当前城市配置只批准了 `uruc`，那么本地安装会失败，必须先把 `acme` 加进去。
+如果当前城市配置只批准了 `uruc`，那么本地 link 或 source-backed install 都会失败，必须先把 `acme` 加进去。
 
 当前示例城市配置文件：
 
@@ -80,23 +80,29 @@
 }
 ```
 
-### 校验、安装、运行
+### 本地开发时的校验、link 和运行
 
 ```bash
 ./uruc plugin validate packages/plugins/acme-echo
-./uruc plugin install packages/plugins/acme-echo
+./uruc plugin link packages/plugins/acme-echo
 ./uruc start
 ./uruc plugin inspect acme.echo
 ./uruc plugin doctor
 ./uruc doctor
 ```
 
+这条路径里建议用下面三个层次理解插件：
+
+- `packages/plugins/acme-echo` 是 workspace 源码包
+- `uruc plugin link ...` 会把本地覆盖写进城市配置
+- `uruc start` 会在启动前把 linked 插件物化到 `.uruc/plugins/*`
+
 如果你是在一个已经运行的受管实例上开发后端代码，修改后使用 `./uruc restart`。
 当前 `start` 和 `restart` 路径会在启动前自动重建陈旧的 server 和 web 构建产物。
 
 ### 为官方 marketplace 打包
 
-如果你希望插件通过 `uruc plugin add` / source-backed 安装正常工作，就不要直接上传源码目录，而是先打包发布物：
+如果你希望插件通过 `uruc plugin install <pluginId|alias>` / source-backed 安装正常工作，就不要直接上传源码目录，而是先打包发布物：
 
 ```bash
 ./uruc plugin pack packages/plugins/acme-echo --out dist/plugins
@@ -730,6 +736,6 @@ const result = await requestJson(basePath, '/status');
 6. 如果 publisher 尚未被批准，先把它加进当前 city config 的 `approvedPublishers`。
 7. 如果想让当前仓库里的 web app 发现前端入口，把 frontend entry 保持在 `frontend/plugin.ts` 或 `frontend/plugin.tsx`。
 8. 用 `./uruc plugin validate <path>` 做校验。
-9. 用 `./uruc plugin install <path>` 安装后端插件。
+9. 本地开发时用 `./uruc plugin link <path>` 接入后端插件。
 10. 用 `./uruc plugin inspect <pluginId>` 和 `./uruc plugin doctor` 检查状态。
 11. 启动或重启 Uruc，并确认后端插件确实在健康检查里显示为已启动。

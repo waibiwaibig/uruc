@@ -22,7 +22,8 @@ All supported entry points dispatch to the same server CLI.
 - The global parser recognizes `--json` and `--lang <zh-CN|en|ko>`.
 - All other arguments are forwarded to the selected command.
 - `--lang` currently affects `help` and `configure`.
-- `plugin`, `source`, and `city` are invoked with raw argument arrays rather than `CommandContext`, so they do not currently participate in the uniform `--json` success-output path used by most core commands.
+- `plugin` now receives `CommandContext`, so it participates in the same top-level JSON error rendering as the core commands.
+- `city` still receives raw argument arrays.
 
 ## Output and JSON Support
 
@@ -31,13 +32,15 @@ All supported entry points dispatch to the same server CLI.
 | `build`, `dashboard`, `stop`, `restart`, `status`, `doctor` | Support `--json` for success output |
 | `admin ...` | Most subcommands support `--json` |
 | `help`, `configure`, `start`, `logs` | Success output is text only |
-| `source list`, `plugin inspect`, `plugin validate` | Always print JSON |
-| Other `plugin ...`, `source add/remove`, `city init` | Success output is text only |
+| `plugin list`, `plugin scan`, `plugin inspect`, `plugin source list` | Support `--json` |
+| `plugin validate` | Always prints JSON |
+| Other `plugin ...`, `city init` | Success output is text only |
 
 Implementation detail that matters for automation:
 
 - For commands that receive `CommandContext`, top-level errors are rendered as `{"error": "..."}` when `--json` is present.
-- `plugin`, `source`, and `city` manage their own error formatting today, so their failures are still plain text.
+- That now includes `plugin ...`.
+- `city` still manages its own error formatting today, so its failures remain plain text.
 
 ## Recommended Operational Flow
 
@@ -72,9 +75,12 @@ Current behavior:
   - `PUBLIC_DIR`
   - `UPLOADS_DIR`
   - city-level `pluginStoreDir`
-- The bundled-plugin presets are currently:
-  - `custom`: auto-enumerates the checked-in plugin packages under `packages/plugins` and asks for each one
-  - `empty-core`: disables all bundled plugins
+- Plugin onboarding is now runtime-first:
+  - workspace plugins are source code under `packages/plugins/*`
+  - installed plugins are declared in `uruc.city.json` / `uruc.city.lock.json`
+  - the runtime plugin store is `.uruc/plugins/*`
+- QuickStart and the `plugins` section can offer to link recommended workspace plugins.
+- Source editing moved out of `configure`; use `uruc plugin source ...`.
 - At the end of the flow, the CLI can save only, start in foreground, or start in managed background mode.
 
 Section scope in the current implementation:
@@ -84,7 +90,7 @@ Section scope in the current implementation:
 | `runtime` | Bind host, reachability, public host, protocol, ports, static directories |
 | `access` | Admin account, registration policy, indexing policy, site password |
 | `city` | Database path and city config path |
-| `plugins` | Bundled plugin preset, source edits, plugin store path |
+| `plugins` | Plugin store path and optional workspace-plugin onboarding |
 | `integrations` | CORS, JWT, Resend mail, Google OAuth, GitHub OAuth |
 
 ### `uruc build`
@@ -116,7 +122,7 @@ Current behavior:
 - Resolves the configured city path and fails if a non-default configured path does not exist.
 - Calls `prepareCityRuntime(...)` before boot:
   - synchronizes `uruc.city.lock.json`
-  - auto-creates the default city config when the default city path is missing
+  - auto-creates an empty default city config when the default city path is missing
 - Rebuilds automatically when the build output is stale.
 - Verifies that the configured HTTP and WebSocket ports are available before starting.
 - Starts in one of two modes:
@@ -264,43 +270,53 @@ Current JSON support:
 
 All plugin commands are implemented in `packages/server/src/cli/plugin-manager.ts`.
 
+Current mental model:
+
+- `packages/plugins/*` are workspace plugin source packages.
+- `uruc.city.json` and `uruc.city.lock.json` define which plugins are installed for the current city.
+- `.uruc/plugins/*` is the materialized runtime plugin store that the server actually boots from.
+
 | Command | Current behavior |
 | --- | --- |
-| `uruc plugin list` | Lists configured plugins and their locked revisions |
-| `uruc plugin add <alias>` | Resolves an alias from the official marketplace source and installs it into the current city config |
-| `uruc plugin install <path>` | Installs a local plugin package by path |
+| `uruc plugin list` | Lists installed plugins, including install origin, configured version, revision, and runtime store path |
 | `uruc plugin install <pluginId> [--source <id>] [--version <version>]` | Resolves a source-backed plugin release and installs it into the current city config |
+| `uruc plugin install <alias>` | Resolves an alias from the official marketplace source and installs it into the current city config |
+| `uruc plugin link <path>` | Links a local workspace/plugin path into the current city for development |
 | `uruc plugin enable <pluginId>` / `disable <pluginId>` | Toggles whether a configured plugin is enabled |
-| `uruc plugin uninstall <pluginId>` | Removes a plugin from `uruc.city.json` and re-syncs the lock |
+| `uruc plugin remove <pluginId>` | Removes a plugin from `uruc.city.json` and re-syncs the lock |
+| `uruc plugin unlink <pluginId>` | Removes a linked local plugin; source-backed plugins must use `remove` |
 | `uruc plugin update [pluginId]` | Refreshes source-backed plugin versions and re-syncs the lock |
 | `uruc plugin rollback <pluginId>` | Rolls the lock entry back to the most recent history entry |
 | `uruc plugin inspect <pluginId>` | Prints JSON containing both config and lock state |
 | `uruc plugin validate <pluginId|path>` | Prints the resolved plugin manifest as JSON |
 | `uruc plugin doctor` | Inspects configured plugins and reports warnings or failures |
 | `uruc plugin gc [--dry-run]` | Removes unused materialized plugin revisions from the plugin store |
+| `uruc plugin scan [--scope workspace|sources|installed|all] [--json]` | Groups visible plugins by workspace, configured sources, and installed city plugins |
+| `uruc plugin source list` / `add <id> <registry>` / `remove <id>` | Manages configured plugin sources under the `plugin` namespace |
 | `uruc plugin pack <path> [--out <dir>]` | Builds a publishable plugin artifact, including `frontend-dist/` when the plugin declares `urucFrontend` |
 | `uruc plugin create <pluginId> [--frontend] [--dir <path>]` | Generates a new backend plugin scaffold, optionally with frontend package metadata |
 
 Important current details:
 
-- `plugin add <alias>` is a convenience command for the official marketplace source:
+- `plugin install <alias>` resolves against the official marketplace source by default:
   - source id: `official`
   - registry URL: `https://uruk.life/uruchub/registry.json`
-- `plugin install <path>` stores the plugin as a local development override.
+- `plugin add`, `plugin uninstall`, and `plugin install <path>` were removed and now fail with migration guidance.
+- `plugin link <path>` stores the plugin as a local development override.
 - `plugin pack <path>` builds `frontend-dist/` into a temporary staged package and then runs `npm pack`.
 - `plugin update` skips plugins that are configured through `devOverridePath`.
 - `plugin doctor` exits non-zero when hard failures are found.
 - `plugin inspect` and `plugin validate` always print JSON, even without `--json`.
 
-## Source Commands
+## Plugin Source Commands
 
-All source commands are implemented in `packages/server/src/cli/source-manager.ts`.
+All source commands now live under `uruc plugin source ...`.
 
 | Command | Current behavior |
 | --- | --- |
-| `uruc source list` | Prints the configured source array as JSON |
-| `uruc source add <id> <registry>` | Adds or replaces a source entry with `type: "npm"` |
-| `uruc source remove <id>` | Removes a source entry |
+| `uruc plugin source list` | Prints the configured source array, with `--json` support |
+| `uruc plugin source add <id> <registry>` | Adds or replaces a source entry with `type: "npm"` |
+| `uruc plugin source remove <id>` | Removes a source entry |
 
 Current source-resolution behavior:
 
@@ -330,6 +346,6 @@ Current `city init` output file:
 
 - The repo-root `.env` file is ignored by the runtime and CLI; `packages/server/.env` is the active env file.
 - `start` and `restart` prepare the city runtime before process startup, but the server bootstrap itself loads plugins from the city lock file that already exists on disk.
-- `plugin uninstall`, `plugin enable`, and `plugin disable` update config and lock files; they do not hot-unload or hot-reload an already running server process.
+- `plugin remove`, `plugin unlink`, `plugin enable`, and `plugin disable` update config and lock files; they do not hot-unload or hot-reload an already running server process.
 - `plugin gc` keeps the current locked revision and the most recent rollback revision for each locked plugin.
 - `stop` can terminate a recognized unmanaged local process; `restart` cannot restart unmanaged processes.

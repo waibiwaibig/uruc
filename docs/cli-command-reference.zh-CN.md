@@ -22,7 +22,8 @@
 - 全局解析器识别 `--json` 和 `--lang <zh-CN|en|ko>`。
 - 其他参数会原样转交给选中的命令。
 - `--lang` 目前只影响 `help` 和 `configure`。
-- `plugin`、`source`、`city` 目前是以原始参数数组调用，而不是走 `CommandContext`，因此它们没有接入核心命令那套统一的 `--json` 成功输出路径。
+- `plugin` 现在会接入 `CommandContext`，因此也会使用核心命令那套统一的 JSON 错误输出路径。
+- `city` 仍然使用原始参数数组调用。
 
 ## 输出与 JSON 支持
 
@@ -31,13 +32,15 @@
 | `build`、`dashboard`、`stop`、`restart`、`status`、`doctor` | 成功输出支持 `--json` |
 | `admin ...` | 大多数子命令支持 `--json` |
 | `help`、`configure`、`start`、`logs` | 成功输出仅提供文本 |
-| `source list`、`plugin inspect`、`plugin validate` | 始终输出 JSON |
-| 其他 `plugin ...`、`source add/remove`、`city init` | 成功输出仅提供文本 |
+| `plugin list`、`plugin scan`、`plugin inspect`、`plugin source list` | 支持 `--json` |
+| `plugin validate` | 始终输出 JSON |
+| 其他 `plugin ...`、`city init` | 成功输出仅提供文本 |
 
 对自动化来说需要注意的实现细节：
 
 - 对于接收 `CommandContext` 的命令，只要带了 `--json`，顶层错误会输出成 `{"error": "..."}`。
-- `plugin`、`source`、`city` 目前各自管理错误输出，因此失败时仍然是纯文本。
+- 这现在也包括 `plugin ...`。
+- `city` 仍然自己管理错误输出，因此失败时还是纯文本。
 
 ## 推荐操作流程
 
@@ -72,9 +75,12 @@ uruc configure [--quickstart|--advanced] [--section <runtime|access|city|plugins
   - `PUBLIC_DIR`
   - `UPLOADS_DIR`
   - 城市级 `pluginStoreDir`
-- 当前 bundled 插件预设只有两种：
-  - `custom`：自动枚举 `packages/plugins` 下已提交的插件包，并逐个询问是否启用
-  - `empty-core`：关闭所有 bundled 插件
+- 插件 onboarding 现在采用 runtime-first 模型：
+  - workspace plugins 是 `packages/plugins/*` 下的源码包
+  - installed plugins 由 `uruc.city.json` / `uruc.city.lock.json` 定义
+  - runtime plugin store 是 `.uruc/plugins/*`
+- QuickStart 和 `plugins` section 可以按需提示接入推荐的 workspace plugins。
+- source 编辑已经从 `configure` 挪出；请改用 `uruc plugin source ...`。
 - 流程结束时，CLI 可以选择只保存、前台启动或受管理后台启动。
 
 当前 section 范围：
@@ -84,7 +90,7 @@ uruc configure [--quickstart|--advanced] [--section <runtime|access|city|plugins
 | `runtime` | 监听地址、可达性、对外主机、协议、端口、静态目录 |
 | `access` | 管理员账号、注册策略、搜索收录策略、站点访问密码 |
 | `city` | 数据库路径和城市配置路径 |
-| `plugins` | bundled 插件预设、source 编辑、插件 store 路径 |
+| `plugins` | 插件 store 路径和可选的 workspace 插件 onboarding |
 | `integrations` | CORS、JWT、Resend 邮件、Google OAuth、GitHub OAuth |
 
 ### `uruc build`
@@ -116,7 +122,7 @@ uruc start [-b|--background]
 - 会解析当前配置的城市文件路径；如果配置的是非默认路径且文件不存在，会直接报错。
 - 启动前会调用 `prepareCityRuntime(...)`：
   - 同步 `uruc.city.lock.json`
-  - 当默认城市配置路径不存在时，自动创建默认城市配置
+  - 当默认城市配置路径不存在时，自动创建一份空的默认城市配置
 - 当构建产物过旧时会自动重新构建。
 - 会在启动前检查当前配置的 HTTP / WebSocket 端口是否可用。
 - 启动模式分为两种：
@@ -264,29 +270,39 @@ uruc help
 
 所有插件命令都实现于 `packages/server/src/cli/plugin-manager.ts`。
 
+当前建议用这三个层次理解插件系统：
+
+- `packages/plugins/*` 是 workspace plugin 源码。
+- `uruc.city.json` 和 `uruc.city.lock.json` 定义当前城市已安装的插件集合。
+- `.uruc/plugins/*` 是运行时真正加载的 materialized plugin store。
+
 | 命令 | 当前行为 |
 | --- | --- |
-| `uruc plugin list` | 列出当前配置插件及其锁定 revision |
-| `uruc plugin add <alias>` | 从官方 marketplace source 解析 alias，并安装到当前城市配置 |
-| `uruc plugin install <path>` | 通过本地路径安装插件包 |
+| `uruc plugin list` | 列出当前城市已安装插件，并显示安装来源、配置版本、revision 和 runtime store 路径 |
 | `uruc plugin install <pluginId> [--source <id>] [--version <version>]` | 解析 source-backed 插件版本并安装到当前城市配置 |
+| `uruc plugin install <alias>` | 从官方 marketplace source 解析 alias，并安装到当前城市配置 |
+| `uruc plugin link <path>` | 把本地 workspace / plugin 路径接入当前城市，供开发调试使用 |
 | `uruc plugin enable <pluginId>` / `disable <pluginId>` | 切换插件启用状态 |
-| `uruc plugin uninstall <pluginId>` | 从 `uruc.city.json` 删除插件并重新同步 lock |
+| `uruc plugin remove <pluginId>` | 从 `uruc.city.json` 删除插件并重新同步 lock |
+| `uruc plugin unlink <pluginId>` | 删除本地 linked 插件；source-backed 插件需要使用 `remove` |
 | `uruc plugin update [pluginId]` | 刷新 source-backed 插件版本并重新同步 lock |
 | `uruc plugin rollback <pluginId>` | 把 lock 中的插件条目回滚到最近一条历史 revision |
 | `uruc plugin inspect <pluginId>` | 输出包含 config 和 lock 状态的 JSON |
 | `uruc plugin validate <pluginId|path>` | 输出解析后的插件 manifest JSON |
 | `uruc plugin doctor` | 检查已配置插件并报告 warning / failure |
 | `uruc plugin gc [--dry-run]` | 清理插件 store 中未使用的 materialized revision |
+| `uruc plugin scan [--scope workspace|sources|installed|all] [--json]` | 按 workspace、configured sources、installed plugins 三组扫描并输出插件视图 |
+| `uruc plugin source list` / `add <id> <registry>` / `remove <id>` | 在 `plugin` 命名空间下管理 source |
 | `uruc plugin pack <path> [--out <dir>]` | 构建可发布的插件 artifact；当插件声明了 `urucFrontend` 时也会把 `frontend-dist/` 打进去 |
 | `uruc plugin create <pluginId> [--frontend] [--dir <path>]` | 生成新的后端插件脚手架，可选附带 frontend package metadata |
 
 当前实现中几个重要细节：
 
-- `plugin add <alias>` 是官方 marketplace source 的便捷封装：
+- `plugin install <alias>` 默认会走官方 marketplace source：
   - source id：`official`
   - registry URL：`https://uruk.life/uruchub/registry.json`
-- `plugin install <path>` 会把插件保存为本地开发覆盖路径。
+- `plugin add`、`plugin uninstall` 和 `plugin install <path>` 已移除；现在会直接给出迁移提示。
+- `plugin link <path>` 会把插件保存为本地开发覆盖路径。
 - `plugin pack <path>` 会先在临时 staging 包里构建 `frontend-dist/`，然后再执行 `npm pack`。
 - `plugin update` 会跳过通过 `devOverridePath` 配置的插件。
 - `plugin doctor` 遇到硬失败时会以非零退出。
@@ -294,13 +310,13 @@ uruc help
 
 ## 插件源命令
 
-所有 source 命令都实现于 `packages/server/src/cli/source-manager.ts`。
+所有 source 命令现在都位于 `uruc plugin source ...`。
 
 | 命令 | 当前行为 |
 | --- | --- |
-| `uruc source list` | 以 JSON 输出当前配置的 source 数组 |
-| `uruc source add <id> <registry>` | 添加或替换一条 `type: "npm"` 的 source 记录 |
-| `uruc source remove <id>` | 删除一条 source 记录 |
+| `uruc plugin source list` | 输出当前配置的 source 数组，支持 `--json` |
+| `uruc plugin source add <id> <registry>` | 添加或替换一条 `type: "npm"` 的 source 记录 |
+| `uruc plugin source remove <id>` | 删除一条 source 记录 |
 
 当前 source 解析行为：
 
@@ -330,6 +346,6 @@ uruc help
 
 - 仓库根目录 `.env` 不参与运行时和 CLI；真正生效的是 `packages/server/.env`。
 - `start` 和 `restart` 会在进程启动前准备城市运行时，但 server bootstrap 本身是在读取磁盘上已经存在的 city lock 文件来加载插件。
-- `plugin uninstall`、`plugin enable`、`plugin disable` 只更新 config / lock，不会对已运行中的 server 进程做热卸载或热重载。
+- `plugin remove`、`plugin unlink`、`plugin enable`、`plugin disable` 只更新 config / lock，不会对已运行中的 server 进程做热卸载或热重载。
 - `plugin gc` 默认保留每个已锁定插件的当前 revision 和最近一条回滚历史。
 - `stop` 可以终止一个可识别的本地未受管进程；`restart` 不能重启未受管进程。

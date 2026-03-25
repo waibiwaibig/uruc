@@ -4,10 +4,11 @@ import { resolve } from 'path';
 import { describe, expect, it } from 'vitest';
 
 import { BUNDLED_PLUGINS } from '../lib/city.js';
+import { getPackageRoot } from '../../runtime-paths.js';
 
 function readDefaultCityConfig() {
   return JSON.parse(
-    readFileSync(resolve(process.cwd(), 'packages/server/uruc.city.json'), 'utf8'),
+    readFileSync(resolve(getPackageRoot(), 'uruc.city.json'), 'utf8'),
   ) as {
     plugins?: Record<string, unknown>;
   };

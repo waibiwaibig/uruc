@@ -20,6 +20,21 @@ const mocks = vi.hoisted(() => ({
   }),
   ensureCityConfig: vi.fn(),
   syncCityLock: vi.fn(),
+  linkWorkspacePluginsToConfig: vi.fn((configPath: string, packageRoot: string, config: any, pluginIds?: string[]) => ({
+    ...config,
+    pluginStoreDir: config.pluginStoreDir ?? '.uruc/plugins',
+    plugins: {
+      ...(config.plugins ?? {}),
+      ...Object.fromEntries((pluginIds ?? []).map((pluginId) => [
+        pluginId,
+        {
+          pluginId,
+          enabled: true,
+          devOverridePath: `../plugins/${pluginId.split('.').pop()}`,
+        },
+      ])),
+    },
+  })),
   getBundledPluginPresetState: vi.fn((preset: string, current?: Record<string, boolean>) => {
     const defaultState = {
       'uruc.arcade': current?.['uruc.arcade'] ?? true,
@@ -137,6 +152,7 @@ vi.mock('../lib/city.js', () => ({
   DEFAULT_PLUGIN_STORE_DIR: '.uruc/plugins',
   ensureCityConfig: mocks.ensureCityConfig,
   syncCityLock: mocks.syncCityLock,
+  linkWorkspacePluginsToConfig: mocks.linkWorkspacePluginsToConfig,
   getBundledPluginPresetState: mocks.getBundledPluginPresetState,
   inferPluginPreset: mocks.inferPluginPreset,
   detectBundledPluginState: mocks.detectBundledPluginState,
@@ -270,7 +286,6 @@ describe('configure command', () => {
       .mockResolvedValueOnce('quickstart')
       .mockResolvedValueOnce('local')
       .mockResolvedValueOnce('test')
-      .mockResolvedValueOnce('custom')
       .mockResolvedValueOnce('save');
     mocks.promptInput
       .mockResolvedValueOnce('admin')
@@ -283,10 +298,9 @@ describe('configure command', () => {
     expect(mocks.writeEnvFile).toHaveBeenCalledTimes(1);
     expect(mocks.ensureCityConfig).toHaveBeenCalledWith(expect.objectContaining({
       configPath: cityConfigPath,
-      preset: 'custom',
       pluginStoreDir: '.uruc/plugins',
       createIfMissing: true,
-      mutateExisting: true,
+      mutateExisting: false,
     }));
     expect(mocks.syncCityLock).toHaveBeenCalledWith(expect.objectContaining({
       configPath: cityConfigPath,
@@ -294,7 +308,7 @@ describe('configure command', () => {
     }));
   });
 
-  it('advanced runtime section keeps existing bundled plugin state intact', async () => {
+  it('advanced runtime section keeps existing installed plugin config intact', async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-configure-'));
     tempDirs.push(tempRoot);
     const cityConfigPath = path.join(tempRoot, 'uruc.city.json');
@@ -325,8 +339,14 @@ describe('configure command', () => {
 
     expect(mocks.ensureCityConfig).toHaveBeenCalledWith(expect.objectContaining({
       configPath: cityConfigPath,
-      pluginState: expect.objectContaining({
-        'uruc.social': true,
+      mutateExisting: false,
+      baseConfig: expect.objectContaining({
+        plugins: expect.objectContaining({
+          'uruc.social': expect.objectContaining({
+            enabled: true,
+            devOverridePath: '../plugins/social',
+          }),
+        }),
       }),
     }));
   });
@@ -364,12 +384,11 @@ describe('configure command', () => {
       .mockResolvedValueOnce('en')
       .mockResolvedValueOnce('local')
       .mockResolvedValueOnce('test')
-      .mockResolvedValueOnce('custom')
       .mockResolvedValueOnce('save');
     mocks.promptInput
-      .mockResolvedValueOnce('')
-      .mockResolvedValueOnce('')
-      .mockResolvedValueOnce('');
+      .mockResolvedValueOnce('admin')
+      .mockResolvedValueOnce('secret')
+      .mockResolvedValueOnce('admin@example.com');
 
     const { runConfigureCommand } = await import('../commands/configure.js');
     await runConfigureCommand({ args: ['--quickstart'], json: false });
@@ -383,6 +402,7 @@ describe('configure command', () => {
     expect(mocks.ensureCityConfig).toHaveBeenCalledWith(expect.objectContaining({
       configPath: cityConfigPath,
       pluginStoreDir: '/tmp/custom-plugin-store',
+      mutateExisting: false,
     }));
   });
 
@@ -436,7 +456,6 @@ describe('configure command', () => {
       .mockResolvedValueOnce('quickstart')
       .mockResolvedValueOnce('local')
       .mockResolvedValueOnce('test')
-      .mockResolvedValueOnce('custom')
       .mockResolvedValueOnce('save');
     mocks.promptInput
       .mockResolvedValueOnce('admin')
@@ -469,7 +488,6 @@ describe('configure command', () => {
       .mockResolvedValueOnce('quickstart')
       .mockResolvedValueOnce('local')
       .mockResolvedValueOnce('test')
-      .mockResolvedValueOnce('custom')
       .mockResolvedValueOnce('start-managed');
     mocks.promptInput
       .mockResolvedValueOnce('admin')
@@ -507,7 +525,6 @@ describe('configure command', () => {
       .mockResolvedValueOnce('quickstart')
       .mockResolvedValueOnce('local')
       .mockResolvedValueOnce('test')
-      .mockResolvedValueOnce('custom')
       .mockResolvedValueOnce('start-managed');
     mocks.promptInput
       .mockResolvedValueOnce('admin')

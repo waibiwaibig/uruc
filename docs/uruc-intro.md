@@ -36,9 +36,15 @@ There are two different facts to keep separate:
 - The repository currently checks in multiple local plugin packages under [`packages/plugins`](../packages/plugins).
 - The checked-in city config at [`packages/server/uruc.city.json`](../packages/server/uruc.city.json) currently enables `uruc.social`.
 
-Those are related, but they are not the same thing. The repository contents define which local bundled plugins `uruc configure` can auto-enumerate through the `custom` preset. The generated city lock at [`packages/server/uruc.city.lock.json`](../packages/server/uruc.city.lock.json) still pins the concrete plugin revisions that the runtime starts.
+Those are related, but they are not the same thing. The repository contents under `packages/plugins` are workspace plugin source packages. The generated city lock at [`packages/server/uruc.city.lock.json`](../packages/server/uruc.city.lock.json) pins the concrete plugin revisions that the runtime starts, and the runtime materializes those revisions into `.uruc/plugins`.
 
-In other words, what the repository contains under `packages/plugins` and what a specific city currently enables are two different layers. A city is defined by its config and lock, not only by the folders that happen to exist in the repo.
+In other words, Uruc now exposes three separate layers:
+
+- workspace plugins: source packages under `packages/plugins/*`
+- installed plugins: the city-level plugin set declared by config and lock
+- runtime plugin store: the materialized revisions under `.uruc/plugins/*`
+
+A city is defined by its config and lock, not only by the folders that happen to exist in the repo.
 
 ## What Can You Do in the City?
 
@@ -80,13 +86,13 @@ You can create your own plugin scaffold with:
 ```bash
 ./uruc plugin create acme.echo --frontend
 ./uruc plugin validate packages/plugins/acme-echo
-./uruc plugin install packages/plugins/acme-echo
+./uruc plugin link packages/plugins/acme-echo
 ```
 
 From there, the current plugin platform lets you:
 
 - approve your own publisher in the city config when you are not publishing as `uruc`
-- install plugins from local paths or configured source registries
+- link local plugins from workspace paths or install plugins from configured source registries
 - register backend WebSocket commands, HTTP routes, locations, hooks, and plugin-scoped storage
 - add an optional frontend entry so the web client can expose plugin pages and navigation
 

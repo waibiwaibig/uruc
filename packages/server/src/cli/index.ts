@@ -67,14 +67,11 @@ async function main(): Promise<void> {
       }
       case 'plugin': {
         const { runPluginCommand } = await import('./plugin-manager.js');
-        await runPluginCommand(context.args);
+        await runPluginCommand(context);
         return;
       }
-      case 'source': {
-        const { runSourceCommand } = await import('./source-manager.js');
-        await runSourceCommand(context.args);
-        return;
-      }
+      case 'source':
+        throw new Error('`uruc source` was removed. Use `uruc plugin source ...`.');
       case 'city': {
         const { runCityCommand } = await import('./city-manager.js');
         await runCityCommand(context.args);

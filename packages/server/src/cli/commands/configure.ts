@@ -13,12 +13,9 @@ import {
 import { hasFlag, readOption } from '../lib/argv.js';
 import {
   BUNDLED_PLUGINS,
-  DEFAULT_PLUGIN_PRESET,
   DEFAULT_PLUGIN_STORE_DIR,
-  detectBundledPluginState,
   ensureCityConfig,
-  getBundledPluginPresetState,
-  inferPluginPreset,
+  linkWorkspacePluginsToConfig,
   rebaseCityConfigPaths,
   syncCityLock,
 } from '../lib/city.js';
@@ -53,20 +50,17 @@ import {
 } from '../lib/ui.js';
 import { getRuntimeStatus, isSystemdInstalled, type RuntimeStatus } from '../lib/runtime.js';
 import type {
-  BundledPluginId,
-  BundledPluginState,
   CityReachability,
   CommandContext,
   ConfigureAnswers,
   ConfigureMode,
-  ConfigurePluginPreset,
   ConfigureSection,
   InstancePurpose,
   SiteProtocol,
   UiLanguage,
 } from '../lib/types.js';
 import { readCityConfig } from '../../core/plugin-platform/config.js';
-import type { CityConfigFile, CityPluginSource } from '../../core/plugin-platform/types.js';
+import type { CityConfigFile } from '../../core/plugin-platform/types.js';
 import { getCityLockPath, getPackageRoot } from '../../runtime-paths.js';
 
 interface ConfigureResult {
@@ -78,10 +72,6 @@ interface ConfigureResult {
 }
 
 const packageRoot = getPackageRoot();
-
-const BUNDLED_PLUGIN_LABELS: Record<BundledPluginId, string> = {
-  ...Object.fromEntries(BUNDLED_PLUGINS.map((plugin) => [plugin.pluginId, plugin.label])),
-} as Record<BundledPluginId, string>;
 
 const copy = {
   'zh-CN': {
@@ -102,7 +92,7 @@ const copy = {
     sectionCity: 'city',
     sectionCityDesc: '数据库与城市配置路径',
     sectionPlugins: 'plugins',
-    sectionPluginsDesc: '插件预设、启用状态、source、plugin store',
+    sectionPluginsDesc: '插件扫描、推荐本地接入和 plugin store',
     sectionIntegrations: 'integrations',
     sectionIntegrationsDesc: 'CORS、JWT、邮件与 OAuth',
     reachabilityPrompt: '你要把这座城市建在哪里？',
@@ -142,20 +132,7 @@ const copy = {
     githubPrompt: '是否启用 GitHub OAuth？',
     githubIdPrompt: 'GitHub Client ID',
     githubSecretPrompt: 'GitHub Client Secret',
-    pluginPresetPrompt: '这座城市想用哪套插件预设？',
-    presetEmpty: 'empty-core',
-    presetEmptyDesc: '只启动主城核心，不启用任何 bundled 插件',
-    presetCustom: 'custom',
-    presetCustomDesc: '自动枚举仓库内的 bundled 插件，并逐个确认启用状态',
-    editSourcesPrompt: '是否顺手调整插件 source？',
-    sourceActionPrompt: '要怎么处理当前 source？',
-    sourceAdd: '添加 source',
-    sourceRemove: '移除 source',
-    sourceDone: '保持当前 source 并继续',
-    sourceIdPrompt: 'source id',
-    sourceRegistryPrompt: 'source registry（目录或 uruc-registry.json 路径）',
-    sourceRemovePrompt: '要移除哪个 source？',
-    noSources: '当前没有配置 source。',
+    linkWorkspacePrompt: '是否扫描当前工作区插件，并接入推荐的本地插件？',
     existingAdminPrompt: '这个管理员用户名已经存在，你想怎么处理？',
     existingUserPrompt: '这个用户名已经存在，但它不是管理员。请改用新用户名，或稍后用 `uruc admin promote`。',
     keepAdmin: '保持现有账号不变',
@@ -176,7 +153,7 @@ const copy = {
     finishedTitle: '完成',
     savedOnly: '配置已保存，城市配置和 lock 也已同步。稍后可直接运行 `uruc start`。',
     httpsNotice: '你选择了 HTTPS 分享地址。Uruc 不会自动配置证书或反向代理；如需真正对外 HTTPS，请自行接入 TLS。',
-    enableBundledPrompt: '是否启用 bundled 插件',
+    enableBundledPrompt: '是否接入本地工作区插件',
     sourcesSummary: '已配置 source',
   },
   en: {
@@ -197,7 +174,7 @@ const copy = {
     sectionCity: 'city',
     sectionCityDesc: 'Database and city config paths',
     sectionPlugins: 'plugins',
-    sectionPluginsDesc: 'Plugin presets, enabled state, sources, plugin store',
+    sectionPluginsDesc: 'Plugin scanning, recommended local links, plugin store',
     sectionIntegrations: 'integrations',
     sectionIntegrationsDesc: 'CORS, JWT, email, and OAuth',
     reachabilityPrompt: 'Where should this city be reachable?',
@@ -237,20 +214,7 @@ const copy = {
     githubPrompt: 'Enable GitHub OAuth?',
     githubIdPrompt: 'GitHub Client ID',
     githubSecretPrompt: 'GitHub Client Secret',
-    pluginPresetPrompt: 'Which bundled plugin preset should this city use?',
-    presetEmpty: 'empty-core',
-    presetEmptyDesc: 'Run only the city core with no bundled plugins enabled',
-    presetCustom: 'custom',
-    presetCustomDesc: 'Auto-discover bundled plugins from this repo and confirm them one by one',
-    editSourcesPrompt: 'Adjust plugin sources while we are here?',
-    sourceActionPrompt: 'How should Uruc update the current sources?',
-    sourceAdd: 'Add source',
-    sourceRemove: 'Remove source',
-    sourceDone: 'Keep current sources and continue',
-    sourceIdPrompt: 'Source id',
-    sourceRegistryPrompt: 'Source registry (directory or uruc-registry.json path)',
-    sourceRemovePrompt: 'Which source should be removed?',
-    noSources: 'No plugin sources are configured yet.',
+    linkWorkspacePrompt: 'Scan workspace plugins and link the recommended local plugins?',
     existingAdminPrompt: 'This admin username already exists. How should configure handle it?',
     existingUserPrompt: 'This username already exists but is not an admin. Pick a new username or promote it later with `uruc admin promote`.',
     keepAdmin: 'Keep the existing admin account',
@@ -271,7 +235,7 @@ const copy = {
     finishedTitle: 'Done',
     savedOnly: 'Configuration saved, and city config plus lock are ready. Run `uruc start` whenever you want the city online.',
     httpsNotice: 'You chose an HTTPS share URL. Uruc will not provision certificates or a reverse proxy; you must handle TLS yourself.',
-    enableBundledPrompt: 'Enable bundled plugin',
+    enableBundledPrompt: 'Link local workspace plugin',
     sourcesSummary: 'Configured sources',
   },
   ko: {
@@ -292,7 +256,7 @@ const copy = {
     sectionCity: 'city',
     sectionCityDesc: 'DB 와 도시 설정 경로',
     sectionPlugins: 'plugins',
-    sectionPluginsDesc: '플러그인 프리셋, 활성화 상태, source, store',
+    sectionPluginsDesc: '플러그인 스캔, 추천 로컬 연결, plugin store',
     sectionIntegrations: 'integrations',
     sectionIntegrationsDesc: 'CORS, JWT, 메일, OAuth',
     reachabilityPrompt: '이 도시를 어디까지 열어둘까요?',
@@ -332,20 +296,7 @@ const copy = {
     githubPrompt: 'GitHub OAuth를 사용하시겠습니까?',
     githubIdPrompt: 'GitHub Client ID',
     githubSecretPrompt: 'GitHub Client Secret',
-    pluginPresetPrompt: '이 도시는 어떤 bundled 플러그인 프리셋을 사용할까요?',
-    presetEmpty: 'empty-core',
-    presetEmptyDesc: 'bundled 플러그인 없이 도시 코어만 실행',
-    presetCustom: 'custom',
-    presetCustomDesc: '이 저장소의 bundled 플러그인을 자동으로 열거하고 하나씩 활성화 여부를 확인',
-    editSourcesPrompt: '이 자리에서 plugin source 도 조정할까요?',
-    sourceActionPrompt: '현재 source 를 어떻게 처리할까요?',
-    sourceAdd: 'source 추가',
-    sourceRemove: 'source 제거',
-    sourceDone: '현재 source 를 유지하고 계속',
-    sourceIdPrompt: 'source id',
-    sourceRegistryPrompt: 'source registry (디렉터리 또는 uruc-registry.json 경로)',
-    sourceRemovePrompt: '어떤 source 를 제거할까요?',
-    noSources: '설정된 plugin source 가 없습니다.',
+    linkWorkspacePrompt: '현재 워크스페이스 플러그인을 스캔하고 추천 로컬 플러그인을 연결할까요?',
     existingAdminPrompt: '이 관리자 사용자명이 이미 존재합니다. 어떻게 처리하시겠습니까?',
     existingUserPrompt: '이 사용자명은 존재하지만 관리자가 아닙니다. 새 이름을 쓰거나 나중에 `uruc admin promote` 를 사용하세요.',
     keepAdmin: '기존 관리자 계정 유지',
@@ -366,7 +317,7 @@ const copy = {
     finishedTitle: '완료',
     savedOnly: '설정을 저장했고 도시 설정과 lock 도 준비했습니다. 원할 때 `uruc start` 를 실행하세요.',
     httpsNotice: 'HTTPS 공유 주소를 선택했습니다. Uruc 는 인증서나 리버스 프록시를 자동 구성하지 않으므로 TLS 는 직접 처리해야 합니다.',
-    enableBundledPrompt: 'bundled 플러그인 활성화',
+    enableBundledPrompt: '로컬 워크스페이스 플러그인 연결',
     sourcesSummary: '설정된 source',
   },
 } as const;
@@ -580,16 +531,6 @@ function sectionMatches(section: ConfigureSection | 'all', target: ConfigureSect
   return section === 'all' || section === target;
 }
 
-function pluginTogglePrompt(lang: UiLanguage, pluginId: BundledPluginId): string {
-  if (lang === 'zh-CN') {
-    return `是否启用 bundled 插件 ${BUNDLED_PLUGIN_LABELS[pluginId]}？`;
-  }
-  if (lang === 'ko') {
-    return `${BUNDLED_PLUGIN_LABELS[pluginId]} bundled 플러그인을 활성화할까요?`;
-  }
-  return `Enable bundled plugin ${BUNDLED_PLUGIN_LABELS[pluginId]}?`;
-}
-
 function adminEmailConflictMessage(
   lang: UiLanguage,
   email: string,
@@ -604,88 +545,29 @@ function adminEmailConflictMessage(
   return `Admin email ${email} already belongs to ${owner.role} ${owner.username}. Choose a different email.`;
 }
 
-async function choosePluginPreset(lang: UiLanguage, defaultPreset: ConfigurePluginPreset): Promise<ConfigurePluginPreset> {
-  return await promptChoice(
-    text(lang, 'pluginPresetPrompt'),
-    [
-      { value: 'empty-core', label: text(lang, 'presetEmpty'), description: text(lang, 'presetEmptyDesc') },
-      { value: 'custom', label: text(lang, 'presetCustom'), description: text(lang, 'presetCustomDesc') },
-    ],
-    defaultPreset,
-    lang,
-  );
-}
+async function maybeLinkRecommendedWorkspacePlugins(
+  lang: UiLanguage,
+  acceptDefaults: boolean,
+  baseCityConfig: CityConfigFile,
+  cityConfigResolvedPath: string,
+): Promise<CityConfigFile> {
+  const linkablePluginIds = BUNDLED_PLUGINS
+    .map((plugin) => plugin.pluginId)
+    .filter((pluginId) => !baseCityConfig.plugins[pluginId]);
 
-async function chooseCustomBundledPlugins(lang: UiLanguage, defaults: BundledPluginState): Promise<BundledPluginState> {
-  const entries: Array<[BundledPluginId, boolean]> = [];
-  for (const plugin of BUNDLED_PLUGINS) {
-    entries.push([
-      plugin.pluginId,
-      await promptConfirm(pluginTogglePrompt(lang, plugin.pluginId), defaults[plugin.pluginId], lang),
-    ]);
+  if (linkablePluginIds.length === 0) {
+    return baseCityConfig;
   }
-  return Object.fromEntries(entries);
-}
 
-async function editSources(lang: UiLanguage, sources: CityPluginSource[]): Promise<CityPluginSource[]> {
-  const next = [...sources];
-  while (true) {
-    if (next.length === 0) {
-      printStatus('info', text(lang, 'noSources'));
-    } else {
-      printStatus('info', `${text(lang, 'sourcesSummary')}: ${next.map((source) => `${source.id} -> ${source.registry}`).join(', ')}`);
-    }
+  const shouldLink = acceptDefaults
+    ? true
+    : await promptConfirm(text(lang, 'linkWorkspacePrompt'), true, lang);
 
-    const action = await promptChoice<'done' | 'add' | 'remove'>(
-      text(lang, 'sourceActionPrompt'),
-      [
-        { value: 'done', label: text(lang, 'sourceDone') },
-        { value: 'add', label: text(lang, 'sourceAdd') },
-        { value: 'remove', label: text(lang, 'sourceRemove') },
-      ],
-      'done',
-      lang,
-    );
-
-    if (action === 'done') {
-      return next;
-    }
-
-    if (action === 'add') {
-      const id = await promptInput(text(lang, 'sourceIdPrompt'), '');
-      const registry = await promptInput(text(lang, 'sourceRegistryPrompt'), '');
-      if (!id || !registry) {
-        continue;
-      }
-      const existingIndex = next.findIndex((source) => source.id === id);
-      const value: CityPluginSource = { id, type: 'npm', registry };
-      if (existingIndex >= 0) {
-        next[existingIndex] = value;
-      } else {
-        next.push(value);
-      }
-      continue;
-    }
-
-    if (next.length === 0) {
-      continue;
-    }
-
-    const sourceId = await promptChoice(
-      text(lang, 'sourceRemovePrompt'),
-      next.map((source) => ({
-        value: source.id,
-        label: source.id,
-        description: source.registry,
-      })),
-      next[0]!.id,
-      lang,
-    );
-    const removeIndex = next.findIndex((source) => source.id === sourceId);
-    if (removeIndex >= 0) {
-      next.splice(removeIndex, 1);
-    }
+  if (!shouldLink) {
+    return baseCityConfig;
   }
+
+  return linkWorkspacePluginsToConfig(cityConfigResolvedPath, packageRoot, baseCityConfig, linkablePluginIds);
 }
 
 async function reconcileAdminAccount(
@@ -806,12 +688,6 @@ async function gatherAnswers(context: CommandContext): Promise<ConfigureResult> 
   const initialCityConfigPath = resolveCityConfigPath(defaults.cityConfigPath);
   const cityConfigExists = existsSync(initialCityConfigPath);
   const existingCityConfig = await readCityConfig(initialCityConfigPath);
-  const existingPluginState = cityConfigExists
-    ? detectBundledPluginState(existingCityConfig)
-    : getBundledPluginPresetState(DEFAULT_PLUGIN_PRESET);
-  const existingPluginPreset = cityConfigExists
-    ? inferPluginPreset(existingPluginState)
-    : DEFAULT_PLUGIN_PRESET;
 
   let cityConfigResolvedPath = initialCityConfigPath;
   let baseCityConfig = cityConfigExists
@@ -831,9 +707,7 @@ async function gatherAnswers(context: CommandContext): Promise<ConfigureResult> 
     section,
     reachability: existingReachability,
     purpose: existingPurpose,
-    pluginPreset: existingPluginPreset,
     pluginStoreDir: existingCityConfig.pluginStoreDir ?? DEFAULT_PLUGIN_STORE_DIR,
-    bundledPluginState: existingPluginState,
   };
 
   if (mode === 'quickstart' || sectionMatches(section, 'runtime')) {
@@ -985,22 +859,12 @@ async function gatherAnswers(context: CommandContext): Promise<ConfigureResult> 
       answers.cityConfigPath = nextCityConfigPath;
       answers.pluginStoreDir = await promptInput(text(lang, 'pluginStoreDirPrompt'), answers.pluginStoreDir || DEFAULT_PLUGIN_STORE_DIR);
     }
-
-    if (!acceptDefaults) {
-      answers.pluginPreset = await choosePluginPreset(lang, answers.pluginPreset);
-      answers.bundledPluginState = answers.pluginPreset === 'custom'
-        ? await chooseCustomBundledPlugins(lang, answers.bundledPluginState)
-        : getBundledPluginPresetState(answers.pluginPreset, answers.bundledPluginState);
-    } else {
-      answers.bundledPluginState = getBundledPluginPresetState(answers.pluginPreset, answers.bundledPluginState);
-    }
-
-    if (mode === 'advanced' && await promptConfirm(text(lang, 'editSourcesPrompt'), false, lang)) {
-      baseCityConfig = {
-        ...baseCityConfig,
-        sources: await editSources(lang, baseCityConfig.sources ?? []),
-      };
-    }
+    baseCityConfig = await maybeLinkRecommendedWorkspacePlugins(
+      lang,
+      acceptDefaults,
+      baseCityConfig,
+      cityConfigResolvedPath,
+    );
   }
 
   if (sectionMatches(section, 'integrations') && mode === 'advanced') {
@@ -1069,12 +933,10 @@ async function persistConfiguration(result: ConfigureResult): Promise<void> {
   await ensureCityConfig({
     configPath: result.cityConfigResolvedPath,
     packageRoot,
-    preset: result.answers.pluginPreset,
-    pluginState: result.answers.bundledPluginState,
     pluginStoreDir: result.answers.pluginStoreDir || DEFAULT_PLUGIN_STORE_DIR,
     baseConfig: result.baseCityConfig,
     createIfMissing: true,
-    mutateExisting: true,
+    mutateExisting: false,
   });
   await syncCityLock({
     configPath: result.cityConfigResolvedPath,
