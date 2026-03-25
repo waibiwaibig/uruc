@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseCommandContext } from '../lib/argv.js';
-import { DEFAULT_PLUGIN_PRESET, DEFAULT_PLUGIN_STORE_DIR, getBundledPluginPresetState } from '../lib/city.js';
+import { DEFAULT_PLUGIN_STORE_DIR } from '../lib/city.js';
 import { getConfigureActions, getConfigureSummaryLines } from '../lib/configure.js';
 import type { ConfigureAnswers } from '../lib/types.js';
 
@@ -36,9 +36,7 @@ function makeAnswers(overrides: Partial<ConfigureAnswers> = {}): ConfigureAnswer
     googleClientSecret: '',
     githubClientId: '',
     githubClientSecret: '',
-    pluginPreset: DEFAULT_PLUGIN_PRESET,
     pluginStoreDir: DEFAULT_PLUGIN_STORE_DIR,
-    bundledPluginState: getBundledPluginPresetState(DEFAULT_PLUGIN_PRESET),
     ...overrides,
   };
 }

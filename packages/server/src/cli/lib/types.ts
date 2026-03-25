@@ -71,9 +71,7 @@ export interface ConfigureAnswers {
   googleClientSecret: string;
   githubClientId: string;
   githubClientSecret: string;
-  pluginPreset: ConfigurePluginPreset;
   pluginStoreDir: string;
-  bundledPluginState: BundledPluginState;
 }
 
 export interface CommandContext {

@@ -64,8 +64,9 @@ uruc configure [--quickstart|--advanced] [--section <runtime|access|city|plugins
 - 在结束前确保城市配置存在，并同步 city lock。
 - 当前支持两种模式：
   - `--quickstart`：问题更少，目标是尽快得到可运行城市。
-  - `--advanced`：按分节做精细重配。
-- `advanced` 模式下支持的 section 为 `runtime`、`access`、`city`、`plugins`、`integrations`。
+  - `--advanced`：进入一个持久化主菜单，改完一节就立刻保存并回到菜单。
+- 交互式 `advanced` 主菜单现在包含 `runtime`、`access`、`city`、`plugins`、`integrations`、`review summary`、`finish`。
+- 通过 `--advanced --section ...` 仍可直接进入 `runtime`、`access`、`city`、`plugins`、`integrations` 这些单节捷径。
 - `--quickstart` 不能与 `--section` 同时使用。
 - `--yes` 和 `--accept-defaults` 在当前实现里是同义参数。
 - `--accept-defaults` 目前要求和 `--quickstart` 一起使用。
@@ -79,7 +80,12 @@ uruc configure [--quickstart|--advanced] [--section <runtime|access|city|plugins
   - workspace plugins 是 `packages/plugins/*` 下的源码包
   - installed plugins 由 `uruc.city.json` / `uruc.city.lock.json` 定义
   - runtime plugin store 是 `.uruc/plugins/*`
-- QuickStart 和 `plugins` section 可以按需提示接入推荐的 workspace plugins。
+- QuickStart 可以按需提示接入推荐的 workspace plugins。
+- Advanced 的 `plugins` 菜单现在是正常插件生命周期命令的一层薄 UI：
+  - 顶层先按组展示：查看插件、管理已安装插件、添加插件、修改 runtime plugin store 路径、返回
+  - 已安装插件相关动作放在独立子菜单里
+  - 添加插件相关动作放在独立子菜单里
+  - 已安装插件选择器现在带显式 `back` 项
 - source 编辑已经从 `configure` 挪出；请改用 `uruc plugin source ...`。
 - 流程结束时，CLI 可以选择只保存、前台启动或受管理后台启动。
 
@@ -90,7 +96,7 @@ uruc configure [--quickstart|--advanced] [--section <runtime|access|city|plugins
 | `runtime` | 监听地址、可达性、对外主机、协议、端口、静态目录 |
 | `access` | 管理员账号、注册策略、搜索收录策略、站点访问密码 |
 | `city` | 数据库路径和城市配置路径 |
-| `plugins` | 插件 store 路径和可选的 workspace 插件 onboarding |
+| `plugins` | 已安装插件生命周期操作，以及 plugin store 路径编辑 |
 | `integrations` | CORS、JWT、Resend 邮件、Google OAuth、GitHub OAuth |
 
 ### `uruc build`

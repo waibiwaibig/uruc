@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 
 import { getDefaultDbRelativePath, getPackageRoot } from '../../runtime-paths.js';
 import { getRepoRoot, getRootEnvPath, getServerEnvPath } from './state.js';
-import { DEFAULT_PLUGIN_PRESET, DEFAULT_PLUGIN_STORE_DIR, getBundledPluginPresetState } from './city.js';
+import { DEFAULT_PLUGIN_STORE_DIR } from './city.js';
 import type { CityReachability, ConfigureAnswers, InstancePurpose, SiteProtocol } from './types.js';
 
 const packageRoot = getPackageRoot();
@@ -106,9 +106,7 @@ export function defaultConfig(
     googleClientSecret: '',
     githubClientId: '',
     githubClientSecret: '',
-    pluginPreset: DEFAULT_PLUGIN_PRESET,
     pluginStoreDir: DEFAULT_PLUGIN_STORE_DIR,
-    bundledPluginState: getBundledPluginPresetState(DEFAULT_PLUGIN_PRESET),
   };
 }
 
@@ -153,9 +151,7 @@ export function currentConfigureDefaults(
     googleClientSecret: current.GOOGLE_CLIENT_SECRET ?? defaults.googleClientSecret,
     githubClientId: current.GITHUB_CLIENT_ID ?? defaults.githubClientId,
     githubClientSecret: current.GITHUB_CLIENT_SECRET ?? defaults.githubClientSecret,
-    pluginPreset: DEFAULT_PLUGIN_PRESET,
     pluginStoreDir: DEFAULT_PLUGIN_STORE_DIR,
-    bundledPluginState: getBundledPluginPresetState(DEFAULT_PLUGIN_PRESET),
   };
 }
 

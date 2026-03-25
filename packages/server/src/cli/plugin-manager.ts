@@ -16,10 +16,19 @@ import {
   summarizePluginChecks,
 } from '../core/plugin-platform/inspection.js';
 import { listPluginSourceCatalog, resolvePluginSourceRelease } from '../core/plugin-platform/source-registry.js';
-import type { CityConfigFile, PluginDiagnostic } from '../core/plugin-platform/types.js';
-import { PluginPlatformHost } from '../core/plugin-platform/host.js';
+import type { CityConfigFile } from '../core/plugin-platform/types.js';
 import { readOption } from './lib/argv.js';
-import { BUNDLED_PLUGINS, ensureOfficialMarketplaceSource, OFFICIAL_PLUGIN_SOURCE_ID } from './lib/city.js';
+import { BUNDLED_PLUGINS } from './lib/city.js';
+import {
+  installSourcePlugin,
+  linkLocalPlugin,
+  listConfiguredPlugins,
+  removeConfiguredPlugin,
+  resolvePluginInputPath,
+  syncConfiguredPluginLock,
+  setConfiguredPluginEnabled,
+  unlinkConfiguredPlugin,
+} from './lib/plugin-actions.js';
 import { createPluginScaffold, defaultPluginScaffoldDir } from './lib/plugin-scaffold.js';
 import type { CommandContext } from './lib/types.js';
 import { getEnvPath, getPackageRoot, getCityConfigPath, getCityLockPath, getPluginStoreDir } from '../runtime-paths.js';
@@ -30,18 +39,6 @@ const packageRoot = getPackageRoot();
 const cityConfigPath = getCityConfigPath();
 const cityLockPath = getCityLockPath();
 const execFileAsync = promisify(execFile);
-
-interface PluginListRecord {
-  pluginId: string;
-  packageName?: string;
-  enabled: boolean;
-  installOrigin: 'linked-path' | 'source-registry';
-  linkedPath?: string;
-  sourceId?: string;
-  configuredVersion?: string;
-  revision?: string;
-  runtimeStorePath?: string;
-}
 
 interface ScanWorkspaceRecord {
   pluginId: string;
@@ -60,21 +57,6 @@ interface ScanSourceRecord {
   registry: string;
 }
 
-function createHost(): PluginPlatformHost {
-  return new PluginPlatformHost({
-    configPath: cityConfigPath,
-    lockPath: cityLockPath,
-    packageRoot,
-    pluginStoreDir: getPluginStoreDir(),
-  });
-}
-
-function resolveMaybePath(value: string | undefined): string | null {
-  if (!value) return null;
-  const resolved = path.isAbsolute(value) ? value : path.resolve(process.cwd(), value);
-  return existsSync(resolved) ? resolved : null;
-}
-
 function resolveTargetPath(value: string): string {
   return path.isAbsolute(value) ? value : path.resolve(process.cwd(), value);
 }
@@ -89,152 +71,16 @@ function resolveStoreRoot(config: Awaited<ReturnType<typeof readCityConfig>>): s
   return getPluginStoreDir();
 }
 
-function formatResolutionFailures(failures: PluginDiagnostic[]): string {
-  return failures
-    .map((failure) => `${failure.pluginId} (${failure.lastError ?? 'unknown error'})`)
-    .join('; ');
-}
-
 function workspacePathFromPackageDir(packageDir: string): string {
   return path.resolve(packageRoot, '..', 'plugins', packageDir);
-}
-
-function toPluginListRecords(config: CityConfigFile, lock: Awaited<ReturnType<typeof readCityLock>>): PluginListRecord[] {
-  return Object.keys(config.plugins)
-    .sort((left, right) => left.localeCompare(right))
-    .map((pluginId) => {
-      const plugin = config.plugins[pluginId]!;
-      const locked = lock.plugins[pluginId];
-      return {
-        pluginId,
-        packageName: plugin.packageName,
-        enabled: plugin.enabled ?? true,
-        installOrigin: plugin.devOverridePath ? 'linked-path' : 'source-registry',
-        linkedPath: plugin.devOverridePath,
-        sourceId: plugin.source,
-        configuredVersion: plugin.version,
-        revision: locked?.revision,
-        runtimeStorePath: locked?.packageRoot,
-      } satisfies PluginListRecord;
-    });
 }
 
 function emitJson(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
 }
 
-async function syncLock(options: { strictPluginId?: string } = {}): Promise<void> {
-  const host = createHost();
-  const lock = await host.syncLockFile();
-  const failures = host.getPluginDiagnostics().filter((item) => item.state === 'failed');
-
-  if (failures.length > 0) {
-    console.warn(`Warning: unresolved plugins were skipped during lock sync: ${formatResolutionFailures(failures)}`);
-  }
-
-  if (options.strictPluginId && !lock.plugins[options.strictPluginId]) {
-    const failure = failures.find((item) => item.pluginId === options.strictPluginId);
-    if (failure?.lastError) {
-      throw new Error(`Plugin ${options.strictPluginId} could not be resolved: ${failure.lastError}`);
-    }
-    throw new Error(`Plugin ${options.strictPluginId} could not be resolved`);
-  }
-}
-
-function mergePluginConfigEntry(options: {
-  config: CityConfigFile;
-  pluginId: string;
-  packageName: string;
-  version?: string;
-  sourceId?: string;
-  devOverridePath?: string;
-}): void {
-  const existing = options.config.plugins[options.pluginId];
-  options.config.plugins[options.pluginId] = {
-    pluginId: options.pluginId,
-    packageName: options.packageName,
-    version: options.version,
-    enabled: existing?.enabled ?? true,
-    source: options.sourceId,
-    permissionsGranted: existing?.permissionsGranted ?? [],
-    config: existing?.config ?? {},
-    devOverridePath: options.devOverridePath,
-  };
-}
-
-async function installResolvedSourcePlugin(options: {
-  config: CityConfigFile;
-  pluginId: string;
-  packageName: string;
-  version: string;
-  sourceId: string;
-}): Promise<void> {
-  mergePluginConfigEntry({
-    config: options.config,
-    pluginId: options.pluginId,
-    packageName: options.packageName,
-    version: options.version,
-    sourceId: options.sourceId,
-  });
-
-  await writeCityConfig(cityConfigPath, options.config);
-  await syncLock({ strictPluginId: options.pluginId });
-}
-
-async function linkWorkspacePlugin(targetPath: string): Promise<string> {
-  const config = await readCityConfig(cityConfigPath);
-  const manifest = await readPluginPackageManifest(targetPath);
-  const pluginId = manifest.urucPlugin.pluginId;
-
-  mergePluginConfigEntry({
-    config,
-    pluginId,
-    packageName: manifest.packageName,
-    devOverridePath: path.relative(path.dirname(cityConfigPath), manifest.packageRoot),
-  });
-
-  await writeCityConfig(cityConfigPath, config);
-  await syncLock({ strictPluginId: pluginId });
-  return pluginId;
-}
-
-async function resolveInstallRelease(options: {
-  config: CityConfigFile;
-  target: string;
-  sourceId?: string;
-  requestedVersion?: string;
-}) {
-  const sources = options.sourceId
-    ? options.config.sources
-    : ensureOfficialMarketplaceSource(options.config.sources ?? []);
-  options.config.sources = sources;
-
-  try {
-    return await resolvePluginSourceRelease({
-      sources,
-      pluginId: options.target,
-      sourceId: options.sourceId,
-      version: options.requestedVersion,
-      baseDir: path.dirname(cityConfigPath),
-    });
-  } catch (pluginError) {
-    const aliasSourceId = options.sourceId ?? OFFICIAL_PLUGIN_SOURCE_ID;
-    try {
-      return await resolvePluginSourceRelease({
-        sources,
-        alias: options.target,
-        sourceId: aliasSourceId,
-        version: options.requestedVersion,
-        baseDir: path.dirname(cityConfigPath),
-      });
-    } catch (aliasError) {
-      throw aliasError instanceof Error ? aliasError : pluginError;
-    }
-  }
-}
-
 function requireNoLegacyPathInstall(target: string | undefined, next: string | undefined): void {
-  const maybePath = resolveMaybePath(target) ?? resolveMaybePath(next);
+  const maybePath = resolvePluginInputPath(target) ?? resolvePluginInputPath(next);
   if (maybePath) {
     throw new Error('`uruc plugin install <path>` was removed. Use `uruc plugin link <path>`.');
   }
@@ -247,9 +93,7 @@ function assertUsage(condition: unknown, message: string): asserts condition {
 }
 
 async function listPlugins(context: CommandContext): Promise<void> {
-  const config = await readCityConfig(cityConfigPath);
-  const lock = await readCityLock(cityLockPath);
-  const records = toPluginListRecords(config, lock);
+  const records = await listConfiguredPlugins();
 
   if (context.json) {
     emitJson({ plugins: records });
@@ -285,73 +129,20 @@ async function installPlugin(args: string[]): Promise<void> {
   assertUsage(target, 'Usage: uruc plugin install <pluginId-or-alias> [--source <id>] [--version <version>]');
   requireNoLegacyPathInstall(target, args[1]);
 
-  const config = await readCityConfig(cityConfigPath);
-  const release = await resolveInstallRelease({
-    config,
+  const release = await installSourcePlugin({
     target,
     sourceId: readOption(args, '--source'),
     requestedVersion: readOption(args, '--version'),
-  });
-
-  await installResolvedSourcePlugin({
-    config,
-    pluginId: release.pluginId,
-    packageName: release.packageName,
-    version: release.version,
-    sourceId: release.sourceId,
   });
   console.log(`✓ Installed ${release.pluginId} from source ${release.sourceId} (${release.version})`);
 }
 
 async function linkPlugin(args: string[]): Promise<void> {
-  const candidatePath = resolveMaybePath(args[0]);
+  const candidatePath = resolvePluginInputPath(args[0]);
   assertUsage(candidatePath, 'Usage: uruc plugin link <path>');
 
-  const pluginId = await linkWorkspacePlugin(candidatePath);
+  const { pluginId } = await linkLocalPlugin(candidatePath);
   console.log(`✓ Linked ${pluginId} from ${candidatePath}`);
-}
-
-async function setPluginEnabled(pluginId: string | undefined, enabled: boolean): Promise<void> {
-  assertUsage(pluginId, `Usage: uruc plugin ${enabled ? 'enable' : 'disable'} <pluginId>`);
-
-  const config = await readCityConfig(cityConfigPath);
-  const target = config.plugins[pluginId];
-  if (!target) {
-    throw new Error(`Plugin ${pluginId} is not configured`);
-  }
-  target.enabled = enabled;
-  await writeCityConfig(cityConfigPath, config);
-  await syncLock(enabled ? { strictPluginId: pluginId } : undefined);
-  console.log(`✓ ${enabled ? 'Enabled' : 'Disabled'} ${pluginId}`);
-}
-
-async function removePlugin(pluginId: string | undefined): Promise<void> {
-  assertUsage(pluginId, 'Usage: uruc plugin remove <pluginId>');
-
-  const config = await readCityConfig(cityConfigPath);
-  if (!config.plugins[pluginId]) {
-    throw new Error(`Plugin ${pluginId} is not configured`);
-  }
-
-  delete config.plugins[pluginId];
-  await writeCityConfig(cityConfigPath, config);
-  await syncLock();
-  console.log(`✓ Removed ${pluginId} from the current city`);
-}
-
-async function unlinkPlugin(pluginId: string | undefined): Promise<void> {
-  assertUsage(pluginId, 'Usage: uruc plugin unlink <pluginId>');
-
-  const config = await readCityConfig(cityConfigPath);
-  const plugin = config.plugins[pluginId];
-  if (!plugin) {
-    throw new Error(`Plugin ${pluginId} is not configured`);
-  }
-  if (!plugin.devOverridePath) {
-    throw new Error(`Plugin ${pluginId} is not linked from a workspace path. Use \`uruc plugin remove ${pluginId}\` instead.`);
-  }
-
-  await removePlugin(pluginId);
 }
 
 async function updatePlugin(pluginId: string | undefined): Promise<void> {
@@ -399,7 +190,7 @@ async function updatePlugin(pluginId: string | undefined): Promise<void> {
   }
 
   await writeCityConfig(cityConfigPath, config);
-  await syncLock(pluginId ? { strictPluginId: pluginId } : undefined);
+  await syncConfiguredPluginLock(pluginId ? { strictPluginId: pluginId } : undefined);
   if (skipped.length > 0) {
     console.warn(`Warning: skipped plugin updates: ${skipped.join('; ')}`);
   }
@@ -446,7 +237,7 @@ async function inspectPlugin(pluginId: string | undefined, jsonMode: boolean): P
   const pluginConfig = config.plugins[pluginId] ?? null;
   const locked = lock.plugins[pluginId] ?? null;
   const record = pluginConfig
-    ? toPluginListRecords(config, lock).find((item) => item.pluginId === pluginId) ?? null
+    ? (await listConfiguredPlugins()).find((item) => item.pluginId === pluginId) ?? null
     : null;
 
   const payload = {
@@ -463,7 +254,7 @@ async function inspectPlugin(pluginId: string | undefined, jsonMode: boolean): P
 }
 
 async function validatePlugin(target: string | undefined): Promise<void> {
-  const candidatePath = resolveMaybePath(target);
+  const candidatePath = resolvePluginInputPath(target);
   if (candidatePath) {
     const manifest = await readPluginPackageManifest(candidatePath);
     await validatePluginPackageContract(
@@ -623,7 +414,7 @@ async function buildPluginFrontendForPack(packageRootPath: string): Promise<void
 }
 
 async function packPlugin(args: string[]): Promise<void> {
-  const candidatePath = resolveMaybePath(args[0]);
+  const candidatePath = resolvePluginInputPath(args[0]);
   assertUsage(candidatePath, 'Usage: uruc plugin pack <path> [--out <dir>]');
 
   const manifest = await readPluginPackageManifest(candidatePath);
@@ -710,7 +501,6 @@ async function listWorkspacePlugins(): Promise<ScanWorkspaceRecord[]> {
 async function scanPlugins(context: CommandContext): Promise<void> {
   const scope = readOption(context.args.slice(1), '--scope') ?? 'all';
   const config = await readCityConfig(cityConfigPath);
-  const lock = await readCityLock(cityLockPath);
 
   const includeWorkspace = scope === 'all' || scope === 'workspace';
   const includeSources = scope === 'all' || scope === 'sources';
@@ -731,9 +521,9 @@ async function scanPlugins(context: CommandContext): Promise<void> {
       registry: release.registry,
     } satisfies ScanSourceRecord))
     : [];
-  const installed = includeInstalled ? toPluginListRecords(config, lock) : [];
+  const installedRecords = includeInstalled ? await listConfiguredPlugins() : [];
 
-  const payload = { workspace, sources, installed };
+  const payload = { workspace, sources, installed: installedRecords };
   if (context.json) {
     emitJson(payload);
     return;
@@ -742,7 +532,7 @@ async function scanPlugins(context: CommandContext): Promise<void> {
   console.log('\n=== Plugin Scan ===\n');
   console.log(`workspace: ${workspace.length}`);
   console.log(`sources:   ${sources.length}`);
-  console.log(`installed: ${installed.length}`);
+  console.log(`installed: ${installedRecords.length}`);
   console.log();
 }
 
@@ -830,16 +620,24 @@ export async function runPluginCommand(context: CommandContext): Promise<void> {
       await linkPlugin(context.args.slice(1));
       return;
     case 'enable':
-      await setPluginEnabled(context.args[1], true);
+      assertUsage(context.args[1], 'Usage: uruc plugin enable <pluginId>');
+      await setConfiguredPluginEnabled(context.args[1]!, true);
+      console.log(`✓ Enabled ${context.args[1]}`);
       return;
     case 'disable':
-      await setPluginEnabled(context.args[1], false);
+      assertUsage(context.args[1], 'Usage: uruc plugin disable <pluginId>');
+      await setConfiguredPluginEnabled(context.args[1]!, false);
+      console.log(`✓ Disabled ${context.args[1]}`);
       return;
     case 'remove':
-      await removePlugin(context.args[1]);
+      assertUsage(context.args[1], 'Usage: uruc plugin remove <pluginId>');
+      await removeConfiguredPlugin(context.args[1]!);
+      console.log(`✓ Removed ${context.args[1]} from the current city`);
       return;
     case 'unlink':
-      await unlinkPlugin(context.args[1]);
+      assertUsage(context.args[1], 'Usage: uruc plugin unlink <pluginId>');
+      await unlinkConfiguredPlugin(context.args[1]!);
+      console.log(`✓ Removed ${context.args[1]} from the current city`);
       return;
     case 'update':
       await updatePlugin(context.args[1]);

@@ -91,7 +91,7 @@ describe('CLI runtime command messaging', () => {
     mocks.parseEnvFile.mockReturnValue({ CITY_CONFIG_PATH: './missing-custom.city.json' });
 
     await expect(runStartCommand({ args: [], json: false })).rejects.toThrow(
-      'Run `uruc configure --section plugins` to create or fix it.',
+      'Run `uruc configure` to create or fix it.',
     );
     expect(mocks.prepareCityRuntime).not.toHaveBeenCalled();
   });

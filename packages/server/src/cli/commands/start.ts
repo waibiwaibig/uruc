@@ -57,7 +57,7 @@ export async function runStartCommand(context: CommandContext): Promise<void> {
   const background = hasFlag(context.args, '--background', '-b');
   const { configPath, isDefaultPath } = resolveConfiguredCityPath();
   if (!existsSync(configPath) && !isDefaultPath) {
-    throw new Error(`Configured city file does not exist at ${configPath}. Run \`uruc configure --section plugins\` to create or fix it.`);
+    throw new Error(`Configured city file does not exist at ${configPath}. Run \`uruc configure\` to create or fix it.`);
   }
 
   const cityState = await prepareCityRuntime({

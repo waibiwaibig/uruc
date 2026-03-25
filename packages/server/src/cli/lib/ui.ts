@@ -36,6 +36,22 @@ const labels = {
   },
 } as const;
 
+const ansi = {
+  reset: '\u001b[0m',
+  bold: '\u001b[1m',
+  dim: '\u001b[2m',
+  green: '\u001b[32m',
+} as const;
+
+function supportsColor(): boolean {
+  return !!process.stdout.isTTY && !process.env.NO_COLOR && process.env.TERM !== 'dumb';
+}
+
+function paint(value: string, ...styles: string[]): string {
+  if (!supportsColor() || styles.length === 0) return value;
+  return `${styles.join('')}${value}${ansi.reset}`;
+}
+
 export function t(lang: UiLanguage, key: keyof typeof labels['zh-CN']): string {
   return labels[lang][key];
 }
@@ -92,13 +108,44 @@ function renderChoiceLines<T extends string>(
   selected: boolean,
   lang: UiLanguage,
 ): string[] {
-  const pointer = selected ? '>' : ' ';
-  const defaultTag = option.value === defaultValue ? ` [${defaultChoiceLabel(lang)}]` : '';
-  const lines = [` ${pointer} ${index + 1}. ${option.label}${defaultTag}`];
+  const marker = selected
+    ? paint('●', ansi.green)
+    : paint('○', ansi.dim);
+  const defaultTag = option.value === defaultValue
+    ? paint(` [${defaultChoiceLabel(lang)}]`, ansi.dim)
+    : '';
+  const label = selected ? paint(option.label, ansi.bold) : option.label;
+  const lines = [` ${marker} ${index + 1}. ${label}${defaultTag}`];
   if (option.description) {
-    lines.push(`      ${option.description}`);
+    lines.push(`     ${paint(option.description, ansi.dim)}`);
   }
   return lines;
+}
+
+export async function runMenuLoop<T extends string>(options: {
+  prompt: string;
+  getOptions: () => Array<{ value: T; label: string; description?: string }> | Promise<Array<{ value: T; label: string; description?: string }>>;
+  defaultValue: T;
+  lang: UiLanguage;
+  onSelect: (value: T) => Promise<'continue' | 'break' | void> | 'continue' | 'break' | void;
+}): Promise<void> {
+  let defaultValue = options.defaultValue;
+
+  while (true) {
+    const nextOptions = await options.getOptions();
+    if (nextOptions.length === 0) {
+      return;
+    }
+    const safeDefault = nextOptions.some((option) => option.value === defaultValue)
+      ? defaultValue
+      : nextOptions[0]!.value;
+    const selection = await promptChoice(options.prompt, nextOptions, safeDefault, options.lang);
+    defaultValue = selection;
+    const outcome = await options.onSelect(selection);
+    if (outcome === 'break') {
+      return;
+    }
+  }
 }
 
 export async function promptInput(
@@ -259,13 +306,13 @@ async function promptChoiceTty<T extends string>(
 
     const draw = () => {
       if (renderedLines > 0) {
-        readline.moveCursor(stdout, 0, -(renderedLines - 1));
+        readline.moveCursor(stdout, 0, -renderedLines);
       }
       readline.cursorTo(stdout, 0);
       readline.clearScreenDown(stdout);
       stdout.write(`${prompt}\n`);
-      stdout.write(`${t(lang, 'selectHint')}\n\n`);
-      renderedLines = 4;
+      stdout.write(`${paint(t(lang, 'selectHint'), ansi.dim)}\n\n`);
+      renderedLines = 3;
       options.forEach((option, index) => {
         const lines = renderChoiceLines(option, index, defaultValue, index === selectedIndex, lang);
         for (const line of lines) {
@@ -277,7 +324,6 @@ async function promptChoiceTty<T extends string>(
           renderedLines += 1;
         }
       });
-      stdout.write('> ');
     };
 
     const cleanup = () => {

@@ -99,9 +99,7 @@ const mocks = vi.hoisted(() => ({
     googleClientSecret: '',
     githubClientId: '',
     githubClientSecret: '',
-    pluginPreset: 'custom',
     pluginStoreDir: '.uruc/plugins',
-    bundledPluginState: mocks.getBundledPluginPresetState('custom'),
   })),
   defaultBindHost: vi.fn((reachability: string) => (reachability === 'local' ? '127.0.0.1' : '0.0.0.0')),
   rememberConfiguration: vi.fn(),
@@ -111,6 +109,7 @@ const mocks = vi.hoisted(() => ({
   promptChoice: vi.fn(),
   promptConfirm: vi.fn(),
   promptInput: vi.fn(),
+  runMenuLoop: vi.fn(),
   printBanner: vi.fn(),
   printSection: vi.fn(),
   printStatus: vi.fn(),
@@ -121,6 +120,12 @@ const mocks = vi.hoisted(() => ({
   isSystemdInstalled: vi.fn(),
   runStartCommand: vi.fn(),
   runRestartCommand: vi.fn(),
+  listConfiguredPlugins: vi.fn(),
+  installSourcePlugin: vi.fn(),
+  linkLocalPlugin: vi.fn(),
+  setConfiguredPluginEnabled: vi.fn(),
+  removeConfiguredPlugin: vi.fn(),
+  unlinkConfiguredPlugin: vi.fn(),
 }));
 
 vi.mock('../lib/admin.js', () => ({
@@ -188,6 +193,7 @@ vi.mock('../lib/ui.js', () => ({
   promptChoice: mocks.promptChoice,
   promptConfirm: mocks.promptConfirm,
   promptInput: mocks.promptInput,
+  runMenuLoop: mocks.runMenuLoop,
   printBanner: mocks.printBanner,
   printSection: mocks.printSection,
   printStatus: mocks.printStatus,
@@ -213,6 +219,15 @@ vi.mock('../commands/start.js', () => ({
 
 vi.mock('../commands/restart.js', () => ({
   runRestartCommand: mocks.runRestartCommand,
+}));
+
+vi.mock('../lib/plugin-actions.js', () => ({
+  listConfiguredPlugins: mocks.listConfiguredPlugins,
+  installSourcePlugin: mocks.installSourcePlugin,
+  linkLocalPlugin: mocks.linkLocalPlugin,
+  setConfiguredPluginEnabled: mocks.setConfiguredPluginEnabled,
+  removeConfiguredPlugin: mocks.removeConfiguredPlugin,
+  unlinkConfiguredPlugin: mocks.unlinkConfiguredPlugin,
 }));
 
 const tempDirs: string[] = [];
@@ -248,9 +263,7 @@ function makeCurrentDefaults(cityConfigPath: string) {
     googleClientSecret: '',
     githubClientId: '',
     githubClientSecret: '',
-    pluginPreset: 'custom',
     pluginStoreDir: '.uruc/plugins',
-    bundledPluginState: mocks.getBundledPluginPresetState('custom'),
   };
 }
 
@@ -263,12 +276,41 @@ beforeEach(() => {
   mocks.findUserByEmail.mockResolvedValue(null);
   mocks.resolveAdminPasswordState.mockResolvedValue('match');
   mocks.promptConfirm.mockResolvedValue(false);
+  mocks.runMenuLoop.mockImplementation(async ({ prompt, getOptions, defaultValue, lang, onSelect }: any) => {
+    let currentDefault = defaultValue;
+    while (true) {
+      const options = await getOptions();
+      const selection = await mocks.promptChoice(prompt, options, currentDefault, lang);
+      currentDefault = selection;
+      const outcome = await onSelect(selection);
+      if (outcome === 'break') {
+        return;
+      }
+    }
+  });
   mocks.ensureCityConfig.mockResolvedValue(undefined);
   mocks.syncCityLock.mockResolvedValue(undefined);
   mocks.getRuntimeStatus.mockResolvedValue({ mode: 'stopped' });
   mocks.isSystemdInstalled.mockReturnValue(false);
   mocks.runStartCommand.mockResolvedValue(undefined);
   mocks.runRestartCommand.mockResolvedValue(undefined);
+  mocks.listConfiguredPlugins.mockResolvedValue([
+    {
+      pluginId: 'uruc.social',
+      packageName: '@uruc/plugin-social',
+      enabled: false,
+      installOrigin: 'linked-path',
+      linkedPath: '../plugins/social',
+      configuredVersion: undefined,
+      revision: 'rev-social',
+      runtimeStorePath: '/tmp/test-package-root/.uruc/plugins/uruc.social/rev-social',
+    },
+  ]);
+  mocks.installSourcePlugin.mockResolvedValue({ pluginId: 'uruc.marketplace', sourceId: 'official', version: '1.0.0' });
+  mocks.linkLocalPlugin.mockResolvedValue({ pluginId: 'uruc.social', resolvedPath: '/tmp/test-package-root/../plugins/social' });
+  mocks.setConfiguredPluginEnabled.mockResolvedValue(undefined);
+  mocks.removeConfiguredPlugin.mockResolvedValue(undefined);
+  mocks.unlinkConfiguredPlugin.mockResolvedValue(undefined);
 });
 
 afterEach(async () => {
@@ -349,6 +391,127 @@ describe('configure command', () => {
         }),
       }),
     }));
+  });
+
+  it('advanced mode loops through a persistent main menu and exposes review plus finish entries', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-configure-'));
+    tempDirs.push(tempRoot);
+    const cityConfigPath = path.join(tempRoot, 'uruc.city.json');
+    mocks.currentConfigureDefaults.mockReturnValue(makeCurrentDefaults(cityConfigPath));
+    let sectionVisits = 0;
+    mocks.promptChoice.mockImplementation(async (prompt: string, options: Array<{ value: string }>) => {
+      if (prompt === 'Choose language / 选择语言 / 언어 선택') return 'en';
+      if (prompt === 'How should we configure this city?') return 'advanced';
+      if (prompt === 'Which section do you want to change?') {
+        sectionVisits += 1;
+        return sectionVisits === 1 ? 'runtime' : 'finish';
+      }
+      if (prompt === 'Where should this city be reachable?') return 'local';
+      if (prompt === 'What is this instance for?') return 'test';
+      if (prompt === 'What should Uruc do next?') return 'save';
+      return options[0]?.value;
+    });
+    mocks.promptInput
+      .mockResolvedValueOnce('3000')
+      .mockResolvedValueOnce('3001')
+      .mockResolvedValueOnce('../human-web/dist')
+      .mockResolvedValueOnce('./uploads');
+
+    const { runConfigureCommand } = await import('../commands/configure.js');
+    await runConfigureCommand({ args: ['--advanced'], json: false });
+
+    const sectionPromptCalls = mocks.promptChoice.mock.calls.filter(
+      ([prompt]) => prompt === 'Which section do you want to change?',
+    );
+    expect(sectionPromptCalls.length).toBeGreaterThanOrEqual(2);
+    expect(sectionPromptCalls[0]?.[1]).toEqual(expect.arrayContaining([
+      expect.objectContaining({ value: 'review-summary' }),
+      expect.objectContaining({ value: 'finish' }),
+    ]));
+    expect(mocks.writeEnvFile).toHaveBeenCalled();
+  });
+
+  it('advanced plugins section groups installed actions and returns to the submenu after enabling a plugin', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-configure-'));
+    tempDirs.push(tempRoot);
+    const cityConfigPath = path.join(tempRoot, 'uruc.city.json');
+    mocks.currentConfigureDefaults.mockReturnValue(makeCurrentDefaults(cityConfigPath));
+    let sectionVisits = 0;
+    let pluginMenuVisits = 0;
+    let installedMenuVisits = 0;
+    mocks.promptChoice.mockImplementation(async (prompt: string, options: Array<{ value: string }>) => {
+      if (prompt === 'Choose language / 选择语言 / 언어 선택') return 'en';
+      if (prompt === 'How should we configure this city?') return 'advanced';
+      if (prompt === 'Which section do you want to change?') {
+        sectionVisits += 1;
+        return sectionVisits === 1 ? 'plugins' : 'finish';
+      }
+      if (options.some((option) => option.value === 'manage-installed') && options.some((option) => option.value === 'add-plugin')) {
+        pluginMenuVisits += 1;
+        return pluginMenuVisits === 1 ? 'manage-installed' : 'back';
+      }
+      if (options.some((option) => option.value === 'enable') && options.some((option) => option.value === 'remove')) {
+        installedMenuVisits += 1;
+        return installedMenuVisits === 1 ? 'enable' : 'back';
+      }
+      if (prompt === 'Select an installed plugin') return 'uruc.social';
+      if (prompt === 'What should Uruc do next?') return 'save';
+      return options[0]?.value;
+    });
+
+    const { runConfigureCommand } = await import('../commands/configure.js');
+    await runConfigureCommand({ args: ['--advanced'], json: false });
+
+    const pluginMenuCalls = mocks.promptChoice.mock.calls.filter(([, options]) => Array.isArray(options)
+      && options.some((option: any) => option.value === 'manage-installed')
+      && options.some((option: any) => option.value === 'add-plugin'));
+    expect(pluginMenuCalls.length).toBeGreaterThanOrEqual(2);
+    const installedMenuCalls = mocks.promptChoice.mock.calls.filter(([, options]) => Array.isArray(options)
+      && options.some((option: any) => option.value === 'enable')
+      && options.some((option: any) => option.value === 'remove'));
+    expect(installedMenuCalls.length).toBeGreaterThanOrEqual(2);
+    expect(mocks.setConfiguredPluginEnabled).toHaveBeenCalledWith('uruc.social', true, expect.any(Object));
+  });
+
+  it('lets the operator back out of installed-plugin selection without mutating plugins', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-configure-'));
+    tempDirs.push(tempRoot);
+    const cityConfigPath = path.join(tempRoot, 'uruc.city.json');
+    mocks.currentConfigureDefaults.mockReturnValue(makeCurrentDefaults(cityConfigPath));
+    let sectionVisits = 0;
+    let pluginMenuVisits = 0;
+    let installedMenuVisits = 0;
+    mocks.promptChoice.mockImplementation(async (prompt: string, options: Array<{ value: string }>) => {
+      if (prompt === 'Choose language / 选择语言 / 언어 선택') return 'en';
+      if (prompt === 'How should we configure this city?') return 'advanced';
+      if (prompt === 'Which section do you want to change?') {
+        sectionVisits += 1;
+        return sectionVisits === 1 ? 'plugins' : 'finish';
+      }
+      if (options.some((option) => option.value === 'manage-installed') && options.some((option) => option.value === 'add-plugin')) {
+        pluginMenuVisits += 1;
+        return pluginMenuVisits === 1 ? 'manage-installed' : 'back';
+      }
+      if (options.some((option) => option.value === 'remove') && options.some((option) => option.value === 'back')) {
+        installedMenuVisits += 1;
+        return installedMenuVisits === 1 ? 'remove' : 'back';
+      }
+      if (prompt === 'Select an installed plugin') return 'back';
+      if (prompt === 'What should Uruc do next?') return 'save';
+      return options[0]?.value;
+    });
+
+    const { runConfigureCommand } = await import('../commands/configure.js');
+    await runConfigureCommand({ args: ['--advanced'], json: false });
+
+    const pickerCall = mocks.promptChoice.mock.calls.find(([prompt]) => prompt === 'Select an installed plugin');
+    expect(pickerCall?.[1]).toEqual(expect.arrayContaining([
+      expect.objectContaining({ value: 'uruc.social' }),
+      expect.objectContaining({ value: 'back' }),
+    ]));
+    expect(mocks.removeConfiguredPlugin).not.toHaveBeenCalled();
+    expect(mocks.unlinkConfiguredPlugin).not.toHaveBeenCalled();
+    expect(mocks.setConfiguredPluginEnabled).not.toHaveBeenCalled();
   });
 
   it('quickstart preserves existing path customizations for env and city storage', async () => {

@@ -64,8 +64,9 @@ Current behavior:
 - Ensures a city config exists and synchronizes the city lock before finishing.
 - Supports two modes:
   - `--quickstart`: asks fewer questions and targets a runnable default city.
-  - `--advanced`: exposes section-by-section reconfiguration.
-- Supported advanced sections are `runtime`, `access`, `city`, `plugins`, and `integrations`.
+  - `--advanced`: opens a persistent hub menu and saves section changes immediately.
+- In interactive Advanced mode, the main menu now includes `runtime`, `access`, `city`, `plugins`, `integrations`, `review summary`, and `finish`.
+- Supported direct section shortcuts remain `runtime`, `access`, `city`, `plugins`, and `integrations` through `--advanced --section ...`.
 - `--quickstart` cannot be combined with `--section`.
 - `--yes` and `--accept-defaults` are synonyms in the current parser.
 - `--accept-defaults` currently requires `--quickstart`.
@@ -79,7 +80,12 @@ Current behavior:
   - workspace plugins are source code under `packages/plugins/*`
   - installed plugins are declared in `uruc.city.json` / `uruc.city.lock.json`
   - the runtime plugin store is `.uruc/plugins/*`
-- QuickStart and the `plugins` section can offer to link recommended workspace plugins.
+- QuickStart can offer to link recommended workspace plugins.
+- The Advanced `plugins` menu is now a thin UI over the normal plugin lifecycle commands:
+  - a top-level grouped menu for viewing plugins, managing installed plugins, adding plugins, editing the runtime plugin store path, and going back
+  - installed-plugin actions are grouped in their own submenu
+  - add-plugin actions are grouped in their own submenu
+  - installed-plugin pickers now include an explicit `back` entry
 - Source editing moved out of `configure`; use `uruc plugin source ...`.
 - At the end of the flow, the CLI can save only, start in foreground, or start in managed background mode.
 
@@ -90,7 +96,7 @@ Section scope in the current implementation:
 | `runtime` | Bind host, reachability, public host, protocol, ports, static directories |
 | `access` | Admin account, registration policy, indexing policy, site password |
 | `city` | Database path and city config path |
-| `plugins` | Plugin store path and optional workspace-plugin onboarding |
+| `plugins` | Installed plugin lifecycle actions plus plugin store path editing |
 | `integrations` | CORS, JWT, Resend mail, Google OAuth, GitHub OAuth |
 
 ### `uruc build`

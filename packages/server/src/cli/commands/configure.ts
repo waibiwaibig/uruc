@@ -47,7 +47,17 @@ import {
   promptChoice,
   promptConfirm,
   promptInput,
+  runMenuLoop,
 } from '../lib/ui.js';
+import {
+  installSourcePlugin,
+  linkLocalPlugin,
+  listConfiguredPlugins,
+  removeConfiguredPlugin,
+  resolvePluginInputPath,
+  setConfiguredPluginEnabled,
+  unlinkConfiguredPlugin,
+} from '../lib/plugin-actions.js';
 import { getRuntimeStatus, isSystemdInstalled, type RuntimeStatus } from '../lib/runtime.js';
 import type {
   CityReachability,
@@ -70,6 +80,25 @@ interface ConfigureResult {
   baseCityConfig: CityConfigFile;
   cityConfigResolvedPath: string;
 }
+
+interface ConfigureSession {
+  acceptDefaults: boolean;
+  answers: ConfigureAnswers;
+  baseCityConfig: CityConfigFile;
+  cityConfigResolvedPath: string;
+  currentBaseUrl: string | undefined;
+}
+
+type PersistableConfigureState = Pick<ConfigureResult, 'answers' | 'baseCityConfig' | 'cityConfigResolvedPath'>;
+type AdvancedMenuAction = ConfigureSection | 'review-summary' | 'finish';
+type PluginMenuAction =
+  | 'view-installed'
+  | 'manage-installed'
+  | 'add-plugin'
+  | 'edit-plugin-store'
+  | 'back';
+type PluginInstalledAction = 'enable' | 'disable' | 'remove' | 'unlink-local' | 'back';
+type PluginAddAction = 'link-local' | 'install-source' | 'back';
 
 const packageRoot = getPackageRoot();
 
@@ -95,6 +124,10 @@ const copy = {
     sectionPluginsDesc: '插件扫描、推荐本地接入和 plugin store',
     sectionIntegrations: 'integrations',
     sectionIntegrationsDesc: 'CORS、JWT、邮件与 OAuth',
+    sectionReviewSummary: 'review summary',
+    sectionReviewSummaryDesc: '查看当前配置摘要，不改动任何内容',
+    sectionFinish: 'finish',
+    sectionFinishDesc: '退出高级菜单，并决定下一步动作',
     reachabilityPrompt: '你要把这座城市建在哪里？',
     purposePrompt: '这个实例的用途是什么？',
     localMode: '本机',
@@ -155,6 +188,38 @@ const copy = {
     httpsNotice: '你选择了 HTTPS 分享地址。Uruc 不会自动配置证书或反向代理；如需真正对外 HTTPS，请自行接入 TLS。',
     enableBundledPrompt: '是否接入本地工作区插件',
     sourcesSummary: '已配置 source',
+    pluginMenuPrompt: '你现在想对插件做什么？',
+    pluginViewInstalled: 'view installed',
+    pluginViewInstalledDesc: '查看当前城市已安装插件及其运行态信息',
+    pluginManageInstalled: 'manage installed',
+    pluginManageInstalledDesc: '启用、停用、移除或取消 link 已安装插件',
+    pluginAddPlugin: 'add plugin',
+    pluginAddPluginDesc: '接入本地插件或安装 source 插件',
+    pluginInstalledMenuPrompt: '你想怎么处理已安装插件？',
+    pluginAddMenuPrompt: '你想怎么添加插件？',
+    pluginEnable: 'enable',
+    pluginEnableDesc: '启用一个当前已禁用的插件',
+    pluginDisable: 'disable',
+    pluginDisableDesc: '停用一个当前已启用的插件',
+    pluginLinkLocal: 'link local',
+    pluginLinkLocalDesc: '通过路径接入一个本地工作区插件',
+    pluginInstallSource: 'install source plugin',
+    pluginInstallSourceDesc: '通过 plugin id 或 alias 安装 source 插件',
+    pluginRemove: 'remove',
+    pluginRemoveDesc: '把一个插件从当前城市移除',
+    pluginUnlinkLocal: 'unlink local',
+    pluginUnlinkLocalDesc: '移除一个本地 link 的插件',
+    pluginEditStore: 'edit plugin store',
+    pluginEditStoreDesc: '修改 runtime plugin store 路径',
+    menuBack: 'back',
+    menuBackDesc: '返回上一级菜单',
+    selectInstalledPluginPrompt: '选择一个已安装插件',
+    pluginIdOrAliasPrompt: 'Plugin id 或 alias',
+    pluginSourceIdPrompt: 'Source id（可选）',
+    pluginVersionPrompt: 'Version（可选）',
+    pluginPathPrompt: '本地插件路径',
+    noInstalledPlugins: '当前没有可操作的已安装插件。',
+    actionCancelled: '已取消，返回上一级菜单。',
   },
   en: {
     title: 'Configure',
@@ -177,6 +242,10 @@ const copy = {
     sectionPluginsDesc: 'Plugin scanning, recommended local links, plugin store',
     sectionIntegrations: 'integrations',
     sectionIntegrationsDesc: 'CORS, JWT, email, and OAuth',
+    sectionReviewSummary: 'review summary',
+    sectionReviewSummaryDesc: 'Show the current summary without changing anything',
+    sectionFinish: 'finish',
+    sectionFinishDesc: 'Leave the advanced menu and choose what to do next',
     reachabilityPrompt: 'Where should this city be reachable?',
     purposePrompt: 'What is this instance for?',
     localMode: 'Local machine',
@@ -237,6 +306,38 @@ const copy = {
     httpsNotice: 'You chose an HTTPS share URL. Uruc will not provision certificates or a reverse proxy; you must handle TLS yourself.',
     enableBundledPrompt: 'Link local workspace plugin',
     sourcesSummary: 'Configured sources',
+    pluginMenuPrompt: 'What do you want to do with plugins?',
+    pluginViewInstalled: 'view installed',
+    pluginViewInstalledDesc: 'Show installed plugins and runtime materialization',
+    pluginManageInstalled: 'manage installed',
+    pluginManageInstalledDesc: 'Enable, disable, remove, or unlink installed plugins',
+    pluginAddPlugin: 'add plugin',
+    pluginAddPluginDesc: 'Link a local plugin or install one from a source',
+    pluginInstalledMenuPrompt: 'What do you want to do with installed plugins?',
+    pluginAddMenuPrompt: 'How do you want to add a plugin?',
+    pluginEnable: 'enable',
+    pluginEnableDesc: 'Enable a currently disabled plugin',
+    pluginDisable: 'disable',
+    pluginDisableDesc: 'Disable a currently enabled plugin',
+    pluginLinkLocal: 'link local',
+    pluginLinkLocalDesc: 'Link a local workspace plugin by path',
+    pluginInstallSource: 'install source plugin',
+    pluginInstallSourceDesc: 'Install a source-backed plugin by id or alias',
+    pluginRemove: 'remove',
+    pluginRemoveDesc: 'Remove a plugin from this city',
+    pluginUnlinkLocal: 'unlink local',
+    pluginUnlinkLocalDesc: 'Remove a locally linked plugin',
+    pluginEditStore: 'edit plugin store',
+    pluginEditStoreDesc: 'Change the runtime plugin store path',
+    menuBack: 'back',
+    menuBackDesc: 'Return to the previous menu',
+    selectInstalledPluginPrompt: 'Select an installed plugin',
+    pluginIdOrAliasPrompt: 'Plugin id or alias',
+    pluginSourceIdPrompt: 'Source id (optional)',
+    pluginVersionPrompt: 'Version (optional)',
+    pluginPathPrompt: 'Local plugin path',
+    noInstalledPlugins: 'No installed plugins matched that action.',
+    actionCancelled: 'Cancelled. Returning to the previous menu.',
   },
   ko: {
     title: 'Configure',
@@ -259,6 +360,10 @@ const copy = {
     sectionPluginsDesc: '플러그인 스캔, 추천 로컬 연결, plugin store',
     sectionIntegrations: 'integrations',
     sectionIntegrationsDesc: 'CORS, JWT, 메일, OAuth',
+    sectionReviewSummary: 'review summary',
+    sectionReviewSummaryDesc: '아무것도 바꾸지 않고 현재 요약을 봅니다',
+    sectionFinish: 'finish',
+    sectionFinishDesc: '고급 메뉴를 나가고 다음 동작을 고릅니다',
     reachabilityPrompt: '이 도시를 어디까지 열어둘까요?',
     purposePrompt: '이 인스턴스의 용도는 무엇입니까?',
     localMode: '로컬',
@@ -319,6 +424,38 @@ const copy = {
     httpsNotice: 'HTTPS 공유 주소를 선택했습니다. Uruc 는 인증서나 리버스 프록시를 자동 구성하지 않으므로 TLS 는 직접 처리해야 합니다.',
     enableBundledPrompt: '로컬 워크스페이스 플러그인 연결',
     sourcesSummary: '설정된 source',
+    pluginMenuPrompt: '플러그인에 대해 무엇을 하시겠습니까?',
+    pluginViewInstalled: 'view installed',
+    pluginViewInstalledDesc: '설치된 플러그인과 런타임 상태를 봅니다',
+    pluginManageInstalled: 'manage installed',
+    pluginManageInstalledDesc: '설치된 플러그인을 활성화, 비활성화, 제거, unlink 합니다',
+    pluginAddPlugin: 'add plugin',
+    pluginAddPluginDesc: '로컬 플러그인을 연결하거나 source 플러그인을 설치합니다',
+    pluginInstalledMenuPrompt: '설치된 플러그인을 어떻게 처리하시겠습니까?',
+    pluginAddMenuPrompt: '플러그인을 어떻게 추가하시겠습니까?',
+    pluginEnable: 'enable',
+    pluginEnableDesc: '현재 비활성화된 플러그인을 활성화합니다',
+    pluginDisable: 'disable',
+    pluginDisableDesc: '현재 활성화된 플러그인을 비활성화합니다',
+    pluginLinkLocal: 'link local',
+    pluginLinkLocalDesc: '경로로 로컬 워크스페이스 플러그인을 연결합니다',
+    pluginInstallSource: 'install source plugin',
+    pluginInstallSourceDesc: 'plugin id 또는 alias 로 source 플러그인을 설치합니다',
+    pluginRemove: 'remove',
+    pluginRemoveDesc: '현재 도시에서 플러그인을 제거합니다',
+    pluginUnlinkLocal: 'unlink local',
+    pluginUnlinkLocalDesc: '로컬 링크 플러그인을 제거합니다',
+    pluginEditStore: 'edit plugin store',
+    pluginEditStoreDesc: 'runtime plugin store 경로를 바꿉니다',
+    menuBack: 'back',
+    menuBackDesc: '이전 메뉴로 돌아갑니다',
+    selectInstalledPluginPrompt: '설치된 플러그인을 선택하세요',
+    pluginIdOrAliasPrompt: 'Plugin id 또는 alias',
+    pluginSourceIdPrompt: 'Source id (선택)',
+    pluginVersionPrompt: 'Version (선택)',
+    pluginPathPrompt: '로컬 플러그인 경로',
+    noInstalledPlugins: '이 동작에 맞는 설치된 플러그인이 없습니다.',
+    actionCancelled: '취소하고 이전 메뉴로 돌아갑니다.',
   },
 } as const;
 
@@ -489,22 +626,7 @@ async function chooseConfigureMode(
   forcedSection: ConfigureSection | undefined,
   acceptDefaults: boolean,
 ): Promise<{ mode: ConfigureMode; section: ConfigureSection | 'all' }> {
-  if (forcedMode === 'quickstart' && forcedSection) {
-    throw new Error('`uruc configure --quickstart` cannot be combined with `--section`. Use `--advanced --section ...` instead.');
-  }
-  if (acceptDefaults && forcedMode !== 'quickstart') {
-    throw new Error('`uruc configure --accept-defaults` currently requires `--quickstart`.');
-  }
-
-  const mode = forcedMode ?? await promptChoice<ConfigureMode>(
-    text(lang, 'modePrompt'),
-    [
-      { value: 'quickstart', label: text(lang, 'quickstartMode'), description: text(lang, 'quickstartModeDesc') },
-      { value: 'advanced', label: text(lang, 'advancedMode'), description: text(lang, 'advancedModeDesc') },
-    ],
-    'quickstart',
-    lang,
-  );
+  const mode = await chooseConfigureModeOnly(lang, forcedMode, forcedSection, acceptDefaults);
 
   if (mode === 'quickstart') {
     return { mode, section: 'all' };
@@ -525,6 +647,30 @@ async function chooseConfigureMode(
   );
 
   return { mode, section };
+}
+
+async function chooseConfigureModeOnly(
+  lang: UiLanguage,
+  forcedMode: ConfigureMode | undefined,
+  forcedSection: ConfigureSection | undefined,
+  acceptDefaults: boolean,
+): Promise<ConfigureMode> {
+  if (forcedMode === 'quickstart' && forcedSection) {
+    throw new Error('`uruc configure --quickstart` cannot be combined with `--section`. Use `--advanced --section ...` instead.');
+  }
+  if (acceptDefaults && forcedMode !== 'quickstart') {
+    throw new Error('`uruc configure --accept-defaults` currently requires `--quickstart`.');
+  }
+
+  return forcedMode ?? await promptChoice<ConfigureMode>(
+    text(lang, 'modePrompt'),
+    [
+      { value: 'quickstart', label: text(lang, 'quickstartMode'), description: text(lang, 'quickstartModeDesc') },
+      { value: 'advanced', label: text(lang, 'advancedMode'), description: text(lang, 'advancedModeDesc') },
+    ],
+    'quickstart',
+    lang,
+  );
 }
 
 function sectionMatches(section: ConfigureSection | 'all', target: ConfigureSection): boolean {
@@ -568,6 +714,609 @@ async function maybeLinkRecommendedWorkspacePlugins(
   }
 
   return linkWorkspacePluginsToConfig(cityConfigResolvedPath, packageRoot, baseCityConfig, linkablePluginIds);
+}
+
+function countConfiguredOrigins(raw: string): number {
+  return raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .length;
+}
+
+function sessionPluginPaths(session: ConfigureSession) {
+  return {
+    configPath: session.cityConfigResolvedPath,
+    lockPath: getCityLockPath(),
+    packageRoot,
+    pluginStoreDir: path.isAbsolute(session.answers.pluginStoreDir)
+      ? session.answers.pluginStoreDir
+      : path.resolve(packageRoot, session.answers.pluginStoreDir || DEFAULT_PLUGIN_STORE_DIR),
+  };
+}
+
+async function refreshSessionCityConfig(session: ConfigureSession): Promise<void> {
+  session.baseCityConfig = await readCityConfig(session.cityConfigResolvedPath);
+  session.answers.pluginStoreDir = session.baseCityConfig.pluginStoreDir
+    ?? (session.answers.pluginStoreDir || DEFAULT_PLUGIN_STORE_DIR);
+}
+
+function buildAdvancedMenuOptions(session: ConfigureSession): Array<{ value: AdvancedMenuAction; label: string; description: string }> {
+  const { answers } = session;
+  const pluginRecords = Object.values(session.baseCityConfig.plugins ?? {});
+  const enabledCount = pluginRecords.filter((plugin) => plugin.enabled !== false).length;
+
+  return [
+    {
+      value: 'runtime',
+      label: text(answers.lang, 'sectionRuntime'),
+      description: `${answers.baseUrl} · ${answers.bindHost} · ${answers.httpPort}/${answers.wsPort}`,
+    },
+    {
+      value: 'access',
+      label: text(answers.lang, 'sectionAccess'),
+      description: `${answers.adminUsername} · register ${answers.allowRegister ? 'on' : 'off'} · password ${answers.sitePassword ? 'set' : 'unset'}`,
+    },
+    {
+      value: 'city',
+      label: text(answers.lang, 'sectionCity'),
+      description: `${answers.dbPath} · ${answers.cityConfigPath}`,
+    },
+    {
+      value: 'plugins',
+      label: text(answers.lang, 'sectionPlugins'),
+      description: `${pluginRecords.length} installed · ${enabledCount} enabled · ${answers.pluginStoreDir}`,
+    },
+    {
+      value: 'integrations',
+      label: text(answers.lang, 'sectionIntegrations'),
+      description: `${countConfiguredOrigins(answers.allowedOrigins)} origins · resend ${answers.resendApiKey ? 'on' : 'off'} · oauth ${(answers.googleClientId || answers.githubClientId) ? 'on' : 'off'}`,
+    },
+    {
+      value: 'review-summary',
+      label: text(answers.lang, 'sectionReviewSummary'),
+      description: text(answers.lang, 'sectionReviewSummaryDesc'),
+    },
+    {
+      value: 'finish',
+      label: text(answers.lang, 'sectionFinish'),
+      description: text(answers.lang, 'sectionFinishDesc'),
+    },
+  ];
+}
+
+function buildPluginMenuOptions(lang: UiLanguage): Array<{ value: PluginMenuAction; label: string; description: string }> {
+  return [
+    { value: 'view-installed', label: text(lang, 'pluginViewInstalled'), description: text(lang, 'pluginViewInstalledDesc') },
+    { value: 'manage-installed', label: text(lang, 'pluginManageInstalled'), description: text(lang, 'pluginManageInstalledDesc') },
+    { value: 'add-plugin', label: text(lang, 'pluginAddPlugin'), description: text(lang, 'pluginAddPluginDesc') },
+    { value: 'edit-plugin-store', label: text(lang, 'pluginEditStore'), description: text(lang, 'pluginEditStoreDesc') },
+    { value: 'back', label: text(lang, 'menuBack'), description: text(lang, 'menuBackDesc') },
+  ];
+}
+
+function buildInstalledPluginMenuOptions(lang: UiLanguage): Array<{ value: PluginInstalledAction; label: string; description: string }> {
+  return [
+    { value: 'enable', label: text(lang, 'pluginEnable'), description: text(lang, 'pluginEnableDesc') },
+    { value: 'disable', label: text(lang, 'pluginDisable'), description: text(lang, 'pluginDisableDesc') },
+    { value: 'remove', label: text(lang, 'pluginRemove'), description: text(lang, 'pluginRemoveDesc') },
+    { value: 'unlink-local', label: text(lang, 'pluginUnlinkLocal'), description: text(lang, 'pluginUnlinkLocalDesc') },
+    { value: 'back', label: text(lang, 'menuBack'), description: text(lang, 'menuBackDesc') },
+  ];
+}
+
+function buildAddPluginMenuOptions(lang: UiLanguage): Array<{ value: PluginAddAction; label: string; description: string }> {
+  return [
+    { value: 'link-local', label: text(lang, 'pluginLinkLocal'), description: text(lang, 'pluginLinkLocalDesc') },
+    { value: 'install-source', label: text(lang, 'pluginInstallSource'), description: text(lang, 'pluginInstallSourceDesc') },
+    { value: 'back', label: text(lang, 'menuBack'), description: text(lang, 'menuBackDesc') },
+  ];
+}
+
+function printInstalledPlugins(records: Awaited<ReturnType<typeof listConfiguredPlugins>>): void {
+  if (records.length === 0) {
+    console.log('No installed plugins.\n');
+    return;
+  }
+
+  for (const record of records) {
+    const enabled = record.enabled ? 'enabled' : 'disabled';
+    const version = record.configuredVersion ?? 'n/a';
+    const revision = record.revision ?? 'unresolved';
+    console.log(`  ${record.pluginId.padEnd(22)} ${enabled.padEnd(9)} ${record.installOrigin.padEnd(15)} v${version.padEnd(8)} rev:${revision}`);
+    if (record.linkedPath) {
+      console.log(`    workspace path: ${record.linkedPath}`);
+    }
+    if (record.sourceId) {
+      console.log(`    source: ${record.sourceId}`);
+    }
+    if (record.runtimeStorePath) {
+      console.log(`    runtime store: ${record.runtimeStorePath}`);
+    }
+  }
+  console.log();
+}
+
+async function chooseInstalledPlugin(
+  session: ConfigureSession,
+  filter: (record: Awaited<ReturnType<typeof listConfiguredPlugins>>[number]) => boolean,
+): Promise<string | null> {
+  const records = (await listConfiguredPlugins(sessionPluginPaths(session))).filter(filter);
+  if (records.length === 0) {
+    printStatus('info', text(session.answers.lang, 'noInstalledPlugins'));
+    return null;
+  }
+
+  const selection = await promptChoice(
+    text(session.answers.lang, 'selectInstalledPluginPrompt'),
+    [
+      ...records.map((record) => ({
+        value: record.pluginId,
+        label: record.pluginId,
+        description: `${record.enabled ? 'enabled' : 'disabled'} · ${record.installOrigin} · v${record.configuredVersion ?? 'n/a'} · rev:${record.revision ?? 'unresolved'}`,
+      })),
+      {
+        value: 'back',
+        label: text(session.answers.lang, 'menuBack'),
+        description: text(session.answers.lang, 'menuBackDesc'),
+      },
+    ],
+    records[0]!.pluginId,
+    session.answers.lang,
+  );
+  return selection === 'back' ? null : selection;
+}
+
+async function createConfigureSession(
+  lang: UiLanguage,
+  mode: ConfigureMode,
+  section: ConfigureSection | 'all',
+  acceptDefaults: boolean,
+): Promise<ConfigureSession> {
+  const env = parseEnvFile();
+  const cliMeta = readCliMeta();
+  const existingReachability = cliMeta.reachability ?? inferReachability(env, 'local');
+  const existingPurpose = cliMeta.purpose ?? ((env.URUC_PURPOSE === 'production' ? 'production' : 'test') as InstancePurpose);
+
+  const currentBaseUrl = env.BASE_URL;
+  const baseHost = existingReachability === 'local'
+    ? '127.0.0.1'
+    : existingReachability === 'lan'
+      ? safeHostFromBaseUrl(currentBaseUrl, detectLanHost())
+      : safeHostFromBaseUrl(currentBaseUrl, os.hostname());
+  const baseProtocol = existingReachability === 'server'
+    ? inferSiteProtocol(currentBaseUrl, 'http')
+    : 'http';
+  const defaults = currentConfigureDefaults(
+    existingReachability,
+    existingPurpose,
+    baseHost,
+    env.PORT ?? '3000',
+    env.WS_PORT ?? '3001',
+    baseProtocol,
+  );
+
+  const initialCityConfigPath = resolveCityConfigPath(defaults.cityConfigPath);
+  const cityConfigExists = existsSync(initialCityConfigPath);
+  const existingCityConfig = await readCityConfig(initialCityConfigPath);
+
+  return {
+    acceptDefaults,
+    currentBaseUrl,
+    cityConfigResolvedPath: initialCityConfigPath,
+    baseCityConfig: cityConfigExists
+      ? existingCityConfig
+      : {
+        apiVersion: 2,
+        approvedPublishers: ['uruc'],
+        pluginStoreDir: DEFAULT_PLUGIN_STORE_DIR,
+        sources: [],
+        plugins: {},
+      } satisfies CityConfigFile,
+    answers: {
+      ...defaults,
+      lang,
+      mode,
+      section,
+      reachability: existingReachability,
+      purpose: existingPurpose,
+      pluginStoreDir: existingCityConfig.pluginStoreDir ?? DEFAULT_PLUGIN_STORE_DIR,
+    },
+  };
+}
+
+async function editRuntimeSection(session: ConfigureSession): Promise<void> {
+  const { answers, acceptDefaults, currentBaseUrl } = session;
+
+  if (!acceptDefaults) {
+    answers.reachability = await promptChoice<CityReachability>(
+      text(answers.lang, 'reachabilityPrompt'),
+      [
+        { value: 'local', label: text(answers.lang, 'localMode'), description: text(answers.lang, 'localModeDesc') },
+        { value: 'lan', label: text(answers.lang, 'lanMode'), description: text(answers.lang, 'lanModeDesc') },
+        { value: 'server', label: text(answers.lang, 'serverMode'), description: text(answers.lang, 'serverModeDesc') },
+      ],
+      answers.reachability,
+      answers.lang,
+    );
+
+    answers.purpose = await promptChoice<InstancePurpose>(
+      text(answers.lang, 'purposePrompt'),
+      [
+        { value: 'test', label: answers.lang === 'zh-CN' ? '测试' : answers.lang === 'en' ? 'Test' : '테스트' },
+        { value: 'production', label: answers.lang === 'zh-CN' ? '正式' : answers.lang === 'en' ? 'Production' : '운영' },
+      ],
+      answers.purpose,
+      answers.lang,
+    );
+  }
+
+  const runtimeDefaults = defaultConfig(
+    answers.reachability,
+    answers.purpose,
+    answers.publicHost,
+    answers.httpPort,
+    answers.wsPort,
+    answers.siteProtocol,
+  );
+  const suggestedPublicHost = answers.reachability === 'local'
+    ? '127.0.0.1'
+    : answers.reachability === 'lan'
+      ? safeHostFromBaseUrl(currentBaseUrl, detectLanHost())
+      : safeHostFromBaseUrl(currentBaseUrl, os.hostname());
+
+  answers.publicHost = answers.reachability === 'local'
+    ? '127.0.0.1'
+    : acceptDefaults
+      ? (answers.publicHost || suggestedPublicHost)
+      : await promptInput(
+        answers.reachability === 'lan' ? text(answers.lang, 'lanHostPrompt') : text(answers.lang, 'serverHostPrompt'),
+        answers.publicHost || suggestedPublicHost,
+      );
+
+  if (answers.reachability === 'server') {
+    if (!acceptDefaults) {
+      answers.siteProtocol = await promptChoice<SiteProtocol>(
+        text(answers.lang, 'protocolPrompt'),
+        [
+          { value: 'http', label: text(answers.lang, 'protocolHttp') },
+          { value: 'https', label: text(answers.lang, 'protocolHttps') },
+        ],
+        answers.siteProtocol,
+        answers.lang,
+      );
+    }
+  } else {
+    answers.siteProtocol = 'http';
+  }
+
+  if (answers.mode === 'advanced' && !acceptDefaults) {
+    answers.httpPort = await promptInput(text(answers.lang, 'httpPortPrompt'), answers.httpPort);
+    answers.wsPort = await promptInput(text(answers.lang, 'wsPortPrompt'), answers.wsPort);
+    answers.publicDir = await promptInput(text(answers.lang, 'publicDirPrompt'), answers.publicDir || runtimeDefaults.publicDir);
+    answers.uploadsDir = await promptInput(text(answers.lang, 'uploadsDirPrompt'), answers.uploadsDir || runtimeDefaults.uploadsDir);
+  } else {
+    answers.httpPort = answers.httpPort || '3000';
+    answers.wsPort = answers.wsPort || '3001';
+    answers.publicDir = keepConfiguredPath(answers.publicDir, runtimeDefaults.publicDir);
+    answers.uploadsDir = keepConfiguredPath(answers.uploadsDir, runtimeDefaults.uploadsDir);
+  }
+
+  answers.bindHost = defaultBindHost(answers.reachability);
+  answers.baseUrl = resolveShareBaseUrl(
+    answers.reachability,
+    answers.siteProtocol,
+    answers.publicHost,
+    answers.httpPort,
+    currentBaseUrl,
+  );
+  answers.allowRegister = answers.mode === 'quickstart' ? runtimeDefaults.allowRegister : answers.allowRegister;
+  answers.noindex = answers.mode === 'quickstart' ? runtimeDefaults.noindex : answers.noindex;
+  answers.allowedOrigins = answers.mode === 'quickstart'
+    ? defaultConfig(
+      answers.reachability,
+      answers.purpose,
+      answers.publicHost,
+      answers.httpPort,
+      answers.wsPort,
+      answers.siteProtocol,
+    ).allowedOrigins
+    : answers.allowedOrigins;
+}
+
+async function editAccessSection(session: ConfigureSession): Promise<void> {
+  const { answers, acceptDefaults } = session;
+
+  if (!acceptDefaults) {
+    answers.adminUsername = await promptInput(text(answers.lang, 'adminUserPrompt'), answers.adminUsername);
+    answers.adminPassword = await promptInput(text(answers.lang, 'adminPasswordPrompt'), answers.adminPassword, { secret: true });
+    answers.adminEmail = await promptInput(text(answers.lang, 'adminEmailPrompt'), answers.adminEmail);
+  }
+
+  if (answers.mode === 'advanced' && !acceptDefaults) {
+    answers.allowRegister = await promptConfirm(text(answers.lang, 'allowRegisterPrompt'), answers.allowRegister, answers.lang);
+    answers.noindex = await promptConfirm(text(answers.lang, 'noindexPrompt'), answers.noindex, answers.lang);
+    answers.sitePassword = await promptInput(text(answers.lang, 'sitePasswordPrompt'), answers.sitePassword, {
+      secret: true,
+      clearTokens: ['-'],
+      clearHint: sitePasswordClearHint(answers.lang),
+    });
+  }
+}
+
+async function editCitySection(session: ConfigureSession): Promise<void> {
+  session.answers.dbPath = await promptInput(text(session.answers.lang, 'dbPathPrompt'), session.answers.dbPath);
+  const nextCityConfigPath = await promptInput(text(session.answers.lang, 'cityConfigPrompt'), session.answers.cityConfigPath);
+  const nextResolved = resolveCityConfigPath(nextCityConfigPath);
+  if (nextResolved !== session.cityConfigResolvedPath) {
+    session.baseCityConfig = rebaseCityConfigPaths(session.baseCityConfig, session.cityConfigResolvedPath, nextResolved);
+    session.cityConfigResolvedPath = nextResolved;
+  }
+  session.answers.cityConfigPath = nextCityConfigPath;
+}
+
+async function editPluginsLinearSection(session: ConfigureSession): Promise<void> {
+  if (session.answers.mode === 'advanced') {
+    const nextCityConfigPath = await promptInput(text(session.answers.lang, 'cityConfigPrompt'), session.answers.cityConfigPath);
+    const nextResolved = resolveCityConfigPath(nextCityConfigPath);
+    if (nextResolved !== session.cityConfigResolvedPath) {
+      session.baseCityConfig = rebaseCityConfigPaths(session.baseCityConfig, session.cityConfigResolvedPath, nextResolved);
+      session.cityConfigResolvedPath = nextResolved;
+    }
+    session.answers.cityConfigPath = nextCityConfigPath;
+    session.answers.pluginStoreDir = await promptInput(
+      text(session.answers.lang, 'pluginStoreDirPrompt'),
+      session.answers.pluginStoreDir || DEFAULT_PLUGIN_STORE_DIR,
+    );
+  }
+
+  session.baseCityConfig = await maybeLinkRecommendedWorkspacePlugins(
+    session.answers.lang,
+    session.acceptDefaults,
+    session.baseCityConfig,
+    session.cityConfigResolvedPath,
+  );
+}
+
+async function editIntegrationsSection(session: ConfigureSession): Promise<void> {
+  const { answers } = session;
+  answers.allowedOrigins = await promptInput(text(answers.lang, 'allowedOriginsPrompt'), answers.allowedOrigins);
+  answers.jwtSecret = await promptInput(text(answers.lang, 'jwtSecretPrompt'), answers.jwtSecret);
+
+  const useResend = await promptConfirm(text(answers.lang, 'resendPrompt'), !!answers.resendApiKey, answers.lang);
+  if (useResend) {
+    answers.resendApiKey = await promptInput(text(answers.lang, 'resendKeyPrompt'), answers.resendApiKey);
+    answers.fromEmail = await promptInput(text(answers.lang, 'fromEmailPrompt'), answers.fromEmail);
+  } else {
+    answers.resendApiKey = '';
+    answers.fromEmail = '';
+  }
+
+  const useGoogle = await promptConfirm(text(answers.lang, 'googlePrompt'), !!answers.googleClientId, answers.lang);
+  if (useGoogle) {
+    answers.googleClientId = await promptInput(text(answers.lang, 'googleIdPrompt'), answers.googleClientId);
+    answers.googleClientSecret = await promptInput(text(answers.lang, 'googleSecretPrompt'), answers.googleClientSecret, { secret: true });
+  } else {
+    answers.googleClientId = '';
+    answers.googleClientSecret = '';
+  }
+
+  const useGithub = await promptConfirm(text(answers.lang, 'githubPrompt'), !!answers.githubClientId, answers.lang);
+  if (useGithub) {
+    answers.githubClientId = await promptInput(text(answers.lang, 'githubIdPrompt'), answers.githubClientId);
+    answers.githubClientSecret = await promptInput(text(answers.lang, 'githubSecretPrompt'), answers.githubClientSecret, { secret: true });
+  } else {
+    answers.githubClientId = '';
+    answers.githubClientSecret = '';
+  }
+}
+
+async function runPluginsMenu(session: ConfigureSession): Promise<void> {
+  const runInstalledPluginMenu = async () => {
+    await runMenuLoop<PluginInstalledAction>({
+      prompt: text(session.answers.lang, 'pluginInstalledMenuPrompt'),
+      getOptions: () => buildInstalledPluginMenuOptions(session.answers.lang),
+      defaultValue: 'enable',
+      lang: session.answers.lang,
+      onSelect: async (selection) => {
+        try {
+          switch (selection) {
+            case 'enable': {
+              const pluginId = await chooseInstalledPlugin(session, (record) => !record.enabled);
+              if (!pluginId) {
+                printStatus('info', text(session.answers.lang, 'actionCancelled'));
+                return;
+              }
+              await setConfiguredPluginEnabled(pluginId, true, sessionPluginPaths(session));
+              await refreshSessionCityConfig(session);
+              printStatus('ok', `Enabled ${pluginId}`);
+              return;
+            }
+            case 'disable': {
+              const pluginId = await chooseInstalledPlugin(session, (record) => record.enabled);
+              if (!pluginId) {
+                printStatus('info', text(session.answers.lang, 'actionCancelled'));
+                return;
+              }
+              await setConfiguredPluginEnabled(pluginId, false, sessionPluginPaths(session));
+              await refreshSessionCityConfig(session);
+              printStatus('ok', `Disabled ${pluginId}`);
+              return;
+            }
+            case 'remove': {
+              const pluginId = await chooseInstalledPlugin(session, () => true);
+              if (!pluginId) {
+                printStatus('info', text(session.answers.lang, 'actionCancelled'));
+                return;
+              }
+              await removeConfiguredPlugin(pluginId, sessionPluginPaths(session));
+              await refreshSessionCityConfig(session);
+              printStatus('ok', `Removed ${pluginId}`);
+              return;
+            }
+            case 'unlink-local': {
+              const pluginId = await chooseInstalledPlugin(session, (record) => record.installOrigin === 'linked-path');
+              if (!pluginId) {
+                printStatus('info', text(session.answers.lang, 'actionCancelled'));
+                return;
+              }
+              await unlinkConfiguredPlugin(pluginId, sessionPluginPaths(session));
+              await refreshSessionCityConfig(session);
+              printStatus('ok', `Unlinked ${pluginId}`);
+              return;
+            }
+            case 'back':
+              return 'break';
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          printStatus('fail', message);
+        }
+      },
+    });
+  };
+
+  const runAddPluginMenu = async () => {
+    await runMenuLoop<PluginAddAction>({
+      prompt: text(session.answers.lang, 'pluginAddMenuPrompt'),
+      getOptions: () => buildAddPluginMenuOptions(session.answers.lang),
+      defaultValue: 'link-local',
+      lang: session.answers.lang,
+      onSelect: async (selection) => {
+        try {
+          switch (selection) {
+            case 'link-local': {
+              const rawPath = await promptInput(text(session.answers.lang, 'pluginPathPrompt'), '');
+              if (!rawPath.trim()) {
+                printStatus('info', text(session.answers.lang, 'actionCancelled'));
+                return;
+              }
+              const candidatePath = resolvePluginInputPath(rawPath);
+              if (!candidatePath) {
+                printStatus('fail', `Plugin path does not exist: ${rawPath}`);
+                return;
+              }
+              const result = await linkLocalPlugin(candidatePath, sessionPluginPaths(session));
+              await refreshSessionCityConfig(session);
+              printStatus('ok', `Linked ${result.pluginId}`);
+              return;
+            }
+            case 'install-source': {
+              const target = await promptInput(text(session.answers.lang, 'pluginIdOrAliasPrompt'), '');
+              if (!target.trim()) {
+                printStatus('info', text(session.answers.lang, 'actionCancelled'));
+                return;
+              }
+              const sourceId = await promptInput(text(session.answers.lang, 'pluginSourceIdPrompt'), '');
+              const version = await promptInput(text(session.answers.lang, 'pluginVersionPrompt'), '');
+              const result = await installSourcePlugin({
+                target,
+                sourceId: sourceId.trim() || undefined,
+                requestedVersion: version.trim() || undefined,
+                paths: sessionPluginPaths(session),
+              });
+              await refreshSessionCityConfig(session);
+              printStatus('ok', `Installed ${result.pluginId} (${result.version})`);
+              return;
+            }
+            case 'back':
+              return 'break';
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          printStatus('fail', message);
+        }
+      },
+    });
+  };
+
+  await runMenuLoop<PluginMenuAction>({
+    prompt: text(session.answers.lang, 'pluginMenuPrompt'),
+    getOptions: () => buildPluginMenuOptions(session.answers.lang),
+    defaultValue: 'view-installed',
+    lang: session.answers.lang,
+    onSelect: async (selection) => {
+      try {
+        switch (selection) {
+          case 'view-installed': {
+            printInstalledPlugins(await listConfiguredPlugins(sessionPluginPaths(session)));
+            return;
+          }
+          case 'manage-installed':
+            await runInstalledPluginMenu();
+            return;
+          case 'add-plugin':
+            await runAddPluginMenu();
+            return;
+          case 'edit-plugin-store': {
+            session.answers.pluginStoreDir = await promptInput(
+              text(session.answers.lang, 'pluginStoreDirPrompt'),
+              session.answers.pluginStoreDir || DEFAULT_PLUGIN_STORE_DIR,
+            );
+            session.baseCityConfig.pluginStoreDir = session.answers.pluginStoreDir;
+            await persistDraft(session);
+            await refreshSessionCityConfig(session);
+            printStatus('ok', `Saved plugin store: ${session.answers.pluginStoreDir}`);
+            return;
+          }
+          case 'back':
+            return 'break';
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        printStatus('fail', message);
+      }
+    },
+  });
+}
+
+function printDraftSummary(session: ConfigureSession): void {
+  printSummary({
+    answers: session.answers,
+    adminAction: 'keep',
+    generatedPassword: false,
+    baseCityConfig: session.baseCityConfig,
+    cityConfigResolvedPath: session.cityConfigResolvedPath,
+  });
+}
+
+async function runAdvancedConfigureHub(session: ConfigureSession): Promise<void> {
+  await runMenuLoop<AdvancedMenuAction>({
+    prompt: text(session.answers.lang, 'sectionPrompt'),
+    getOptions: () => buildAdvancedMenuOptions(session),
+    defaultValue: 'runtime',
+    lang: session.answers.lang,
+    onSelect: async (selection) => {
+      switch (selection) {
+        case 'runtime':
+          await editRuntimeSection(session);
+          await persistDraft(session);
+          return;
+        case 'access':
+          await editAccessSection(session);
+          await persistDraft(session);
+          return;
+        case 'city':
+          await editCitySection(session);
+          await persistDraft(session);
+          await refreshSessionCityConfig(session);
+          return;
+        case 'plugins':
+          await runPluginsMenu(session);
+          await refreshSessionCityConfig(session);
+          return;
+        case 'integrations':
+          await editIntegrationsSection(session);
+          await persistDraft(session);
+          return;
+        case 'review-summary':
+          printDraftSummary(session);
+          return;
+        case 'finish':
+          return 'break';
+      }
+    },
+  });
 }
 
 async function reconcileAdminAccount(
@@ -660,252 +1409,63 @@ async function gatherAnswers(context: CommandContext): Promise<ConfigureResult> 
       ? 'advanced'
       : undefined;
   const forcedSection = validateRequestedSection(readOption(context.args, '--section'));
-  const { mode, section } = await chooseConfigureMode(lang, forcedMode, forcedSection, acceptDefaults);
+  const mode = await chooseConfigureModeOnly(lang, forcedMode, forcedSection, acceptDefaults);
 
-  const env = parseEnvFile();
-  const cliMeta = readCliMeta();
-  const existingReachability = cliMeta.reachability ?? inferReachability(env, 'local');
-  const existingPurpose = cliMeta.purpose ?? ((env.URUC_PURPOSE === 'production' ? 'production' : 'test') as InstancePurpose);
+  if (mode === 'advanced' && !forcedSection) {
+    const session = await createConfigureSession(lang, mode, 'all', acceptDefaults);
+    await runAdvancedConfigureHub(session);
+    const adminResolution = await reconcileAdminAccount(session.answers, lang, acceptDefaults);
+    return {
+      answers: adminResolution.answers,
+      adminAction: adminResolution.action,
+      generatedPassword: adminResolution.generatedPassword,
+      baseCityConfig: session.baseCityConfig,
+      cityConfigResolvedPath: session.cityConfigResolvedPath,
+    };
+  }
 
-  const currentBaseUrl = env.BASE_URL;
-  const baseHost = existingReachability === 'local'
-    ? '127.0.0.1'
-    : existingReachability === 'lan'
-      ? safeHostFromBaseUrl(currentBaseUrl, detectLanHost())
-      : safeHostFromBaseUrl(currentBaseUrl, os.hostname());
-  const baseProtocol = existingReachability === 'server'
-    ? inferSiteProtocol(currentBaseUrl, 'http')
-    : 'http';
-  const defaults = currentConfigureDefaults(
-    existingReachability,
-    existingPurpose,
-    baseHost,
-    env.PORT ?? '3000',
-    env.WS_PORT ?? '3001',
-    baseProtocol,
-  );
-
-  const initialCityConfigPath = resolveCityConfigPath(defaults.cityConfigPath);
-  const cityConfigExists = existsSync(initialCityConfigPath);
-  const existingCityConfig = await readCityConfig(initialCityConfigPath);
-
-  let cityConfigResolvedPath = initialCityConfigPath;
-  let baseCityConfig = cityConfigExists
-    ? existingCityConfig
-    : {
-      apiVersion: 2,
-      approvedPublishers: ['uruc'],
-      pluginStoreDir: DEFAULT_PLUGIN_STORE_DIR,
-      sources: [],
-      plugins: {},
-    } satisfies CityConfigFile;
-
-  const answers: ConfigureAnswers = {
-    ...defaults,
-    lang,
-    mode,
-    section,
-    reachability: existingReachability,
-    purpose: existingPurpose,
-    pluginStoreDir: existingCityConfig.pluginStoreDir ?? DEFAULT_PLUGIN_STORE_DIR,
-  };
+  const section = mode === 'quickstart' ? 'all' : (forcedSection ?? 'all');
+  const session = await createConfigureSession(lang, mode, section, acceptDefaults);
 
   if (mode === 'quickstart' || sectionMatches(section, 'runtime')) {
-    if (!acceptDefaults) {
-      answers.reachability = await promptChoice<CityReachability>(
-        text(lang, 'reachabilityPrompt'),
-        [
-          { value: 'local', label: text(lang, 'localMode'), description: text(lang, 'localModeDesc') },
-          { value: 'lan', label: text(lang, 'lanMode'), description: text(lang, 'lanModeDesc') },
-          { value: 'server', label: text(lang, 'serverMode'), description: text(lang, 'serverModeDesc') },
-        ],
-        answers.reachability,
-        lang,
-      );
-
-      answers.purpose = await promptChoice<InstancePurpose>(
-        text(lang, 'purposePrompt'),
-        [
-          { value: 'test', label: lang === 'zh-CN' ? '测试' : lang === 'en' ? 'Test' : '테스트' },
-          { value: 'production', label: lang === 'zh-CN' ? '正式' : lang === 'en' ? 'Production' : '운영' },
-        ],
-        answers.purpose,
-        lang,
-      );
-    }
-
-    const runtimeDefaults = defaultConfig(
-      answers.reachability,
-      answers.purpose,
-      answers.publicHost,
-      answers.httpPort,
-      answers.wsPort,
-      answers.siteProtocol,
-    );
-    const suggestedPublicHost = answers.reachability === 'local'
-      ? '127.0.0.1'
-      : answers.reachability === 'lan'
-        ? safeHostFromBaseUrl(currentBaseUrl, detectLanHost())
-        : safeHostFromBaseUrl(currentBaseUrl, os.hostname());
-
-    answers.publicHost = answers.reachability === 'local'
-      ? '127.0.0.1'
-      : acceptDefaults
-        ? (answers.publicHost || suggestedPublicHost)
-        : await promptInput(
-          answers.reachability === 'lan' ? text(lang, 'lanHostPrompt') : text(lang, 'serverHostPrompt'),
-          answers.publicHost || suggestedPublicHost,
-        );
-
-    if (answers.reachability === 'server') {
-      if (!acceptDefaults) {
-        answers.siteProtocol = await promptChoice<SiteProtocol>(
-          text(lang, 'protocolPrompt'),
-          [
-            { value: 'http', label: text(lang, 'protocolHttp') },
-            { value: 'https', label: text(lang, 'protocolHttps') },
-          ],
-          answers.siteProtocol,
-          lang,
-        );
-      }
-    } else {
-      answers.siteProtocol = 'http';
-    }
-
-    if (mode === 'advanced' && !acceptDefaults) {
-      answers.httpPort = await promptInput(text(lang, 'httpPortPrompt'), answers.httpPort);
-      answers.wsPort = await promptInput(text(lang, 'wsPortPrompt'), answers.wsPort);
-      answers.publicDir = await promptInput(text(lang, 'publicDirPrompt'), answers.publicDir || runtimeDefaults.publicDir);
-      answers.uploadsDir = await promptInput(text(lang, 'uploadsDirPrompt'), answers.uploadsDir || runtimeDefaults.uploadsDir);
-    } else {
-      answers.httpPort = answers.httpPort || '3000';
-      answers.wsPort = answers.wsPort || '3001';
-      answers.publicDir = keepConfiguredPath(answers.publicDir, runtimeDefaults.publicDir);
-      answers.uploadsDir = keepConfiguredPath(answers.uploadsDir, runtimeDefaults.uploadsDir);
-    }
-
-    answers.bindHost = defaultBindHost(answers.reachability);
-    answers.baseUrl = resolveShareBaseUrl(
-      answers.reachability,
-      answers.siteProtocol,
-      answers.publicHost,
-      answers.httpPort,
-      currentBaseUrl,
-    );
-    answers.allowRegister = mode === 'quickstart' ? runtimeDefaults.allowRegister : answers.allowRegister;
-    answers.noindex = mode === 'quickstart' ? runtimeDefaults.noindex : answers.noindex;
-    answers.allowedOrigins = mode === 'quickstart'
-      ? defaultConfig(
-        answers.reachability,
-        answers.purpose,
-        answers.publicHost,
-        answers.httpPort,
-        answers.wsPort,
-        answers.siteProtocol,
-      ).allowedOrigins
-      : answers.allowedOrigins;
+    await editRuntimeSection(session);
   }
 
   if (mode === 'quickstart' || sectionMatches(section, 'access')) {
-    if (!acceptDefaults) {
-      answers.adminUsername = await promptInput(text(lang, 'adminUserPrompt'), answers.adminUsername);
-      answers.adminPassword = await promptInput(text(lang, 'adminPasswordPrompt'), answers.adminPassword, { secret: true });
-      answers.adminEmail = await promptInput(text(lang, 'adminEmailPrompt'), answers.adminEmail);
-    }
-
-    if (mode === 'advanced' && !acceptDefaults) {
-      answers.allowRegister = await promptConfirm(text(lang, 'allowRegisterPrompt'), answers.allowRegister, lang);
-      answers.noindex = await promptConfirm(text(lang, 'noindexPrompt'), answers.noindex, lang);
-      answers.sitePassword = await promptInput(text(lang, 'sitePasswordPrompt'), answers.sitePassword, {
-        secret: true,
-        clearTokens: ['-'],
-        clearHint: sitePasswordClearHint(lang),
-      });
-    }
+    await editAccessSection(session);
   }
 
   if (sectionMatches(section, 'city') && mode === 'advanced') {
-    answers.dbPath = await promptInput(text(lang, 'dbPathPrompt'), answers.dbPath);
-    const nextCityConfigPath = await promptInput(text(lang, 'cityConfigPrompt'), answers.cityConfigPath);
-    const nextResolved = resolveCityConfigPath(nextCityConfigPath);
-    if (nextResolved !== cityConfigResolvedPath) {
-      baseCityConfig = rebaseCityConfigPaths(baseCityConfig, cityConfigResolvedPath, nextResolved);
-      cityConfigResolvedPath = nextResolved;
-    }
-    answers.cityConfigPath = nextCityConfigPath;
+    await editCitySection(session);
   } else if (mode === 'quickstart') {
-    answers.dbPath = keepConfiguredPath(
-      answers.dbPath,
+    session.answers.dbPath = keepConfiguredPath(
+      session.answers.dbPath,
       defaultConfig(
-        answers.reachability,
-        answers.purpose,
-        answers.publicHost,
-        answers.httpPort,
-        answers.wsPort,
-        answers.siteProtocol,
+        session.answers.reachability,
+        session.answers.purpose,
+        session.answers.publicHost,
+        session.answers.httpPort,
+        session.answers.wsPort,
+        session.answers.siteProtocol,
       ).dbPath,
     );
   }
 
   if (mode === 'quickstart' || sectionMatches(section, 'plugins')) {
-    if (mode === 'advanced') {
-      const nextCityConfigPath = await promptInput(text(lang, 'cityConfigPrompt'), answers.cityConfigPath);
-      const nextResolved = resolveCityConfigPath(nextCityConfigPath);
-      if (nextResolved !== cityConfigResolvedPath) {
-        baseCityConfig = rebaseCityConfigPaths(baseCityConfig, cityConfigResolvedPath, nextResolved);
-        cityConfigResolvedPath = nextResolved;
-      }
-      answers.cityConfigPath = nextCityConfigPath;
-      answers.pluginStoreDir = await promptInput(text(lang, 'pluginStoreDirPrompt'), answers.pluginStoreDir || DEFAULT_PLUGIN_STORE_DIR);
-    }
-    baseCityConfig = await maybeLinkRecommendedWorkspacePlugins(
-      lang,
-      acceptDefaults,
-      baseCityConfig,
-      cityConfigResolvedPath,
-    );
+    await editPluginsLinearSection(session);
   }
 
   if (sectionMatches(section, 'integrations') && mode === 'advanced') {
-    answers.allowedOrigins = await promptInput(text(lang, 'allowedOriginsPrompt'), answers.allowedOrigins);
-    answers.jwtSecret = await promptInput(text(lang, 'jwtSecretPrompt'), answers.jwtSecret);
-
-    const useResend = await promptConfirm(text(lang, 'resendPrompt'), !!answers.resendApiKey, lang);
-    if (useResend) {
-      answers.resendApiKey = await promptInput(text(lang, 'resendKeyPrompt'), answers.resendApiKey);
-      answers.fromEmail = await promptInput(text(lang, 'fromEmailPrompt'), answers.fromEmail);
-    } else {
-      answers.resendApiKey = '';
-      answers.fromEmail = '';
-    }
-
-    const useGoogle = await promptConfirm(text(lang, 'googlePrompt'), !!answers.googleClientId, lang);
-    if (useGoogle) {
-      answers.googleClientId = await promptInput(text(lang, 'googleIdPrompt'), answers.googleClientId);
-      answers.googleClientSecret = await promptInput(text(lang, 'googleSecretPrompt'), answers.googleClientSecret, { secret: true });
-    } else {
-      answers.googleClientId = '';
-      answers.googleClientSecret = '';
-    }
-
-    const useGithub = await promptConfirm(text(lang, 'githubPrompt'), !!answers.githubClientId, lang);
-    if (useGithub) {
-      answers.githubClientId = await promptInput(text(lang, 'githubIdPrompt'), answers.githubClientId);
-      answers.githubClientSecret = await promptInput(text(lang, 'githubSecretPrompt'), answers.githubClientSecret, { secret: true });
-    } else {
-      answers.githubClientId = '';
-      answers.githubClientSecret = '';
-    }
+    await editIntegrationsSection(session);
   }
 
-  const adminResolution = await reconcileAdminAccount(answers, lang, acceptDefaults);
+  const adminResolution = await reconcileAdminAccount(session.answers, lang, acceptDefaults);
   return {
     answers: adminResolution.answers,
     adminAction: adminResolution.action,
     generatedPassword: adminResolution.generatedPassword,
-    baseCityConfig,
-    cityConfigResolvedPath,
+    baseCityConfig: session.baseCityConfig,
+    cityConfigResolvedPath: session.cityConfigResolvedPath,
   };
 }
 
@@ -927,7 +1487,7 @@ async function applyAdminPlan(result: ConfigureResult): Promise<void> {
   }
 }
 
-async function persistConfiguration(result: ConfigureResult): Promise<void> {
+async function persistDraft(result: PersistableConfigureState): Promise<void> {
   writeEnvFile(configureAnswersToEnv(result.answers));
   rememberConfiguration(result.answers);
   await ensureCityConfig({
@@ -946,6 +1506,10 @@ async function persistConfiguration(result: ConfigureResult): Promise<void> {
       ? result.answers.pluginStoreDir
       : path.resolve(packageRoot, result.answers.pluginStoreDir || DEFAULT_PLUGIN_STORE_DIR),
   });
+}
+
+async function persistConfiguration(result: ConfigureResult): Promise<void> {
+  await persistDraft(result);
 }
 
 function printSummary(result: ConfigureResult): void {
