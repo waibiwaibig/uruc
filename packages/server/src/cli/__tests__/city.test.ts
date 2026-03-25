@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, readdir, rm } from 'fs/promises';
+import { existsSync } from 'fs';
 import os from 'os';
 import path from 'path';
 
@@ -23,6 +24,7 @@ async function expectedBundledPluginIdsFromRepo(): Promise<string[]> {
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const manifestPath = path.join(pluginsRoot, entry.name, 'package.json');
+    if (!existsSync(manifestPath)) continue;
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as { urucPlugin?: { pluginId?: string } };
     if (manifest.urucPlugin?.pluginId) {
       pluginIds.push(manifest.urucPlugin.pluginId);
