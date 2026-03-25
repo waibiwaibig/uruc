@@ -459,9 +459,10 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
     const config = normalizeConfig(await readCityConfig(this.configPath));
     const existingLock = await readCityLock(this.lockPath);
     const resolvedPlugins: CityLockFile['plugins'] = {};
+    const configDir = path.dirname(this.configPath);
     const storeRoot = path.isAbsolute(config.pluginStoreDir ?? '')
       ? (config.pluginStoreDir as string)
-      : path.resolve(this.packageRoot, config.pluginStoreDir ?? this.pluginStoreDir);
+      : path.resolve(configDir, config.pluginStoreDir ?? this.pluginStoreDir);
 
     for (const [pluginId, pluginConfig] of Object.entries(config.plugins)) {
       const previous = existingLock.plugins[pluginId];
@@ -586,12 +587,10 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
   }
 
   private async ensureRuntimeSdkBridge(packageRoot: string): Promise<void> {
-    const sdkPackageRoot = await this.resolveRuntimeSdkPackageRoot();
+    const sdkPackageRoot = await realpath(await this.resolveRuntimeSdkPackageRoot());
     const scopeRoot = path.join(packageRoot, 'node_modules', '@uruc');
     const linkPath = path.join(scopeRoot, 'plugin-sdk');
-    const target = process.platform === 'win32'
-      ? sdkPackageRoot
-      : (path.relative(scopeRoot, sdkPackageRoot) || '.');
+    const target = sdkPackageRoot;
 
     await mkdir(scopeRoot, { recursive: true });
     await rm(linkPath, { recursive: true, force: true });

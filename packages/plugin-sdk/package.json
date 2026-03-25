@@ -1,6 +1,5 @@
 {
   "name": "@uruc/plugin-sdk",
-  "private": true,
   "version": "0.1.0",
   "license": "Apache-2.0",
   "type": "module",
@@ -13,10 +12,16 @@
   "homepage": "https://github.com/waibiwaibig/uruc/tree/main/packages/plugin-sdk",
   "author": "Uruc Contributors",
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build && node ../../scripts/prepare-public-package.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {

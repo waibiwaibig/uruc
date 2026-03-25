@@ -3,7 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 
-import { getDefaultDbRelativePath, getPackageRoot } from '../../runtime-paths.js';
+import { getDefaultDbRelativePath, getPackageRoot, isWorkspaceLayout } from '../../runtime-paths.js';
 import { getRepoRoot, getRootEnvPath, getServerEnvPath } from './state.js';
 import { DEFAULT_PLUGIN_STORE_DIR } from './city.js';
 import type { CityReachability, ConfigureAnswers, InstancePurpose, SiteProtocol } from './types.js';
@@ -98,7 +98,7 @@ export function defaultConfig(
     allowedOrigins: defaultOrigins,
     jwtSecret: generateSecret(),
     baseUrl,
-    publicDir: '../human-web/dist',
+    publicDir: isWorkspaceLayout() ? '../human-web/dist' : path.join(packageRoot, 'public'),
     uploadsDir: './uploads',
     resendApiKey: '',
     fromEmail: 'noreply@yourdomain.com',
@@ -121,6 +121,10 @@ export function currentConfigureDefaults(
   const current = parseEnvFile(serverEnvPath);
   const defaults = defaultConfig(reachability, purpose, publicHost, httpPort, wsPort, siteProtocol);
   const activeReachability = inferReachability(current, reachability);
+  const currentPublicDir = current.PUBLIC_DIR;
+  const normalizedPublicDir = !isWorkspaceLayout() && currentPublicDir === '../human-web/dist'
+    ? defaults.publicDir
+    : currentPublicDir;
   return {
     lang: getCurrentLanguage(),
     mode: 'quickstart',
@@ -143,7 +147,7 @@ export function currentConfigureDefaults(
     allowedOrigins: current.ALLOWED_ORIGINS ?? defaults.allowedOrigins,
     jwtSecret: current.JWT_SECRET ?? defaults.jwtSecret,
     baseUrl: current.BASE_URL ?? defaults.baseUrl,
-    publicDir: current.PUBLIC_DIR ?? defaults.publicDir,
+    publicDir: normalizedPublicDir ?? defaults.publicDir,
     uploadsDir: current.UPLOADS_DIR ?? defaults.uploadsDir,
     resendApiKey: current.RESEND_API_KEY ?? defaults.resendApiKey,
     fromEmail: current.FROM_EMAIL ?? defaults.fromEmail,

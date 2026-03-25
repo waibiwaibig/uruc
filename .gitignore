@@ -21,3 +21,14 @@ packages/server/uruc.city.lock.json
 packages/server/data/
 packages/server/uploads/
 packages/server/.env
+packages/server/public/*
+packages/server/bundled-plugins/
+packages/plugin-sdk/LICENSE
+packages/plugin-sdk/NOTICE
+packages/server/LICENSE
+packages/server/NOTICE
+packages/cli/LICENSE
+packages/cli/NOTICE
+packages/plugins/social/LICENSE
+packages/plugins/social/NOTICE
+packages/plugins/social/frontend-dist/

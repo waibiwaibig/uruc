@@ -1,14 +1,17 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import path from 'path';
 
-import { getPackageRoot, getEnvPath } from '../../runtime-paths.js';
+import { getPackageRoot, getEnvPath, getRuntimeHome, isWorkspaceLayout } from '../../runtime-paths.js';
 import type { BuildState, CliMeta, ManagedProcessState } from './types.js';
 
 const packageRoot = getPackageRoot();
 const repoRoot = path.resolve(packageRoot, '..', '..');
+const runtimeHome = getRuntimeHome();
 const cliStateDir = process.env.URUC_CLI_STATE_DIR?.trim()
   ? path.resolve(process.env.URUC_CLI_STATE_DIR)
-  : path.join(repoRoot, '.uruc');
+  : (process.env.URUC_HOME?.trim() || !isWorkspaceLayout()
+    ? path.join(runtimeHome, '.uruc')
+    : path.join(repoRoot, '.uruc'));
 const runtimeDir = path.join(cliStateDir, 'runtime');
 
 export function getRepoRoot(): string {
@@ -23,7 +26,9 @@ export function getServerEnvPath(): string {
 }
 
 export function getRootEnvPath(): string {
-  return path.join(repoRoot, '.env');
+  return isWorkspaceLayout()
+    ? path.join(repoRoot, '.env')
+    : path.join(packageRoot, '.env');
 }
 
 export function getCliStateDir(): string {

@@ -1,6 +1,5 @@
 {
   "name": "@uruc/plugin-social",
-  "private": true,
   "version": "0.1.0",
   "license": "Apache-2.0",
   "type": "module",
@@ -11,6 +10,24 @@
   },
   "homepage": "https://github.com/waibiwaibig/uruc/tree/main/packages/plugins/social",
   "author": "Uruc Contributors",
+  "files": [
+    "index.mjs",
+    "service.mjs",
+    "service.d.mts",
+    "frontend-dist",
+    "LICENSE",
+    "NOTICE",
+    "README.md",
+    "README.zh-CN.md",
+    "GUIDE.md",
+    "GUIDE.zh-CN.md"
+  ],
+  "scripts": {
+    "prepack": "node ../../../scripts/prepare-public-package.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": "./index.mjs"
   },

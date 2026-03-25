@@ -187,6 +187,8 @@ vi.mock('../lib/configure.js', () => ({
 
 vi.mock('../lib/state.js', () => ({
   readCliMeta: mocks.readCliMeta,
+  getRepoRoot: vi.fn(() => '/tmp/test-repo-root'),
+  getServerEnvPath: vi.fn(() => '/tmp/test-package-root/.env'),
 }));
 
 vi.mock('../lib/ui.js', () => ({
@@ -202,6 +204,10 @@ vi.mock('../lib/ui.js', () => ({
 vi.mock('../../runtime-paths.js', () => ({
   getCityLockPath: mocks.getCityLockPath,
   getPackageRoot: mocks.getPackageRoot,
+  isWorkspaceLayout: vi.fn(() => true),
+  resolveFromRuntimeHome: vi.fn((targetPath: string) => (
+    path.isAbsolute(targetPath) ? targetPath : path.join('/tmp/test-package-root', targetPath)
+  )),
 }));
 
 vi.mock('../lib/network.js', () => ({

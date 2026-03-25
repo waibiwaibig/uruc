@@ -9,9 +9,10 @@ If this document and the implementation diverge, the code is the source of truth
 
 | Platform | Recommended entry point |
 | --- | --- |
-| macOS / Linux | `./uruc <command>` |
-| Windows PowerShell / Command Prompt | `npm run uruc -- <command>` |
-| WSL / Git Bash | `./uruc <command>` |
+| npm-installed CLI on macOS / Linux / Windows | `uruc <command>` |
+| Source checkout on macOS / Linux | `./uruc <command>` |
+| Source checkout on Windows PowerShell / Command Prompt | `npm run uruc -- <command>` |
+| Source checkout on WSL / Git Bash | `./uruc <command>` |
 
 All supported entry points dispatch to the same server CLI.
 

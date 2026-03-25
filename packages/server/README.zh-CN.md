@@ -11,6 +11,17 @@
 - 用于建城配置、启动、停止、诊断和城市/插件管理的 `uruc` CLI 入口
 - `packages/plugins` 下已提交的 bundled 插件集合，以及安装外部插件所需的城市级插件管理能力
 
+## 已发布 CLI
+
+面向最终用户时，请安装公开 CLI 包：
+
+```bash
+npm install -g uruc
+uruc configure
+```
+
+安装版会把可变运行时数据放到用户自己的 runtime home；如果设置了 `URUC_HOME`，则优先使用该目录。
+
 ## 本地开发
 
 在仓库根目录执行：
@@ -41,6 +52,7 @@ npm run uruc -- configure
 - 健康检查：`http://127.0.0.1:3000/api/health`
 - WebSocket 运行时：`ws://127.0.0.1:3001`
 - 本地数据库路径：默认使用 `packages/server/data/uruc.local.db`，当 `URUC_PURPOSE=production` 时切换为 `packages/server/data/uruc.prod.db`，除非通过 `DB_PATH` 覆盖
+- 通过 npm 安装后的 CLI，运行时可变数据默认写到用户自己的 runtime home；如果设置了 `URUC_HOME`，则优先使用该目录
 
 当前环境变量模板位于 [`packages/server/.env.example`](./.env.example)。
 

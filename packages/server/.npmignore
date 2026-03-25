@@ -1,0 +1,4 @@
+dist/**/__tests__/
+dist/**/*.test.d.ts
+dist/**/*.test.js
+dist/**/*.test.js.map

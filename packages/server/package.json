@@ -10,12 +10,29 @@
   },
   "homepage": "https://github.com/waibiwaibig/uruc/tree/main/packages/server",
   "author": "Uruc Contributors",
-  "bin": {
-    "uruc": "./dist/cli/index.js"
+  "files": [
+    "dist",
+    "public",
+    "bundled-plugins",
+    ".env.example",
+    "LICENSE",
+    "NOTICE",
+    "README.md",
+    "README.zh-CN.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "import": "./dist/cli/index.js"
+    }
   },
   "scripts": {
     "dev": "npm --prefix ../.. run build --workspace=@uruc/plugin-sdk && tsx watch src/index.ts",
     "build": "npm --prefix ../.. run build --workspace=@uruc/plugin-sdk && tsc && node scripts/copy-plugin-manifests.mjs",
+    "prepack": "npm run build && npm --prefix ../.. run build --workspace=@uruc/human-web && node ../../scripts/prepare-public-package.mjs",
     "test": "npm --prefix ../.. run build --workspace=@uruc/plugin-sdk && vitest run --exclude=.uruc/**",
     "cli": "node dist/cli/index.js",
     "configure": "node dist/cli/index.js configure",

@@ -5,11 +5,12 @@ import { rootEnvExists, serverEnvExists } from '../lib/env.js';
 import { DEFAULT_PLUGIN_STORE_DIR, prepareCityRuntime } from '../lib/city.js';
 import { parseEnvFile } from '../lib/env.js';
 import { assertConfiguredPortsAvailable, getRuntimeStatus, startBackground, startForeground, type ManagedRuntimeMode } from '../lib/runtime.js';
+import { getRootEnvPath, getServerEnvPath } from '../lib/state.js';
 import type { CommandContext } from '../lib/types.js';
 import { ensureFreshBuildIfNeeded } from './build.js';
 import { runConfigureCommand } from './configure.js';
 import { hasFlag } from '../lib/argv.js';
-import { getCityLockPath, getPackageRoot, getPluginStoreDir } from '../../runtime-paths.js';
+import { getCityConfigPath, getCityLockPath, getPackageRoot, getPluginStoreDir, resolveFromRuntimeHome } from '../../runtime-paths.js';
 
 export function getStartConflictMessage(mode: 'background' | 'systemd' | 'unmanaged'): string {
   if (mode === 'unmanaged') {
@@ -26,17 +27,14 @@ function getManagedStartSuccessMessage(mode: ManagedRuntimeMode, rebuilt: boolea
 }
 
 function resolveConfiguredCityPath(): { configPath: string; isDefaultPath: boolean } {
-  const packageRoot = getPackageRoot();
   const env = parseEnvFile();
-  const defaultCityConfigPath = path.join(packageRoot, 'uruc.city.json');
+  const defaultCityConfigPath = getCityConfigPath();
   const rawConfigured = env.CITY_CONFIG_PATH?.trim();
   if (!rawConfigured) {
     return { configPath: defaultCityConfigPath, isDefaultPath: true };
   }
 
-  const resolved = path.isAbsolute(rawConfigured)
-    ? rawConfigured
-    : path.resolve(packageRoot, rawConfigured);
+  const resolved = resolveFromRuntimeHome(rawConfigured);
   return {
     configPath: resolved,
     isDefaultPath: resolved === defaultCityConfigPath,
@@ -45,13 +43,13 @@ function resolveConfiguredCityPath(): { configPath: string; isDefaultPath: boole
 
 export async function runStartCommand(context: CommandContext): Promise<void> {
   if (!serverEnvExists()) {
-    console.log('packages/server/.env is missing. Launching `uruc configure` first.');
+    console.log(`${getServerEnvPath()} is missing. Launching \`uruc configure\` first.`);
     await runConfigureCommand({ ...context, args: [] });
     return;
   }
 
   if (rootEnvExists()) {
-    console.warn('Warning: repo-root .env is ignored. Only packages/server/.env is active.');
+    console.warn(`Warning: ${getRootEnvPath()} is ignored. Only ${getServerEnvPath()} is active.`);
   }
 
   const background = hasFlag(context.args, '--background', '-b');

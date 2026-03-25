@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, statSync } from 'fs';
 import path from 'path';
 
-import { getPackageRoot } from '../../runtime-paths.js';
+import { getPackageRoot, isWorkspaceLayout } from '../../runtime-paths.js';
 import { getRepoRoot, writeBuildState } from './state.js';
 import { runOrThrow } from './process.js';
 import type { BuildState } from './types.js';
@@ -26,6 +26,13 @@ const OUTPUT_PATHS = [
   path.join(repoRoot, 'packages', 'plugin-sdk', 'dist', 'index.js'),
   path.join(packageRoot, 'dist', 'index.js'),
   path.join(repoRoot, 'packages', 'human-web', 'dist', 'index.html'),
+];
+
+const INSTALLED_OUTPUT_PATHS = [
+  path.join(packageRoot, 'dist', 'index.js'),
+  path.join(packageRoot, 'dist', 'cli', 'index.js'),
+  path.join(packageRoot, 'public', 'index.html'),
+  path.join(packageRoot, 'bundled-plugins', 'social', 'package.json'),
 ];
 
 export interface BuildFreshness {
@@ -58,6 +65,27 @@ function oldestOutputMtime(paths: string[]): number {
 }
 
 export function getBuildFreshness(): BuildFreshness {
+  if (!isWorkspaceLayout()) {
+    const oldestOutputMtimeMs = oldestOutputMtime(INSTALLED_OUTPUT_PATHS);
+    if (oldestOutputMtimeMs === 0) {
+      return {
+        stale: true,
+        reason: 'packaged build artifacts are missing',
+        newestInputMtimeMs: 0,
+        oldestOutputMtimeMs,
+        outputs: INSTALLED_OUTPUT_PATHS,
+      };
+    }
+
+    return {
+      stale: false,
+      reason: 'packaged build artifacts are current',
+      newestInputMtimeMs: oldestOutputMtimeMs,
+      oldestOutputMtimeMs,
+      outputs: INSTALLED_OUTPUT_PATHS,
+    };
+  }
+
   const newestInputMtimeMs = Math.max(...INPUT_PATHS.map((targetPath) => newestMtime(targetPath)));
   const oldestOutputMtimeMs = oldestOutputMtime(OUTPUT_PATHS);
 
@@ -92,6 +120,13 @@ export function getBuildFreshness(): BuildFreshness {
 
 export async function buildAll(force = false): Promise<BuildFreshness> {
   const freshness = getBuildFreshness();
+  if (!isWorkspaceLayout()) {
+    if (freshness.stale) {
+      throw new Error('This installed Uruc package is missing packaged build artifacts. Reinstall the package or run Uruc from the source workspace.');
+    }
+    return freshness;
+  }
+
   if (!force && !freshness.stale) return freshness;
 
   await runOrThrow('npm', ['run', 'build', '--workspace=@uruc/plugin-sdk'], { cwd: repoRoot });

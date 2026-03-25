@@ -4,6 +4,7 @@ import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const originalEnv = {
+  URUC_HOME: process.env.URUC_HOME,
   URUC_SERVER_ENV_PATH: process.env.URUC_SERVER_ENV_PATH,
   URUC_CLI_STATE_DIR: process.env.URUC_CLI_STATE_DIR,
 };
@@ -14,6 +15,7 @@ async function importStateModule() {
 }
 
 afterEach(() => {
+  process.env.URUC_HOME = originalEnv.URUC_HOME;
   process.env.URUC_SERVER_ENV_PATH = originalEnv.URUC_SERVER_ENV_PATH;
   process.env.URUC_CLI_STATE_DIR = originalEnv.URUC_CLI_STATE_DIR;
 });
@@ -30,5 +32,15 @@ describe('cli state path overrides', () => {
     expect(state.getCliStateDir()).toBe(path.join(tempRoot, 'cli-state'));
     expect(state.getRuntimeDir()).toBe(path.join(tempRoot, 'cli-state', 'runtime'));
     expect(state.getManagedProcessPath()).toBe(path.join(tempRoot, 'cli-state', 'runtime', 'process.json'));
+  });
+
+  it('defaults cli state under URUC_HOME when no explicit state dir is configured', async () => {
+    delete process.env.URUC_CLI_STATE_DIR;
+    process.env.URUC_HOME = path.join(os.tmpdir(), 'uruc-runtime-home');
+
+    const state = await importStateModule();
+
+    expect(state.getCliStateDir()).toBe(path.join(process.env.URUC_HOME, '.uruc'));
+    expect(state.getRuntimeDir()).toBe(path.join(process.env.URUC_HOME, '.uruc', 'runtime'));
   });
 });

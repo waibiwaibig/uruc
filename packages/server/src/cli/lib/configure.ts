@@ -1,8 +1,19 @@
 import os from 'os';
+import path from 'path';
 
+import { isWorkspaceLayout } from '../../runtime-paths.js';
 import { buildSiteUrl, buildPublicWsUrl } from './network.js';
-import { readCliMeta, writeCliMeta } from './state.js';
+import { readCliMeta, writeCliMeta, getRepoRoot, getServerEnvPath } from './state.js';
 import type { CityReachability, ConfigureAnswers } from './types.js';
+
+function formatActionPath(targetPath: string): string {
+  const basePath = isWorkspaceLayout() ? getRepoRoot() : process.cwd();
+  const relative = path.relative(basePath, targetPath);
+  if (relative === '') {
+    return '.';
+  }
+  return relative && !relative.startsWith('..') ? relative : targetPath;
+}
 
 function reachabilityLabel(reachability: CityReachability): string {
   if (reachability === 'local') return '本机';
@@ -139,7 +150,7 @@ export function rememberConfiguration(answers: ConfigureAnswers): void {
 
 export function getConfigureActions(): string[] {
   return [
-    '写入 packages/server/.env',
+    `写入 ${formatActionPath(getServerEnvPath())}`,
     '确保 uruc.city.json 存在并保留当前已安装插件配置',
     '同步 uruc.city.lock.json',
     '记录 .uruc/cli.json 元数据',

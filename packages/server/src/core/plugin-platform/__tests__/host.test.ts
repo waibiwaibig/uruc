@@ -1,9 +1,10 @@
 import { existsSync } from 'fs';
 import { execFile } from 'child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { Readable } from 'stream';
+import { pathToFileURL } from 'url';
 import { promisify } from 'util';
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -813,6 +814,56 @@ export default {
 
     expect(stdout.trim()).toBe('ok');
   }, 15000);
+
+  it('keeps plugin-sdk backend importable when the plugin store is addressed through a symlinked path', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-symlink-'));
+    tempDirs.push(tempRoot);
+
+    const aliasRoot = `${tempRoot}-alias`;
+    await symlink(tempRoot, aliasRoot, process.platform === 'win32' ? 'junction' : 'dir');
+    tempDirs.push(aliasRoot);
+
+    const configPath = path.join(aliasRoot, 'uruc.city.json');
+    const lockPath = path.join(aliasRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(aliasRoot, '.uruc', 'plugins');
+    const examplePluginPath = path.join(aliasRoot, 'plugins', 'example-venue');
+
+    await createExampleVenuePluginPackage(examplePluginPath);
+
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['uruc'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'uruc.example': {
+          pluginId: 'uruc.example',
+          packageName: '@uruc/plugin-example-venue',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: examplePluginPath,
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await host.syncLockFile();
+
+    const lock = await readCityLock(lockPath);
+    const plugin = lock.plugins['uruc.example'];
+    expect(plugin).toBeDefined();
+
+    const moduleUrl = `${pathToFileURL(plugin!.entryPath).href}?bridge-test=${Date.now()}`;
+    const loaded = await import(moduleUrl) as { default?: { pluginId?: string } };
+
+    expect(loaded.default?.pluginId).toBe('uruc.example');
+  });
 
   it('keeps starting healthy plugins when one startup plugin fails', async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-isolation-'));

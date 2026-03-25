@@ -9,9 +9,10 @@
 
 | 平台 | 推荐入口 |
 | --- | --- |
-| macOS / Linux | `./uruc <command>` |
-| Windows PowerShell / Command Prompt | `npm run uruc -- <command>` |
-| WSL / Git Bash | `./uruc <command>` |
+| 通过 npm 安装后的 macOS / Linux / Windows | `uruc <command>` |
+| 源码 checkout 下的 macOS / Linux | `./uruc <command>` |
+| 源码 checkout 下的 Windows PowerShell / Command Prompt | `npm run uruc -- <command>` |
+| 源码 checkout 下的 WSL / Git Bash | `./uruc <command>` |
 
 所有受支持入口最终都会调用同一套 server CLI。
 

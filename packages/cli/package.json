@@ -1,0 +1,28 @@
+{
+  "name": "uruc",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/waibiwaibig/uruc.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/waibiwaibig/uruc/tree/main/packages/cli",
+  "author": "Uruc Contributors",
+  "files": [
+    "bin",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
+  "bin": {
+    "uruc": "./bin/uruc.js"
+  },
+  "scripts": {
+    "prepack": "node ../../scripts/prepare-public-package.mjs"
+  },
+  "dependencies": {
+    "@uruc/server": "0.1.0"
+  }
+}

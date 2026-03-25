@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   existsSync: vi.fn(() => true),
+  isWorkspaceLayout: vi.fn(() => true),
   readdirSync: vi.fn(() => []),
   statSync: vi.fn(() => ({
     isDirectory: () => false,
@@ -16,6 +17,15 @@ vi.mock('fs', () => ({
   readdirSync: mocks.readdirSync,
   statSync: mocks.statSync,
 }));
+
+vi.mock('../../runtime-paths.js', async () => {
+  const actual = await vi.importActual<typeof import('../../runtime-paths.js')>('../../runtime-paths.js');
+  return {
+    ...actual,
+    getPackageRoot: actual.getPackageRoot,
+    isWorkspaceLayout: mocks.isWorkspaceLayout,
+  };
+});
 
 vi.mock('../lib/state.js', async () => {
   const actual = await vi.importActual<typeof import('../lib/state.js')>('../lib/state.js');
@@ -34,6 +44,7 @@ import { buildAll } from '../lib/build.js';
 describe('buildAll', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.isWorkspaceLayout.mockReturnValue(true);
   });
 
   it('builds plugin-sdk before server and human-web when forced', async () => {
@@ -57,5 +68,13 @@ describe('buildAll', () => {
       ['run', 'build', '--workspace=packages/human-web'],
       expect.anything(),
     );
+  });
+
+  it('does not rebuild workspace packages when running from an installed package layout', async () => {
+    mocks.isWorkspaceLayout.mockReturnValue(false);
+
+    await buildAll(true);
+
+    expect(mocks.runOrThrow).not.toHaveBeenCalled();
   });
 });

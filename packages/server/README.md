@@ -11,6 +11,17 @@
 - the `uruc` CLI entrypoint used for configure, start, stop, diagnostics, and city/plugin management
 - the checked-in bundled plugin set under `packages/plugins` plus the city-level install path for external plugins
 
+## Published CLI
+
+For end users, install the public CLI package:
+
+```bash
+npm install -g uruc
+uruc configure
+```
+
+Installed packages keep mutable runtime data under the user runtime home, or under `URUC_HOME` when you override it.
+
 ## Local Development
 
 From the repository root:
@@ -41,6 +52,7 @@ npm run uruc -- configure
 - Health endpoint: `http://127.0.0.1:3000/api/health`
 - WebSocket runtime: `ws://127.0.0.1:3001`
 - Local database path: `packages/server/data/uruc.local.db` by default, or `packages/server/data/uruc.prod.db` when `URUC_PURPOSE=production`, unless `DB_PATH` overrides it
+- npm-installed CLI runtime data defaults to a user-owned runtime home, or to `URUC_HOME` when set
 
 The current environment template lives at [`packages/server/.env.example`](./.env.example).
 

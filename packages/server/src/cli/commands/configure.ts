@@ -71,7 +71,7 @@ import type {
 } from '../lib/types.js';
 import { readCityConfig } from '../../core/plugin-platform/config.js';
 import type { CityConfigFile } from '../../core/plugin-platform/types.js';
-import { getCityLockPath, getPackageRoot } from '../../runtime-paths.js';
+import { getCityLockPath, getPackageRoot, resolveFromRuntimeHome } from '../../runtime-paths.js';
 
 interface ConfigureResult {
   answers: ConfigureAnswers;
@@ -585,7 +585,7 @@ function detectLanHost(): string {
 }
 
 function resolveCityConfigPath(rawPath: string): string {
-  return path.isAbsolute(rawPath) ? rawPath : path.resolve(packageRoot, rawPath);
+  return resolveFromRuntimeHome(rawPath);
 }
 
 function keepConfiguredPath(currentValue: string | undefined, fallbackValue: string): string {
@@ -731,7 +731,7 @@ function sessionPluginPaths(session: ConfigureSession) {
     packageRoot,
     pluginStoreDir: path.isAbsolute(session.answers.pluginStoreDir)
       ? session.answers.pluginStoreDir
-      : path.resolve(packageRoot, session.answers.pluginStoreDir || DEFAULT_PLUGIN_STORE_DIR),
+      : resolveFromRuntimeHome(session.answers.pluginStoreDir || DEFAULT_PLUGIN_STORE_DIR),
   };
 }
 
@@ -1504,7 +1504,7 @@ async function persistDraft(result: PersistableConfigureState): Promise<void> {
     packageRoot,
     pluginStoreDir: path.isAbsolute(result.answers.pluginStoreDir)
       ? result.answers.pluginStoreDir
-      : path.resolve(packageRoot, result.answers.pluginStoreDir || DEFAULT_PLUGIN_STORE_DIR),
+      : resolveFromRuntimeHome(result.answers.pluginStoreDir || DEFAULT_PLUGIN_STORE_DIR),
   });
 }
 

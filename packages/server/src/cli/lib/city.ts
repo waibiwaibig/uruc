@@ -4,7 +4,7 @@ import path from 'path';
 import { PluginPlatformHost } from '../../core/plugin-platform/host.js';
 import { EMPTY_CITY_CONFIG, readCityConfig, writeCityConfig } from '../../core/plugin-platform/config.js';
 import type { CityConfigFile, CityPluginSource } from '../../core/plugin-platform/types.js';
-import { getPackageRoot } from '../../runtime-paths.js';
+import { getPackageRoot, isWorkspaceLayout } from '../../runtime-paths.js';
 import type { BundledPluginId, BundledPluginState, ConfigurePluginPreset } from './types.js';
 
 export const DEFAULT_PLUGIN_PRESET: ConfigurePluginPreset = 'custom';
@@ -28,7 +28,7 @@ function humanizePackageDir(packageDir: string): string {
 }
 
 function discoverBundledPlugins(packageRoot: string): BundledPluginDescriptor[] {
-  const pluginsRoot = path.resolve(packageRoot, '..', 'plugins');
+  const pluginsRoot = resolveBundledPluginsRoot(packageRoot);
   if (!existsSync(pluginsRoot)) {
     return [];
   }
@@ -156,9 +156,18 @@ export function inferPluginPreset(state: BundledPluginState): ConfigurePluginPre
 }
 
 function toRelativePluginPath(configPath: string, packageRoot: string, packageDir: string): string {
-  const target = path.resolve(packageRoot, '..', 'plugins', packageDir);
+  const target = path.join(resolveBundledPluginsRoot(packageRoot), packageDir);
+  if (!isWorkspaceLayout()) {
+    return target;
+  }
   const relative = path.relative(path.dirname(configPath), target);
   return relative === '' ? '.' : relative;
+}
+
+function resolveBundledPluginsRoot(packageRoot: string): string {
+  return isWorkspaceLayout()
+    ? path.resolve(packageRoot, '..', 'plugins')
+    : path.join(packageRoot, 'bundled-plugins');
 }
 
 export function linkWorkspacePluginsToConfig(
