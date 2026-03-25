@@ -1,12 +1,11 @@
 import { existsSync } from 'fs';
-import path from 'path';
 
 import type { CommandContext } from '../lib/types.js';
 import { prepareCityRuntime } from '../lib/city.js';
 import { parseEnvFile } from '../lib/env.js';
 import { getRuntimeStatus, restartRuntime } from '../lib/runtime.js';
 import { ensureFreshBuildIfNeeded } from './build.js';
-import { getCityLockPath, getPackageRoot, getPluginStoreDir } from '../../runtime-paths.js';
+import { getCityConfigPath, getCityLockPath, getPackageRoot, getPluginStoreDir, resolveFromRuntimeHome } from '../../runtime-paths.js';
 
 function getRestartSuccessMessage(mode: 'background' | 'systemd', rebuilt: boolean): string {
   if (mode === 'systemd') {
@@ -16,17 +15,14 @@ function getRestartSuccessMessage(mode: 'background' | 'systemd', rebuilt: boole
 }
 
 function resolveConfiguredCityPath(): { configPath: string; isDefaultPath: boolean } {
-  const packageRoot = getPackageRoot();
   const env = parseEnvFile();
-  const defaultCityConfigPath = path.join(packageRoot, 'uruc.city.json');
+  const defaultCityConfigPath = getCityConfigPath();
   const rawConfigured = env.CITY_CONFIG_PATH?.trim();
   if (!rawConfigured) {
     return { configPath: defaultCityConfigPath, isDefaultPath: true };
   }
 
-  const resolved = path.isAbsolute(rawConfigured)
-    ? rawConfigured
-    : path.resolve(packageRoot, rawConfigured);
+  const resolved = resolveFromRuntimeHome(rawConfigured);
   return {
     configPath: resolved,
     isDefaultPath: resolved === defaultCityConfigPath,

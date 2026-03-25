@@ -1,8 +1,7 @@
 import { existsSync } from 'fs';
-import path from 'path';
 
 import { rootEnvExists, serverEnvExists } from '../lib/env.js';
-import { DEFAULT_PLUGIN_STORE_DIR, prepareCityRuntime } from '../lib/city.js';
+import { prepareCityRuntime } from '../lib/city.js';
 import { parseEnvFile } from '../lib/env.js';
 import { assertConfiguredPortsAvailable, getRuntimeStatus, startBackground, startForeground, type ManagedRuntimeMode } from '../lib/runtime.js';
 import { getRootEnvPath, getServerEnvPath } from '../lib/state.js';

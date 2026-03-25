@@ -31,7 +31,7 @@
   },
   "scripts": {
     "dev": "npm --prefix ../.. run build --workspace=@uruc/plugin-sdk && tsx watch src/index.ts",
-    "build": "npm --prefix ../.. run build --workspace=@uruc/plugin-sdk && tsc && node scripts/copy-plugin-manifests.mjs",
+    "build": "npm --prefix ../.. run build --workspace=@uruc/plugin-sdk && node scripts/build-package.mjs",
     "prepack": "npm run build && npm --prefix ../.. run build --workspace=@uruc/human-web && node ../../scripts/prepare-public-package.mjs",
     "test": "npm --prefix ../.. run build --workspace=@uruc/plugin-sdk && vitest run --exclude=.uruc/**",
     "cli": "node dist/cli/index.js",

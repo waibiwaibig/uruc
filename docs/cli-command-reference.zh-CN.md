@@ -61,7 +61,9 @@ uruc configure [--quickstart|--advanced] [--section <runtime|access|city|plugins
 
 当前行为：
 
-- 运行交互式建城配置流程，并写入 `packages/server/.env`。
+- 运行交互式建城配置流程，并写入当前生效的 server env 文件：
+  - 源码 checkout：`packages/server/.env`
+  - 通过 npm 安装后的 CLI：`<runtime-home>/.env`
 - 在结束前确保城市配置存在，并同步 city lock。
 - 当前支持两种模式：
   - `--quickstart`：问题更少，目标是尽快得到可运行城市。
@@ -124,8 +126,8 @@ uruc start [-b|--background]
 
 当前行为：
 
-- 如果 `packages/server/.env` 缺失，会先启动 `uruc configure`，然后直接返回，不继续走普通启动路径。
-- 当仓库根目录存在 `.env` 时会给出警告，因为真正生效的只有 `packages/server/.env`。
+- 如果当前生效的 server env 文件缺失，会先启动 `uruc configure`，然后直接返回，不继续走普通启动路径。
+- 在源码 checkout 下，如果仓库根目录存在 `.env` 会给出警告，因为此时真正生效的只有 `packages/server/.env`。
 - 会解析当前配置的城市文件路径；如果配置的是非默认路径且文件不存在，会直接报错。
 - 启动前会调用 `prepareCityRuntime(...)`：
   - 同步 `uruc.city.lock.json`
@@ -351,7 +353,8 @@ uruc help
 
 ## 运维备注
 
-- 仓库根目录 `.env` 不参与运行时和 CLI；真正生效的是 `packages/server/.env`。
+- 在源码 checkout 下，仓库根目录 `.env` 不参与运行时和 CLI；真正生效的是 `packages/server/.env`。
+- 通过 npm 安装后的 CLI 默认使用 `<runtime-home>/.env`；如果设置了 `URUC_HOME`，则按该目录解析。
 - `start` 和 `restart` 会在进程启动前准备城市运行时，但 server bootstrap 本身是在读取磁盘上已经存在的 city lock 文件来加载插件。
 - `plugin remove`、`plugin unlink`、`plugin enable`、`plugin disable` 只更新 config / lock，不会对已运行中的 server 进程做热卸载或热重载。
 - `plugin gc` 默认保留每个已锁定插件的当前 revision 和最近一条回滚历史。

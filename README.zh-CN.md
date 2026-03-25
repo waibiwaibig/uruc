@@ -104,7 +104,7 @@ npm run uruc -- configure
 - 城市配置 [`packages/server/uruc.city.json`](packages/server/uruc.city.json)
 - 按需生成的城市锁文件 `packages/server/uruc.city.lock.json`
 
-当前已提交的城市配置实际启用了 `uruc.social`。另外，`uruc configure` 现在提供两个 bundled 插件预设：`custom` 会自动枚举仓库里已提交的插件包并逐个确认，`empty-core` 会把它们全部关闭。
+当前已提交的城市配置实际启用了 `uruc.social`。但仓库里有哪些插件源码，和某个城市最终实际加载哪些插件，是两层不同的事情：`packages/plugins` 下的源码包只有在被 link 或 install 进城市 config / lock 后，才会进入运行时。
 
 这两层需要分开理解：仓库里有哪些内置内容，和某个城市当前到底加载了什么，是相关但不相同的两件事。真正定义城市内容的是它的 config 和 lock，而不只是 repo 里有哪些文件夹。
 

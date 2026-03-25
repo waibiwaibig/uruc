@@ -61,7 +61,9 @@ uruc configure [--quickstart|--advanced] [--section <runtime|access|city|plugins
 
 Current behavior:
 
-- Runs the interactive city configuration flow and writes `packages/server/.env`.
+- Runs the interactive city configuration flow and writes the active server env file:
+  - source checkout: `packages/server/.env`
+  - npm-installed CLI: `<runtime-home>/.env`
 - Ensures a city config exists and synchronizes the city lock before finishing.
 - Supports two modes:
   - `--quickstart`: asks fewer questions and targets a runnable default city.
@@ -124,8 +126,8 @@ uruc start [-b|--background]
 
 Current behavior:
 
-- If `packages/server/.env` is missing, launches `uruc configure` first and returns from the normal start path.
-- Warns when a repo-root `.env` exists, because only `packages/server/.env` is active.
+- If the active server env file is missing, launches `uruc configure` first and returns from the normal start path.
+- In source checkouts, warns when a repo-root `.env` exists, because only `packages/server/.env` is active there.
 - Resolves the configured city path and fails if a non-default configured path does not exist.
 - Calls `prepareCityRuntime(...)` before boot:
   - synchronizes `uruc.city.lock.json`
@@ -351,7 +353,8 @@ Current `city init` output file:
 
 ## Operational Notes
 
-- The repo-root `.env` file is ignored by the runtime and CLI; `packages/server/.env` is the active env file.
+- Source checkouts use `packages/server/.env` as the active env file and ignore the repo-root `.env`.
+- npm-installed CLIs use `<runtime-home>/.env` by default, or the `URUC_HOME` override when present.
 - `start` and `restart` prepare the city runtime before process startup, but the server bootstrap itself loads plugins from the city lock file that already exists on disk.
 - `plugin remove`, `plugin unlink`, `plugin enable`, and `plugin disable` update config and lock files; they do not hot-unload or hot-reload an already running server process.
 - `plugin gc` keeps the current locked revision and the most recent rollback revision for each locked plugin.

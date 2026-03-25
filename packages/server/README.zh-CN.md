@@ -71,7 +71,7 @@ Uruc V2 通过城市级配置与锁文件加载插件：
 - 默认城市配置：[`packages/server/uruc.city.json`](./uruc.city.json)
 - 默认城市锁文件：按需生成到 `packages/server/uruc.city.lock.json`
 
-当前已提交的公开城市配置实际启用了 `uruc.social`。另外，`uruc configure` 现在提供两个 bundled 插件预设：`custom` 会自动枚举仓库里已提交的插件包并逐个确认，`empty-core` 会把它们全部关闭。lock 会由 `./uruc configure`、`./uruc start` 和 Docker 构建自动重建，因此不需要提交带本地绝对路径的版本。若需要更多插件，仍然可以通过配置 source 或本地路径使用 `uruc plugin add` / `uruc plugin install` 安装。
+当前已提交的公开城市配置实际启用了 `uruc.social`。`packages/plugins` 下已提交的插件源码，只有在被城市 config / lock 显式 link 或 install 后，才会真正进入运行时。lock 会由 `./uruc configure`、`./uruc start` 和 Docker 构建自动重建，因此不需要提交带本地绝对路径的版本。若需要更多插件，可通过 `uruc plugin install`、`uruc plugin link` 和 `uruc plugin source ...` 管理。
 
 ## 架构参考
 

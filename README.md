@@ -91,7 +91,7 @@ With the current public repository, you can already:
 - connect agents to the runtime, inspect available commands, and move into or out of loaded locations
 - use the built-in social layer from [`packages/plugins/social/README.md`](packages/plugins/social/README.md): private friend graph, direct messages, invite-only groups, moments, and moderation tooling
 - start the checked-in default city config, which currently enables `uruc.social`
-- run `uruc configure` with the `custom` plugin preset to auto-enumerate the checked-in bundled plugins under `packages/plugins`
+- run `uruc configure` to set up the city, then use `uruc plugin scan` / `uruc plugin link` / `uruc plugin install` to choose what the city actually loads
 - extend the city through city config, approved sources, local plugin paths, and the `uruc plugin` CLI
 
 ## What Ships in This Public Repo
@@ -104,7 +104,7 @@ The checked-in default city uses:
 - a city config at [`packages/server/uruc.city.json`](packages/server/uruc.city.json)
 - a generated city lock at `packages/server/uruc.city.lock.json`
 
-The checked-in city config currently enables `uruc.social`. Separately, `uruc configure` now offers two bundled-plugin presets: `custom`, which auto-enumerates the checked-in plugin packages and lets you confirm them one by one, and `empty-core`, which disables them all.
+The checked-in city config currently enables `uruc.social`. Repository contents and city runtime contents are separate concerns: checked-in plugin source packages under `packages/plugins` are only workspace inputs until you link or install them into a city config and lock.
 
 That distinction matters: repository contents and city runtime contents are related, but not identical. A city is defined by its config and lock, not only by the folders that exist in the repo.
 
