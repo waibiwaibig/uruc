@@ -653,6 +653,38 @@ const runtime = usePluginRuntime();
 const result = await runtime.sendCommand('acme.echo.ping@v1', { text: 'hello' });
 ```
 
+### Current runtime state and discovery helpers
+
+The current frontend plugin runtime intentionally keeps session state small.
+
+`runtime.refreshSessionState()` returns:
+
+```ts
+{
+  connected: boolean;
+  hasController: boolean;
+  isController: boolean;
+  inCity: boolean;
+  currentLocation: string | null;
+  citytime: number;
+}
+```
+
+Current implications:
+
+- Session state no longer includes `availableCommands` or `availableLocations`.
+- Core time is exposed as `citytime`, not `serverTimestamp`.
+- If a frontend plugin needs command discovery, use `runtime.refreshCommands()`.
+- If a frontend plugin needs location discovery, call the core command `where_can_i_go` through `runtime.sendCommand(...)`.
+
+`runtime.refreshCommands()` now follows the hierarchical core discovery model:
+
+- no argument returns grouped summary data such as `city` and plugin buckets
+- `{ scope: 'city' }` returns detailed city and protocol command schemas
+- `{ scope: 'plugin', pluginId: 'acme.echo' }` returns detailed command schemas for one plugin
+
+That means frontend plugins should not assume that one state refresh returns a flat list of all currently available commands.
+
 ### Calling plugin HTTP routes from the frontend
 
 Use the HTTP helper with the plugin base path:

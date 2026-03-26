@@ -62,14 +62,14 @@ export function AgentConsolePage() {
   const locationOptions = useMemo(() => {
     const map = new Map<string, LocationDef>();
     builtinLocationOptions.forEach((location) => map.set(location.id, location));
-    runtime.availableLocations.forEach((location) => map.set(location.id, location));
+    runtime.discoveredLocations.forEach((location) => map.set(location.id, location));
     storedAllowedLocationIds.forEach((locationId) => {
       if (!map.has(locationId)) {
         map.set(locationId, { id: locationId, name: locationId });
       }
     });
     return Array.from(map.values());
-  }, [builtinLocationOptions, runtime.availableLocations, storedAllowedLocationIds]);
+  }, [builtinLocationOptions, runtime.discoveredLocations, storedAllowedLocationIds]);
 
   const locationOptionsById = useMemo(
     () => new Map(locationOptions.map((location) => [location.id, location])),

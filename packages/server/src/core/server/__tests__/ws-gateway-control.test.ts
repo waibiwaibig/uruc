@@ -16,10 +16,18 @@ interface SentEnvelope {
   id?: string;
   type: string;
   payload?: {
+    citytime?: number;
+    claimed?: boolean;
+    current?: {
+      place?: string;
+      locationId?: string | null;
+      locationName?: string | null;
+    };
     code?: string;
     currentLocation?: string | null;
     inCity?: boolean;
     error?: string;
+    locations?: Array<{ id: string; name: string }>;
   };
 }
 
@@ -184,9 +192,74 @@ describe('WSGateway control connection', () => {
     sentA.length = 0;
     sentB.length = 0;
 
-    await (gateway as any).handleMessage('client-a', { id: 'time-a', type: 'what_time', payload: {} });
+    await (gateway as any).handleMessage('client-a', { id: 'state-a', type: 'what_state_am_i', payload: {} });
 
-    expect(sentA.some((message) => message.type === 'result')).toBe(true);
+    expect(sentA.find((message) => message.type === 'result')?.payload).toMatchObject({
+      citytime: expect.any(Number),
+      inCity: true,
+    });
     expect(sentB.some((message) => message.type === 'session_state')).toBe(false);
+  });
+
+  it('returns current and available locations through where_can_i_go without command data', async () => {
+    const user = await auth.register('nidaba', 'nidaba@example.com', 'secret-123');
+    const token = signToken(user.id, 'user');
+    const sent: SentEnvelope[] = [];
+    const client = createClient(sent);
+
+    (gateway as any).clients.set('client-a', client);
+
+    await (gateway as any).handleAgentAuth('client-a', client, { id: 'auth-a', type: 'auth', payload: token });
+    await (gateway as any).handleMessage('client-a', { id: 'enter-a', type: 'enter_city', payload: {} });
+    sent.length = 0;
+
+    await (gateway as any).handleMessage('client-a', { id: 'where-a', type: 'where_can_i_go', payload: {} });
+
+    expect(sent.at(-1)).toMatchObject({
+      id: 'where-a',
+      type: 'result',
+      payload: {
+        citytime: expect.any(Number),
+        current: {
+          place: 'city',
+          locationId: null,
+          locationName: null,
+        },
+        locations: [
+          {
+            id: 'uruc.chess.chess-club',
+            name: '国际象棋馆',
+          },
+        ],
+      },
+    });
+    expect(sent.at(-1)?.payload).not.toHaveProperty('commands');
+    expect(sent.at(-1)?.payload).not.toHaveProperty('availableCommands');
+  });
+
+  it('includes citytime in control_replaced pushes', async () => {
+    const user = await auth.register('dumuzid', 'dumuzid@example.com', 'secret-123');
+    const token = signToken(user.id, 'user');
+    const sentA: SentEnvelope[] = [];
+    const sentB: SentEnvelope[] = [];
+    const clientA = createClient(sentA);
+    const clientB = createClient(sentB);
+
+    (gateway as any).clients.set('client-a', clientA);
+    (gateway as any).clients.set('client-b', clientB);
+
+    await (gateway as any).handleAgentAuth('client-a', clientA, { id: 'auth-a', type: 'auth', payload: token });
+    await (gateway as any).handleAgentAuth('client-b', clientB, { id: 'auth-b', type: 'auth', payload: token });
+
+    sentA.length = 0;
+    sentB.length = 0;
+
+    await (gateway as any).handleMessage('client-a', { id: 'enter-a', type: 'enter_city', payload: {} });
+    await (gateway as any).handleMessage('client-b', { id: 'claim-b', type: 'claim_control', payload: {} });
+
+    expect(sentA.find((message) => message.type === 'control_replaced')?.payload).toMatchObject({
+      citytime: expect.any(Number),
+      error: 'This agent has been taken over by another connection.',
+    });
   });
 });

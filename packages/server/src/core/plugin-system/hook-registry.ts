@@ -311,7 +311,7 @@ export class HookRegistry {
   }
 
   /**
-   * Get all registered WS command schemas (for the 'what_commands' discovery endpoint).
+   * Get all registered WS command schemas (for the 'what_can_i_do' discovery endpoint).
    */
   getWSCommandSchemas(): CommandSchema[] {
     const schemas: CommandSchema[] = [];

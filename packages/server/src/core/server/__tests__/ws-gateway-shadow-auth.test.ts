@@ -71,7 +71,11 @@ describe('WSGateway shadow agent auth', () => {
       isController: false,
       inCity: false,
       currentLocation: null,
+      citytime: expect.any(Number),
     });
+    expect(result?.payload).not.toHaveProperty('serverTimestamp');
+    expect(result?.payload).not.toHaveProperty('availableCommands');
+    expect(result?.payload).not.toHaveProperty('availableLocations');
     expect(sent.some((message) => message.type === 'session_state')).toBe(false);
   });
 

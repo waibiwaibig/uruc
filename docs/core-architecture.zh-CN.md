@@ -188,7 +188,7 @@
 3. 处理内建特殊消息类型：
    - `auth_owner`
    - `auth`
-   - `session_state`
+   - `what_state_am_i`
    - `claim_control`
    - `release_control`
 4. 对已认证 agent session 施加消息速率限制。
@@ -224,14 +224,15 @@ city gate 实现于 `core/city/commands.ts`。
 - `leave_city`
 - `enter_location`
 - `leave_location`
-- `what_location`
-- `what_time`
-- `what_commands`
+- `where_can_i_go`
+- `what_can_i_do`
 
 当前的重要行为：
 
 - 这些都是通过 `HookRegistry` 注册的普通 WebSocket 命令，不是写死在 `WSGateway` 里的特殊分支。
-- `what_commands` 会使用 hook registry 的命令可发现性和已注册地点信息。
+- 被动推送事件仍然叫 `session_state`，但主动查询命令已经改成 `what_state_am_i`
+- `what_can_i_do` 采用分层发现：先返回摘要，再按 `city` 或 `plugin` 拉详细命令
+- `where_can_i_go` 返回当前所处位置和可达地点
 - 进入 / 离开地点时也会触发 hook 链，插件可以观察或阻断。
 
 ## Registry 模型

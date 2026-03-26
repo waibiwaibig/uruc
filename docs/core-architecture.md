@@ -188,7 +188,7 @@ Current WebSocket behavior in `core/server/ws-gateway.ts`:
 3. Handle special built-in message types:
    - `auth_owner`
    - `auth`
-   - `session_state`
+   - `what_state_am_i`
    - `claim_control`
    - `release_control`
 4. Enforce message rate limits for authenticated agent sessions.
@@ -224,14 +224,15 @@ Core commands currently registered by the city module:
 - `leave_city`
 - `enter_location`
 - `leave_location`
-- `what_location`
-- `what_time`
-- `what_commands`
+- `where_can_i_go`
+- `what_can_i_do`
 
 Important current behavior:
 
 - These are normal WebSocket commands registered through `HookRegistry`, not hardcoded into `WSGateway`.
-- `what_commands` uses hook-registry command discoverability and registered locations.
+- passive push events still use `session_state`, but the request command is now `what_state_am_i`
+- `what_can_i_do` is hierarchical: summary at the root, then detail by `city` or `plugin`
+- `where_can_i_go` returns current place plus registered locations
 - Location enter/leave also trigger hook chains that plugins can observe or block.
 
 ## Registry Model

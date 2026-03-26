@@ -4,12 +4,36 @@
  * Self-registers via hooks.registerWSCommand().
  * WSGateway is pure transport; the city gate is domain logic.
  *
- * Commands: enter_city, leave_city, enter_location, leave_location, what_location, what_commands
+ * Commands: enter_city, leave_city, enter_location, leave_location, where_can_i_go, what_can_i_do
  */
 
 import type { HookRegistry, WSContext, WSMessage, CommandSchema } from '../plugin-system/hook-registry.js';
 import type { AgentSession } from '../../types/index.js';
 import { CORE_ERROR_CODES, resolveError } from '../server/errors.js';
+
+const PROTOCOL_COMMANDS: CommandSchema[] = [
+    {
+        type: 'what_state_am_i',
+        description: 'Check your current agent state',
+        pluginName: 'core',
+        params: {},
+        controlPolicy: { controllerRequired: false },
+    },
+    {
+        type: 'claim_control',
+        description: 'Claim control of the current agent connection',
+        pluginName: 'core',
+        params: {},
+        controlPolicy: { controllerRequired: false },
+    },
+    {
+        type: 'release_control',
+        description: 'Release control of the current agent connection',
+        pluginName: 'core',
+        params: {},
+        controlPolicy: { controllerRequired: false },
+    },
+];
 
 const CITY_GATE_COMMANDS: CommandSchema[] = [
     {
@@ -27,7 +51,9 @@ const CITY_GATE_COMMANDS: CommandSchema[] = [
         locationPolicy: { scope: 'in-city' },
     },
     {
-        type: 'enter_location', description: 'Enter a location', pluginName: 'core',
+        type: 'enter_location',
+        description: 'Enter a location',
+        pluginName: 'core',
         params: { locationId: { type: 'string', description: 'Location ID', required: true } },
         locationPolicy: { scope: 'in-city' },
     },
@@ -39,29 +65,55 @@ const CITY_GATE_COMMANDS: CommandSchema[] = [
         locationPolicy: { scope: 'location' },
     },
     {
-        type: 'what_location',
-        description: 'Check your current location',
+        type: 'where_can_i_go',
+        description: 'List your current place and reachable locations',
         pluginName: 'core',
         params: {},
         controlPolicy: { controllerRequired: false },
     },
     {
-        type: 'what_time',
-        description: 'Get the current server time (millisecond timestamp)',
+        type: 'what_can_i_do',
+        description: 'Discover available command groups or request detailed command schemas',
         pluginName: 'core',
-        params: {},
-        controlPolicy: { controllerRequired: false },
-    },
-    {
-        type: 'what_commands',
-        description: 'List currently available commands and locations',
-        pluginName: 'core',
-        params: {},
+        params: {
+            scope: {
+                type: 'string',
+                description: 'Optional detail scope. Use "city" or "plugin".',
+                required: false,
+            },
+            pluginId: {
+                type: 'string',
+                description: 'Required when scope is "plugin".',
+                required: false,
+            },
+        },
         controlPolicy: { controllerRequired: false },
     },
 ];
 
-const WORLD_DESCRIPTION = 'Welcome to Uruc. This city is powered by AI agents, with multiple locations for you to explore. You are currently standing outside the city walls, where you can check the time, your location, and available commands. When you are ready, send enter_city to begin your adventure.';
+const WORLD_DESCRIPTION = 'Welcome to Uruc. This city is powered by AI agents, with multiple locations for you to explore. You are currently standing outside the city walls, where you can check your state, discover available commands, and see available destinations. When you are ready, send enter_city to begin your adventure.';
+
+function attachCitytime(payload: unknown): unknown {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        return payload;
+    }
+
+    if ('citytime' in (payload as Record<string, unknown>)) {
+        return payload;
+    }
+
+    return {
+        ...(payload as Record<string, unknown>),
+        citytime: Date.now(),
+    };
+}
+
+function sendCore(ctx: WSContext, msg: WSMessage): void {
+    ctx.gateway.send(ctx.ws, {
+        ...msg,
+        payload: attachCitytime(msg.payload),
+    });
+}
 
 function sendWsError(
     ctx: WSContext,
@@ -70,20 +122,54 @@ function sendWsError(
     fallback: { status: number; code: string; error: string; retryable?: boolean; action?: string; details?: Record<string, unknown> },
 ): void {
     const resolved = resolveError(error, fallback);
-    ctx.gateway.send(ctx.ws, { id: msg.id, type: 'error', payload: resolved.payload });
+    sendCore(ctx, { id: msg.id, type: 'error', payload: resolved.payload });
 }
 
-function buildSessionPayload(ctx: WSContext, hooks: HookRegistry): Record<string, unknown> {
+function buildStatePayload(ctx: Pick<WSContext, 'hasController' | 'isController' | 'inCity' | 'currentLocation'>): Record<string, unknown> {
     return {
         connected: true,
         hasController: ctx.hasController,
         isController: ctx.isController,
         inCity: ctx.inCity,
         currentLocation: ctx.currentLocation,
-        serverTimestamp: Date.now(),
-        availableCommands: hooks.getAvailableWSCommandSchemas(ctx),
-        availableLocations: hooks.getLocations(),
+        citytime: Date.now(),
     };
+}
+
+function getAccessibleLocations(ctx: WSContext, hooks: HookRegistry) {
+    const locations = hooks.getLocations();
+    const allowed = ctx.session?.allowedLocations;
+    if (!allowed || allowed.length === 0) {
+        return locations;
+    }
+    return locations.filter((location) => allowed.includes(location.id));
+}
+
+function buildCurrentPlace(ctx: WSContext, hooks: HookRegistry) {
+    const location = ctx.currentLocation ? hooks.getLocation(ctx.currentLocation) : undefined;
+    return {
+        place: !ctx.inCity ? 'outside' : ctx.currentLocation ? 'location' : 'city',
+        locationId: ctx.currentLocation ?? null,
+        locationName: location?.name ?? null,
+    };
+}
+
+function getCityCommandSchemas(ctx: WSContext, hooks: HookRegistry): CommandSchema[] {
+    const coreCommands = hooks.getAvailableWSCommandSchemas(ctx)
+        .filter((schema) => schema.pluginName === 'core');
+    return [...PROTOCOL_COMMANDS, ...coreCommands];
+}
+
+function getPluginCommandGroups(ctx: WSContext, hooks: HookRegistry): Map<string, CommandSchema[]> {
+    const groups = new Map<string, CommandSchema[]>();
+    for (const schema of hooks.getAvailableWSCommandSchemas(ctx)) {
+        if (!schema.pluginName || schema.pluginName === 'core') continue;
+        if (!groups.has(schema.pluginName)) {
+            groups.set(schema.pluginName, []);
+        }
+        groups.get(schema.pluginName)!.push(schema);
+    }
+    return new Map([...groups.entries()].sort(([left], [right]) => left.localeCompare(right)));
 }
 
 /**
@@ -96,18 +182,16 @@ export function registerCityCommands(hooks: HookRegistry) {
         const wasInCity = ctx.inCity;
         ctx.setInCity(true);
 
-        // Let plugins enrich the response (location list, etc.)
         const responseData: Record<string, unknown> = {};
         await hooks.runHook('city.enter', { session: ctx.session, responseData, ctx, wasInCity });
 
-        Object.assign(responseData, buildSessionPayload(ctx, hooks));
+        Object.assign(responseData, buildStatePayload(ctx));
 
-        ctx.gateway.send(ctx.ws, { id: msg.id, type: 'result', payload: responseData });
+        sendCore(ctx, { id: msg.id, type: 'result', payload: responseData });
     }, CITY_GATE_COMMANDS[0]);
 
     // --- leave_city ---
     hooks.registerWSCommand('leave_city', async (ctx: WSContext, msg: WSMessage) => {
-        // If at a location, leave it first
         if (ctx.currentLocation) {
             try {
                 await leaveCurrentLocation(hooks, ctx);
@@ -125,7 +209,7 @@ export function registerCityCommands(hooks: HookRegistry) {
 
         ctx.setInCity(false);
 
-        ctx.gateway.send(ctx.ws, { id: msg.id, type: 'result', payload: { success: true, ...buildSessionPayload(ctx, hooks) } });
+        sendCore(ctx, { id: msg.id, type: 'result', payload: buildStatePayload(ctx) });
     }, CITY_GATE_COMMANDS[1]);
 
     // --- enter_location ---
@@ -134,37 +218,33 @@ export function registerCityCommands(hooks: HookRegistry) {
         const locationId = payload?.locationId;
 
         if (!locationId) {
-            ctx.gateway.send(ctx.ws, { id: msg.id, type: 'error', payload: { error: 'Missing locationId.', code: CORE_ERROR_CODES.BAD_REQUEST } });
+            sendCore(ctx, { id: msg.id, type: 'error', payload: { error: 'Missing locationId.', code: CORE_ERROR_CODES.BAD_REQUEST } });
             return;
         }
 
-        // Must be in city
         if (!ctx.inCity) {
-            ctx.gateway.send(ctx.ws, { id: msg.id, type: 'error', payload: { error: 'Enter the city first (enter_city).', code: CORE_ERROR_CODES.FORBIDDEN, action: 'enter_city' } });
+            sendCore(ctx, { id: msg.id, type: 'error', payload: { error: 'Enter the city first (enter_city).', code: CORE_ERROR_CODES.FORBIDDEN, action: 'enter_city' } });
             return;
         }
 
-        // Location must be registered
         if (!hooks.hasLocation(locationId)) {
-            ctx.gateway.send(ctx.ws, { id: msg.id, type: 'error', payload: { error: `Location "${locationId}" does not exist.`, code: CORE_ERROR_CODES.NOT_FOUND } });
+            sendCore(ctx, { id: msg.id, type: 'error', payload: { error: `Location "${locationId}" does not exist.`, code: CORE_ERROR_CODES.NOT_FOUND } });
             return;
         }
 
-        // Check allowedLocations
         const session = ctx.session as AgentSession | null;
         if (session && 'allowedLocations' in session) {
             const allowed = (session as AgentSession).allowedLocations;
             if (allowed.length > 0 && !allowed.includes(locationId)) {
-                ctx.gateway.send(ctx.ws, {
+                sendCore(ctx, {
                     id: msg.id,
                     type: 'error',
-                    payload: { error: `Your agent does not have access to "${locationId}".`, code: CORE_ERROR_CODES.FORBIDDEN }
+                    payload: { error: `Your agent does not have access to "${locationId}".`, code: CORE_ERROR_CODES.FORBIDDEN },
                 });
                 return;
             }
         }
 
-        // If already at another location, leave first
         if (ctx.currentLocation && ctx.currentLocation !== locationId) {
             try {
                 await leaveCurrentLocation(hooks, ctx);
@@ -174,24 +254,20 @@ export function registerCityCommands(hooks: HookRegistry) {
             }
         }
 
-        // Already here
         if (ctx.currentLocation === locationId) {
-            const loc = hooks.getLocation(locationId);
-            ctx.gateway.send(ctx.ws, {
+            const location = hooks.getLocation(locationId);
+            sendCore(ctx, {
                 id: msg.id,
                 type: 'result',
                 payload: {
-                    success: true,
                     locationId,
-                    locationName: loc?.name,
-                    message: `You are already at ${loc?.name ?? locationId}.`,
-                    ...buildSessionPayload(ctx, hooks),
-                }
+                    locationName: location?.name,
+                    ...buildStatePayload(ctx),
+                },
             });
             return;
         }
 
-        // Before hook — plugin can reject (throw to reject)
         try {
             await hooks.runHook('location.enter', { locationId, session: ctx.session, ctx });
         } catch (error) {
@@ -199,81 +275,158 @@ export function registerCityCommands(hooks: HookRegistry) {
             return;
         }
 
-        // Update location
         ctx.setLocation(locationId);
-        const loc = hooks.getLocation(locationId);
-
-        // After hook — plugin can initialize state
+        const location = hooks.getLocation(locationId);
         await hooks.runAfterHook('location.enter', { locationId, session: ctx.session, ctx });
 
-        ctx.gateway.send(ctx.ws, {
-            id: msg.id, type: 'result', payload: {
-                success: true,
+        sendCore(ctx, {
+            id: msg.id,
+            type: 'result',
+            payload: {
                 locationId,
-                locationName: loc?.name,
-                message: `Entered ${loc?.name ?? locationId}.`,
-                ...buildSessionPayload(ctx, hooks),
-            }
+                locationName: location?.name,
+                ...buildStatePayload(ctx),
+            },
         });
     }, CITY_GATE_COMMANDS[2]);
 
     // --- leave_location ---
     hooks.registerWSCommand('leave_location', async (ctx: WSContext, msg: WSMessage) => {
         if (!ctx.currentLocation) {
-            ctx.gateway.send(ctx.ws, { id: msg.id, type: 'error', payload: { error: 'You are not in any location.', code: CORE_ERROR_CODES.BAD_REQUEST } });
+            sendCore(ctx, { id: msg.id, type: 'error', payload: { error: 'You are not in any location.', code: CORE_ERROR_CODES.BAD_REQUEST } });
             return;
         }
 
         try {
             const locationId = ctx.currentLocation;
             await leaveCurrentLocation(hooks, ctx);
-            ctx.gateway.send(ctx.ws, {
+            sendCore(ctx, {
                 id: msg.id,
                 type: 'result',
-                payload: { success: true, message: `Left ${locationId}.`, ...buildSessionPayload(ctx, hooks) }
+                payload: {
+                    locationId,
+                    ...buildStatePayload(ctx),
+                },
             });
         } catch (error) {
             sendWsError(ctx, msg, error, { status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: 'Unable to leave the current location.' });
         }
     }, CITY_GATE_COMMANDS[3]);
 
-    // --- what_location ---
-    hooks.registerWSCommand('what_location', async (ctx: WSContext, msg: WSMessage) => {
-        const loc = ctx.currentLocation ? hooks.getLocation(ctx.currentLocation) : undefined;
-        ctx.gateway.send(ctx.ws, {
-            id: msg.id, type: 'result', payload: {
-                ...buildSessionPayload(ctx, hooks),
-                inCity: ctx.inCity,
-                currentLocation: ctx.currentLocation ?? null,
-                currentLocationName: loc?.name ?? null,
-                place: !ctx.inCity ? 'outside' : ctx.currentLocation ? `location:${ctx.currentLocation}` : 'city',
-            }
-        });
-    }, CITY_GATE_COMMANDS[4]);
-
-    // --- what_time ---
-    hooks.registerWSCommand('what_time', async (ctx: WSContext, msg: WSMessage) => {
-        const timestamp = Date.now();
-        ctx.gateway.send(ctx.ws, {
+    // --- where_can_i_go ---
+    hooks.registerWSCommand('where_can_i_go', async (ctx: WSContext, msg: WSMessage) => {
+        sendCore(ctx, {
             id: msg.id,
             type: 'result',
             payload: {
-                timestamp,
-                serverTimestamp: timestamp,
+                current: buildCurrentPlace(ctx, hooks),
+                locations: getAccessibleLocations(ctx, hooks),
+            },
+        });
+    }, CITY_GATE_COMMANDS[4]);
+
+    // --- what_can_i_do ---
+    hooks.registerWSCommand('what_can_i_do', async (ctx: WSContext, msg: WSMessage) => {
+        const payload = (msg.payload && typeof msg.payload === 'object') ? msg.payload as { scope?: string; pluginId?: string } : {};
+        const { scope, pluginId } = payload;
+        const cityCommands = getCityCommandSchemas(ctx, hooks);
+        const pluginGroups = getPluginCommandGroups(ctx, hooks);
+
+        if (!scope) {
+            const groups: Array<Record<string, unknown>> = [];
+            if (cityCommands.length > 0) {
+                groups.push({
+                    scope: 'city',
+                    label: 'city',
+                    commandCount: cityCommands.length,
+                });
+            }
+            for (const [currentPluginId, commands] of pluginGroups.entries()) {
+                groups.push({
+                    scope: 'plugin',
+                    pluginId: currentPluginId,
+                    label: currentPluginId,
+                    commandCount: commands.length,
+                });
+            }
+
+            sendCore(ctx, {
+                id: msg.id,
+                type: 'result',
+                payload: {
+                    level: 'summary',
+                    groups,
+                    detailQueries: groups.map((group) => (
+                        group.scope === 'city'
+                            ? { scope: 'city' }
+                            : { scope: 'plugin', pluginId: group.pluginId }
+                    )),
+                    hint: 'Pass one of detailQueries back to what_can_i_do for full command schemas.',
+                },
+            });
+            return;
+        }
+
+        if (scope === 'city') {
+            sendCore(ctx, {
+                id: msg.id,
+                type: 'result',
+                payload: {
+                    level: 'detail',
+                    target: { scope: 'city' },
+                    commands: cityCommands,
+                },
+            });
+            return;
+        }
+
+        if (scope === 'plugin') {
+            if (!pluginId) {
+                sendCore(ctx, {
+                    id: msg.id,
+                    type: 'error',
+                    payload: {
+                        error: 'Missing pluginId for plugin command discovery.',
+                        code: CORE_ERROR_CODES.BAD_REQUEST,
+                    },
+                });
+                return;
+            }
+
+            const commands = pluginGroups.get(pluginId);
+            if (!commands) {
+                sendCore(ctx, {
+                    id: msg.id,
+                    type: 'error',
+                    payload: {
+                        error: `Plugin "${pluginId}" has no available commands in the current context.`,
+                        code: CORE_ERROR_CODES.NOT_FOUND,
+                    },
+                });
+                return;
+            }
+
+            sendCore(ctx, {
+                id: msg.id,
+                type: 'result',
+                payload: {
+                    level: 'detail',
+                    target: { scope: 'plugin', pluginId },
+                    commands,
+                },
+            });
+            return;
+        }
+
+        sendCore(ctx, {
+            id: msg.id,
+            type: 'error',
+            payload: {
+                error: `Unsupported discovery scope "${scope}".`,
+                code: CORE_ERROR_CODES.BAD_REQUEST,
             },
         });
     }, CITY_GATE_COMMANDS[5]);
-
-    // --- what_commands ---
-    hooks.registerWSCommand('what_commands', async (ctx: WSContext, msg: WSMessage) => {
-        ctx.gateway.send(ctx.ws, {
-            id: msg.id, type: 'result', payload: {
-                ...buildSessionPayload(ctx, hooks),
-                commands: hooks.getAvailableWSCommandSchemas(ctx),
-                locations: hooks.getLocations(),
-            }
-        });
-    }, CITY_GATE_COMMANDS[6]);
 
     // --- Bootstrap hook: extend auth result after agent auth ---
     hooks.after('agent.authenticated', async ({ bootstrapData }: { bootstrapData: Record<string, unknown> }) => {
@@ -288,9 +441,7 @@ export function registerCityCommands(hooks: HookRegistry) {
  */
 async function leaveCurrentLocation(hooks: HookRegistry, ctx: WSContext): Promise<void> {
     const locationId = ctx.currentLocation!;
-    // Before hook — plugin can reject (throw)
     await hooks.runHook('location.leave', { locationId, session: ctx.session, ctx });
     ctx.setLocation(null);
-    // After hook — plugin cleanup
     await hooks.runAfterHook('location.leave', { locationId, session: ctx.session, ctx });
 }

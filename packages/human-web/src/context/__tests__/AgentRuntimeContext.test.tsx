@@ -51,9 +51,7 @@ function createState(overrides: Partial<SharedRuntimeState> = {}): SharedRuntime
     isController: false,
     inCity: false,
     currentLocation: null,
-    serverTimestamp: null,
-    availableCommands: [],
-    availableLocations: [],
+    citytime: null,
     wsUrl: null,
     identityKey: null,
     ...overrides,
@@ -200,7 +198,7 @@ describe('AgentRuntimeProvider', () => {
       isController: true,
       currentLocation: 'uruc.chess.chess-club',
       inCity: true,
-      serverTimestamp: 123,
+      citytime: 123,
       identityKey: 'user-1:shadow-1',
     }));
     createRuntimeTransportMock.mockReturnValue(transport);
@@ -235,7 +233,7 @@ describe('AgentRuntimeProvider', () => {
       isController: true,
       inCity: true,
       currentLocation: 'uruc.social.hub',
-      serverTimestamp: 456,
+      citytime: 456,
       identityKey: 'user-1:shadow-1',
     }));
     createRuntimeTransportMock.mockReturnValue(transport);

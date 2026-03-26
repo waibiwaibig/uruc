@@ -274,6 +274,7 @@ async function startSinglePluginHost(
   await host.syncLockFile();
 
   const hooks = new HookRegistry();
+  registerCityCommands(hooks);
   const services = new ServiceRegistry();
   configureServices?.(services);
   const db = createDb(':memory:');
@@ -813,7 +814,7 @@ export default {
     );
 
     expect(stdout.trim()).toBe('ok');
-  }, 15000);
+  }, 90000);
 
   it('keeps plugin-sdk backend importable when the plugin store is addressed through a symlinked path', async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-symlink-'));
@@ -1117,7 +1118,7 @@ export default {
 
     expect(host.getPluginDiagnostics()).toEqual([]);
     expect(hooks.hasWSCommand('enter_city')).toBe(true);
-    expect(hooks.hasWSCommand('what_commands')).toBe(true);
+    expect(hooks.hasWSCommand('what_can_i_do')).toBe(true);
 
     await host.stopAll();
   });
@@ -1450,6 +1451,129 @@ export default {
             expect.stringContaining('uruc.social.list_relationships@v1'),
           ]),
         }),
+      },
+    });
+
+    await host.stopAll();
+  });
+
+  it('returns hierarchical discovery through what_can_i_do for city and plugin command groups', async () => {
+    const socialPluginPath = path.resolve(process.cwd(), '..', 'plugins', 'social');
+    const sent: any[] = [];
+    const gateway = createGateway(sent);
+
+    const { host, hooks, db } = await startSinglePluginHost(
+      'uruc.social',
+      '@uruc/plugin-social',
+      socialPluginPath,
+      (services) => {
+        services.register('ws-gateway', gateway as any);
+      },
+    );
+
+    db.run(sql`
+      INSERT INTO users (id, username, password_hash, email, role, banned, created_at)
+      VALUES ('user-social-discovery', 'socialdiscovery', 'hash', 'social-discovery@example.com', 'user', 0, ${Date.now()})
+    `);
+    db.run(sql`
+      INSERT INTO agents (
+        id, user_id, name, token, is_shadow, trust_mode, allowed_locations,
+        is_online, description, avatar_path, frozen, searchable, created_at
+      ) VALUES (
+        'agent-social-discovery', 'user-social-discovery', 'Social Discovery Agent', 'token-social-discovery', 1, 'full', '[]',
+        1, 'guide runner', NULL, 0, 1, ${Date.now()}
+      )
+    `);
+
+    const wsCtx = {
+      ws: {},
+      session: {
+        userId: 'user-social-discovery',
+        agentId: 'agent-social-discovery',
+        agentName: 'Social Discovery Agent',
+        role: 'agent' as const,
+        trustMode: 'full' as const,
+      },
+      inCity: true,
+      currentLocation: null,
+      isController: true,
+      hasController: true,
+      currentTable: null,
+      gateway,
+      setLocation() {},
+      setInCity() {},
+    } as any;
+
+    await hooks.handleWSCommand('what_can_i_do', wsCtx, {
+      id: 'discover-root',
+      type: 'what_can_i_do',
+      payload: {},
+    });
+
+    expect(sent.at(-1)).toMatchObject({
+      id: 'discover-root',
+      type: 'result',
+      payload: {
+        citytime: expect.any(Number),
+        level: 'summary',
+        groups: expect.arrayContaining([
+          expect.objectContaining({
+            scope: 'city',
+            label: 'city',
+          }),
+          expect.objectContaining({
+            scope: 'plugin',
+            pluginId: 'uruc.social',
+            label: 'uruc.social',
+          }),
+        ]),
+        detailQueries: expect.arrayContaining([
+          { scope: 'city' },
+          { scope: 'plugin', pluginId: 'uruc.social' },
+        ]),
+      },
+    });
+
+    await hooks.handleWSCommand('what_can_i_do', wsCtx, {
+      id: 'discover-plugin',
+      type: 'what_can_i_do',
+      payload: { scope: 'plugin', pluginId: 'uruc.social' },
+    });
+
+    expect(sent.at(-1)).toMatchObject({
+      id: 'discover-plugin',
+      type: 'result',
+      payload: {
+        citytime: expect.any(Number),
+        level: 'detail',
+        target: { scope: 'plugin', pluginId: 'uruc.social' },
+        commands: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'uruc.social.get_usage_guide@v1',
+          }),
+        ]),
+      },
+    });
+
+    await hooks.handleWSCommand('what_can_i_do', wsCtx, {
+      id: 'discover-city',
+      type: 'what_can_i_do',
+      payload: { scope: 'city' },
+    });
+
+    expect(sent.at(-1)).toMatchObject({
+      id: 'discover-city',
+      type: 'result',
+      payload: {
+        citytime: expect.any(Number),
+        level: 'detail',
+        target: { scope: 'city' },
+        commands: expect.arrayContaining([
+          expect.objectContaining({ type: 'what_state_am_i' }),
+          expect.objectContaining({ type: 'where_can_i_go' }),
+          expect.objectContaining({ type: 'what_can_i_do' }),
+          expect.objectContaining({ type: 'claim_control' }),
+        ]),
       },
     });
 

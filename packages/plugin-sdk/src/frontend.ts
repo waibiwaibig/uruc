@@ -103,9 +103,7 @@ export interface PluginSessionState {
   isController: boolean;
   inCity: boolean;
   currentLocation: string | null;
-  serverTimestamp: number;
-  availableCommands?: unknown[];
-  availableLocations?: unknown[];
+  citytime: number;
 }
 
 export interface PluginRuntimeApi extends PluginRuntimeSnapshot {
@@ -114,7 +112,7 @@ export interface PluginRuntimeApi extends PluginRuntimeSnapshot {
   claimControl: () => Promise<PluginSessionState>;
   releaseControl: () => Promise<PluginSessionState>;
   refreshSessionState: () => Promise<PluginSessionState>;
-  refreshCommands: () => Promise<void>;
+  refreshCommands: (query?: { scope: 'city' } | { scope: 'plugin'; pluginId: string }) => Promise<unknown>;
   sendCommand: <T = unknown>(type: string, payload?: unknown) => Promise<T>;
   enterCity: () => Promise<PluginSessionState>;
   leaveCity: () => Promise<void>;

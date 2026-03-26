@@ -1,6 +1,4 @@
 import type {
-  CommandSchema,
-  LocationDef,
   RuntimeSnapshot,
   WsConnectionStatus,
   WsEnvelope,
@@ -19,9 +17,7 @@ export interface SharedRuntimeState {
   isController: boolean;
   inCity: boolean;
   currentLocation: string | null;
-  serverTimestamp: number | null;
-  availableCommands: CommandSchema[];
-  availableLocations: LocationDef[];
+  citytime: number | null;
   wsUrl: string | null;
   identityKey: string | null;
 }
@@ -58,9 +54,7 @@ export function createEmptyRuntimeState(identityKey: string | null = null): Shar
     isController: false,
     inCity: false,
     currentLocation: null,
-    serverTimestamp: null,
-    availableCommands: [],
-    availableLocations: [],
+    citytime: null,
     wsUrl: null,
     identityKey,
   };
@@ -73,8 +67,6 @@ export function toRuntimeSnapshot(state: SharedRuntimeState): RuntimeSnapshot {
     isController: state.isController,
     inCity: state.inCity,
     currentLocation: state.currentLocation,
-    serverTimestamp: state.serverTimestamp ?? Date.now(),
-    availableCommands: state.availableCommands,
-    availableLocations: state.availableLocations,
+    citytime: state.citytime ?? Date.now(),
   };
 }

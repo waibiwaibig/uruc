@@ -64,6 +64,8 @@ export function LobbyPage() {
 
   const refreshRuntime = () => run(t('dashboard:lobby.actionRefresh'), async () => {
     if (runtime.isConnected) {
+      await runtime.refreshSessionState();
+      await runtime.refreshLocations();
       await runtime.refreshCommands();
       return;
     }

@@ -125,7 +125,7 @@ export class WSGateway implements WSGatewayPublic {
   kickAgent(agentId: string): void {
     for (const [clientId, client] of this.clients) {
       if (client.session?.agentId === agentId) {
-        this.send(client.ws, { id: '', type: 'kicked', payload: { reason: 'Disconnected by an administrator.' } });
+        this.sendCore(client.ws, { id: '', type: 'kicked', payload: { reason: 'Disconnected by an administrator.' } });
         this.cleanupClient(clientId, client);
         client.ws.close();
       }
@@ -191,7 +191,7 @@ export class WSGateway implements WSGatewayPublic {
         msg = JSON.parse(data.toString());
         if (!msg.type) throw new Error('Missing type');
       } catch {
-        return this.send(ws, {
+        return this.sendCore(ws, {
           id: '',
           type: 'error',
           payload: { error: 'Invalid JSON', code: CORE_ERROR_CODES.INVALID_JSON },
@@ -201,7 +201,7 @@ export class WSGateway implements WSGatewayPublic {
         await this.handleMessage(clientId, msg);
       } catch (err) {
         console.error(`[WS] Unhandled error in handleMessage:`, (err as Error).message);
-        this.send(ws, { id: msg.id, type: 'error', payload: { error: 'Internal server error', code: 'INTERNAL_ERROR' } });
+        this.sendCore(ws, { id: msg.id, type: 'error', payload: { error: 'Internal server error', code: 'INTERNAL_ERROR' } });
       }
     });
 
@@ -239,7 +239,7 @@ export class WSGateway implements WSGatewayPublic {
         });
 
         this.pushToOwner(userId, {
-          id: '', type: 'agent_status', payload: { agentId, isOnline: false },
+          id: '', type: 'agent_status', payload: { agentId, isOnline: false, citytime: Date.now() },
         });
       }
 
@@ -258,7 +258,7 @@ export class WSGateway implements WSGatewayPublic {
       const now = Date.now();
       client.msgTimestamps = client.msgTimestamps.filter(t => now - t < 60000);
       if (client.msgTimestamps.length >= 120) {
-        return this.send(client.ws, { id: msg.id, type: 'error', payload: { error: 'You are sending commands too quickly.', code: 'RATE_LIMITED', retryable: true } });
+        return this.sendCore(client.ws, { id: msg.id, type: 'error', payload: { error: 'You are sending commands too quickly.', code: 'RATE_LIMITED', retryable: true } });
       }
       client.msgTimestamps.push(now);
     }
@@ -278,20 +278,20 @@ export class WSGateway implements WSGatewayPublic {
       const wsCtx = this.createWSContext(clientId, client);
       const result = await this.hooks.handleWSCommand('owner_send', wsCtx, msg);
       if (!result.handled) {
-        this.send(client.ws, { id: msg.id, type: 'error', payload: { error: 'owner_send handler not available', code: 'NO_HANDLER' } });
+        this.sendCore(client.ws, { id: msg.id, type: 'error', payload: { error: 'owner_send handler not available', code: 'NO_HANDLER' } });
       } else if (result.blocked) {
-        this.send(client.ws, { id: msg.id, type: 'error', payload: result.blocked });
+        this.sendCore(client.ws, { id: msg.id, type: 'error', payload: result.blocked });
       }
       return;
     }
 
     // --- Agent messages require auth ---
     if (!client.session) {
-      return this.send(client.ws, { id: msg.id, type: 'error', payload: { error: 'Not authenticated. Send auth message first.', code: 'NOT_AUTHENTICATED', action: 'auth' } });
+      return this.sendCore(client.ws, { id: msg.id, type: 'error', payload: { error: 'Not authenticated. Send auth message first.', code: 'NOT_AUTHENTICATED', action: 'auth' } });
     }
 
-    if (msg.type === 'session_state') {
-      return this.handleSessionState(clientId, client, msg);
+    if (msg.type === 'what_state_am_i') {
+      return this.handleStateQuery(clientId, client, msg);
     }
 
     if (msg.type === 'claim_control') {
@@ -312,7 +312,7 @@ export class WSGateway implements WSGatewayPublic {
 
       const requiresConfirmation = schema.confirmationPolicy?.required ?? schema.requiresConfirmation ?? false;
       if (requiresConfirmation && client.session.trustMode === 'confirm') {
-        return this.send(client.ws, {
+        return this.sendCore(client.ws, {
           id: msg.id,
           type: 'error',
           payload: {
@@ -336,7 +336,7 @@ export class WSGateway implements WSGatewayPublic {
     if (result.handled) {
       // If blocked by a before-hook, send the structured reason
       if (result.blocked) {
-        return this.send(client.ws, { id: msg.id, type: 'error', payload: result.blocked });
+        return this.sendCore(client.ws, { id: msg.id, type: 'error', payload: result.blocked });
       }
       if (
         client.session &&
@@ -351,7 +351,7 @@ export class WSGateway implements WSGatewayPublic {
       return;
     }
 
-    return this.send(client.ws, { id: msg.id, type: 'error', payload: { error: `Unknown command: ${msg.type}`, code: 'UNKNOWN_COMMAND' } });
+    return this.sendCore(client.ws, { id: msg.id, type: 'error', payload: { error: `Unknown command: ${msg.type}`, code: 'UNKNOWN_COMMAND' } });
   }
 
   // === Private: Auth handlers ===
@@ -359,20 +359,20 @@ export class WSGateway implements WSGatewayPublic {
   private async handleOwnerAuth(clientId: string, client: ConnectedClient, msg: WSMessage): Promise<void> {
     const decoded = verifyToken(msg.payload as string);
     if (!decoded) {
-      return this.send(client.ws, { id: msg.id, type: 'error', payload: { error: 'Invalid owner token', code: 'INVALID_TOKEN' } });
+      return this.sendCore(client.ws, { id: msg.id, type: 'error', payload: { error: 'Invalid owner token', code: 'INVALID_TOKEN' } });
     }
 
     try {
       const owner = await this.auth.getUserById(decoded.userId);
       if (owner.banned) {
-        return this.send(client.ws, { id: msg.id, type: 'error', payload: { error: 'Account is banned', code: 'USER_BANNED' } });
+        return this.sendCore(client.ws, { id: msg.id, type: 'error', payload: { error: 'Account is banned', code: 'USER_BANNED' } });
       }
     } catch {
-      return this.send(client.ws, { id: msg.id, type: 'error', payload: { error: 'User not found', code: 'USER_NOT_FOUND' } });
+      return this.sendCore(client.ws, { id: msg.id, type: 'error', payload: { error: 'User not found', code: 'USER_NOT_FOUND' } });
     }
 
     client.ownerSession = { userId: decoded.userId };
-    this.send(client.ws, { id: msg.id, type: 'result', payload: { userId: decoded.userId } });
+    this.sendCore(client.ws, { id: msg.id, type: 'result', payload: { userId: decoded.userId } });
 
     const wsCtx = this.createWSContext(clientId, client);
     await this.hooks.runHook('owner.authenticated', { session: client.ownerSession, ctx: wsCtx });
@@ -386,7 +386,7 @@ export class WSGateway implements WSGatewayPublic {
       try {
         const owner = await this.auth.getUserById(session.userId);
         if (owner.banned) {
-          return this.send(client.ws, { id: msg.id, type: 'error', payload: { error: 'Account is banned', code: 'USER_BANNED' } });
+          return this.sendCore(client.ws, { id: msg.id, type: 'error', payload: { error: 'Account is banned', code: 'USER_BANNED' } });
         }
       } catch { /* ignore */ }
 
@@ -394,7 +394,7 @@ export class WSGateway implements WSGatewayPublic {
       const agents = await this.auth.getAgentsByUser(session.userId);
       const agentRecord = agents.find((a: any) => a.id === session.agentId);
       if (agentRecord?.frozen) {
-        return this.send(client.ws, { id: msg.id, type: 'error', payload: { error: 'Agent is frozen', code: 'AGENT_FROZEN' } });
+        return this.sendCore(client.ws, { id: msg.id, type: 'error', payload: { error: 'Agent is frozen', code: 'AGENT_FROZEN' } });
       }
 
       client.session = session;
@@ -402,7 +402,7 @@ export class WSGateway implements WSGatewayPublic {
       await this.auth.setAgentOnline(session.agentId, true);
 
       this.pushToOwner(session.userId, {
-        id: '', type: 'agent_status', payload: { agentId: session.agentId, isOnline: true },
+        id: '', type: 'agent_status', payload: { agentId: session.agentId, isOnline: true, citytime: Date.now() },
       });
 
       const bootstrapData: Record<string, unknown> = {};
@@ -411,7 +411,7 @@ export class WSGateway implements WSGatewayPublic {
       await this.hooks.runHook('agent.authenticated', authContext);
       await this.hooks.runAfterHook('agent.authenticated', authContext);
 
-      this.send(client.ws, {
+      this.sendCore(client.ws, {
         id: msg.id,
         type: 'result',
         payload: {
@@ -453,9 +453,9 @@ export class WSGateway implements WSGatewayPublic {
 
   // === Helpers ===
 
-  private handleSessionState(clientId: string, client: ConnectedClient, msg: WSMessage): void {
+  private handleStateQuery(clientId: string, client: ConnectedClient, msg: WSMessage): void {
     if (!client.session) return;
-    this.send(client.ws, { id: msg.id, type: 'result', payload: this.buildSessionState(client.session.agentId, clientId) });
+    this.sendCore(client.ws, { id: msg.id, type: 'result', payload: this.buildSessionState(client.session.agentId, clientId) });
   }
 
   private handleClaimControl(clientId: string, client: ConnectedClient, msg: WSMessage): void {
@@ -465,7 +465,7 @@ export class WSGateway implements WSGatewayPublic {
     if (result.replacedConnectionId) {
       const replaced = this.clients.get(result.replacedConnectionId);
       if (replaced) {
-        this.send(replaced.ws, {
+        this.sendCore(replaced.ws, {
           id: '',
           type: 'control_replaced',
           payload: {
@@ -477,7 +477,7 @@ export class WSGateway implements WSGatewayPublic {
       }
     }
 
-    this.send(client.ws, {
+    this.sendCore(client.ws, {
       id: msg.id,
       type: 'result',
       payload: {
@@ -493,7 +493,7 @@ export class WSGateway implements WSGatewayPublic {
     if (!client.session) return;
     const snapshot = this.agentSessions.releaseControl(client.session.agentId, clientId);
     if (!snapshot) {
-      return this.send(client.ws, {
+      return this.sendCore(client.ws, {
         id: msg.id,
         type: 'error',
         payload: {
@@ -503,7 +503,7 @@ export class WSGateway implements WSGatewayPublic {
         },
       });
     }
-    this.send(client.ws, {
+    this.sendCore(client.ws, {
       id: msg.id,
       type: 'result',
       payload: {
@@ -528,7 +528,7 @@ export class WSGateway implements WSGatewayPublic {
       return true;
     }
 
-    this.send(client.ws, {
+    this.sendCore(client.ws, {
       id: msg.id,
       type: 'error',
       payload: {
@@ -541,21 +541,8 @@ export class WSGateway implements WSGatewayPublic {
     return false;
   }
 
-  private buildSessionState(agentId: string, connectionId: string): AgentSessionSnapshot & {
-    availableCommands: ReturnType<HookRegistry['getWSCommandSchemas']>;
-    availableLocations: ReturnType<HookRegistry['getLocations']>;
-  } {
-    const snapshot = this.agentSessions.getSnapshot(agentId, connectionId);
-    const client = this.clients.get(connectionId);
-    const availableCommands = client
-      ? this.hooks.getAvailableWSCommandSchemas(this.createWSContext(connectionId, client))
-      : this.hooks.getWSCommandSchemas();
-
-    return {
-      ...snapshot,
-      availableCommands,
-      availableLocations: this.hooks.getLocations(),
-    };
+  private buildSessionState(agentId: string, connectionId: string): AgentSessionSnapshot {
+    return this.agentSessions.getSnapshot(agentId, connectionId);
   }
 
   private didSessionStateChange(before: AgentSessionSnapshot, after: AgentSessionSnapshot): boolean {
@@ -569,7 +556,7 @@ export class WSGateway implements WSGatewayPublic {
     for (const [clientId, client] of this.clients) {
       if (client.session?.agentId !== agentId) continue;
       if (excludedClientId && clientId === excludedClientId) continue;
-      this.send(client.ws, { id: '', type: 'session_state', payload: this.buildSessionState(agentId, clientId) });
+      this.sendCore(client.ws, { id: '', type: 'session_state', payload: this.buildSessionState(agentId, clientId) });
     }
   }
 
@@ -587,7 +574,7 @@ export class WSGateway implements WSGatewayPublic {
     fallback: { status: number; code: string; error: string; retryable?: boolean; action?: string; details?: Record<string, unknown> },
   ): void {
     const resolved = resolveError(error, fallback);
-    this.send(ws, { id, type: 'error', payload: resolved.payload });
+    this.sendCore(ws, { id, type: 'error', payload: resolved.payload });
   }
 
   private createWSContext(clientId: string, client: ConnectedClient): WSContext {
@@ -600,7 +587,7 @@ export class WSGateway implements WSGatewayPublic {
             isController: false,
             inCity: false,
             currentLocation: null,
-            serverTimestamp: Date.now(),
+            citytime: Date.now(),
           }
     );
 
@@ -629,6 +616,28 @@ export class WSGateway implements WSGatewayPublic {
         if (!client.session) return;
         this.agentSessions.updateState(client.session.agentId, { inCity: value });
       },
+    };
+  }
+
+  private sendCore(ws: WebSocket, msg: WSMessage): void {
+    this.send(ws, {
+      ...msg,
+      payload: this.attachCitytime(msg.payload),
+    });
+  }
+
+  private attachCitytime(payload: unknown): unknown {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return payload;
+    }
+
+    if ('citytime' in (payload as Record<string, unknown>)) {
+      return payload;
+    }
+
+    return {
+      ...(payload as Record<string, unknown>),
+      citytime: Date.now(),
     };
   }
 }

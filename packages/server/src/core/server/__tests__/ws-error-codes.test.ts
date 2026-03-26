@@ -16,6 +16,7 @@ interface SentEnvelope {
   id?: string;
   type: string;
   payload?: {
+    citytime?: number;
     code?: string;
     error?: string;
   };
@@ -79,7 +80,10 @@ describe('WS core error codes', () => {
     await socket.emit('message', Buffer.from('{bad-json'));
 
     expect(sent.at(-1)?.type).toBe('error');
-    expect(sent.at(-1)?.payload?.code).toBe('INVALID_JSON');
+    expect(sent.at(-1)?.payload).toMatchObject({
+      code: 'INVALID_JSON',
+      citytime: expect.any(Number),
+    });
   });
 
   it('returns UNKNOWN_COMMAND for unmapped websocket commands', async () => {
@@ -118,5 +122,59 @@ describe('WS core error codes', () => {
 
     expect(sent.at(-1)?.type).toBe('error');
     expect(sent.at(-1)?.payload?.code).toBe('BAD_REQUEST');
+  });
+
+  it('rejects removed request commands after the protocol simplification', async () => {
+    const user = await auth.register('shamash', 'shamash@example.com', 'secret123');
+    const sent: SentEnvelope[] = [];
+    const client = createClient(sent);
+
+    (gateway as any).clients.set('client-3', client);
+    await (gateway as any).handleAgentAuth('client-3', client, {
+      id: 'auth-3',
+      type: 'auth',
+      payload: signToken(user.id, 'user'),
+    });
+
+    for (const command of ['session_state', 'what_location', 'what_time', 'what_commands']) {
+      sent.length = 0;
+      await (gateway as any).handleMessage('client-3', { id: `${command}-1`, type: command, payload: {} });
+      expect(sent.at(-1)?.payload).toMatchObject({
+        code: 'UNKNOWN_COMMAND',
+        citytime: expect.any(Number),
+      });
+    }
+  });
+
+  it('includes citytime in confirmation-required core errors', async () => {
+    hooks.registerWSCommand('confirm_me', () => undefined, {
+      type: 'confirm_me',
+      description: 'Needs confirmation',
+      pluginName: 'core',
+      params: {},
+      controlPolicy: { controllerRequired: false },
+      confirmationPolicy: { required: true },
+    });
+
+    const user = await auth.register('ishtar', 'ishtar@example.com', 'secret123');
+    const sent: SentEnvelope[] = [];
+    const client = createClient(sent);
+
+    (gateway as any).clients.set('client-4', client);
+    await (gateway as any).handleAgentAuth('client-4', client, {
+      id: 'auth-4',
+      type: 'auth',
+      payload: signToken(user.id, 'user'),
+    });
+
+    client.session.trustMode = 'confirm';
+    sent.length = 0;
+
+    await (gateway as any).handleMessage('client-4', { id: 'confirm-1', type: 'confirm_me', payload: {} });
+
+    expect(sent.at(-1)?.payload).toMatchObject({
+      code: 'CONFIRMATION_REQUIRED',
+      citytime: expect.any(Number),
+    });
   });
 });

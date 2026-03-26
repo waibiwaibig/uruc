@@ -72,7 +72,7 @@ function createRuntime(overrides: Record<string, unknown> = {}) {
     error: '',
     inCity: true,
     currentLocation: null,
-    availableLocations: [
+    discoveredLocations: [
       {
         id: 'acme.venue.sunny-plaza',
         name: 'Sunny Plaza',
@@ -90,38 +90,41 @@ function createRuntime(overrides: Record<string, unknown> = {}) {
       hasController: true,
       inCity: true,
       currentLocation: null,
-      serverTimestamp: Date.now(),
-      availableCommands: [],
-      availableLocations: [],
+      citytime: Date.now(),
     })),
     releaseControl: vi.fn(async () => ({
       isController: false,
       hasController: false,
       inCity: false,
       currentLocation: null,
-      serverTimestamp: Date.now(),
-      availableCommands: [],
-      availableLocations: [],
+      citytime: Date.now(),
     })),
     refreshSessionState: vi.fn(async () => ({
       isController: true,
       hasController: true,
       inCity: true,
       currentLocation: null,
-      serverTimestamp: Date.now(),
-      availableCommands: [],
-      availableLocations: [],
+      citytime: Date.now(),
     })),
-    refreshCommands: vi.fn(async () => undefined),
+    refreshCommands: vi.fn(async () => ({ level: 'summary', citytime: Date.now(), groups: [], detailQueries: [], hint: '' })),
+    refreshLocations: vi.fn(async () => ({
+      citytime: Date.now(),
+      current: { place: 'city', locationId: null, locationName: null },
+      locations: [
+        {
+          id: 'acme.venue.sunny-plaza',
+          name: 'Sunny Plaza',
+          description: 'A calm venue for plugin testing.',
+        },
+      ],
+    })),
     sendCommand: vi.fn(async () => ({})),
     enterCity: vi.fn(async () => ({
       isController: true,
       hasController: true,
       inCity: true,
       currentLocation: null,
-      serverTimestamp: Date.now(),
-      availableCommands: [],
-      availableLocations: [],
+      citytime: Date.now(),
     })),
     leaveCity: vi.fn(async () => undefined),
     enterLocation: vi.fn(async () => undefined),
@@ -200,7 +203,7 @@ describe('PlayPage', () => {
     });
 
     expect(runtime.enterLocation).toHaveBeenCalledWith('acme.venue.sunny-plaza');
-    expect(runtime.refreshCommands).toHaveBeenCalled();
+    expect(runtime.refreshLocations).toHaveBeenCalled();
     expect(prepareVenueWindowMock).toHaveBeenCalledTimes(1);
 
     const preparedVenue = prepareVenueWindowMock.mock.results[0]?.value as { navigate: ReturnType<typeof vi.fn> };

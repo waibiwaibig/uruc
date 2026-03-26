@@ -2,7 +2,17 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import i18n, { formatTime } from '../i18n';
 import { createRuntimeTransport } from '../lib/runtime-transport';
 import { getSavedWsUrl, setSavedWsUrl } from '../lib/storage';
-import type { CommandSchema, LocationDef, RuntimeSnapshot, WsConnectionStatus } from '../lib/types';
+import type {
+  CommandDiscoveryGroup,
+  CommandDiscoveryQuery,
+  CommandDiscoveryResponse,
+  CommandSchema,
+  LocationDef,
+  LocationDiscoveryCurrent,
+  LocationDiscoveryResult,
+  RuntimeSnapshot,
+  WsConnectionStatus,
+} from '../lib/types';
 import { useAgents } from './AgentsContext';
 import { useAuth } from './AuthContext';
 import type { SharedRuntimeState } from '../lib/runtime-broker-protocol';
@@ -18,21 +28,24 @@ interface AgentRuntimeContextValue {
   agentSession: { agentId: string; agentName: string } | null;
   inCity: boolean;
   currentLocation: string | null;
-  serverTimestamp: number | null;
-  availableCommands: CommandSchema[];
-  availableLocations: LocationDef[];
+  citytime: number | null;
+  currentPlace: LocationDiscoveryCurrent | null;
+  commandGroups: CommandDiscoveryGroup[];
+  discoveredCommands: CommandSchema[];
+  discoveredLocations: LocationDef[];
   events: string[];
   connect: () => Promise<void>;
   disconnect: () => void;
   claimControl: () => Promise<RuntimeSnapshot>;
   releaseControl: () => Promise<RuntimeSnapshot>;
   refreshSessionState: () => Promise<RuntimeSnapshot>;
+  refreshLocations: () => Promise<LocationDiscoveryResult>;
   sendCommand: <T = unknown>(type: string, payload?: unknown) => Promise<T>;
   enterCity: () => Promise<RuntimeSnapshot>;
   leaveCity: () => Promise<void>;
   enterLocation: (locationId: string) => Promise<void>;
   leaveLocation: () => Promise<void>;
-  refreshCommands: () => Promise<void>;
+  refreshCommands: (query?: CommandDiscoveryQuery) => Promise<CommandDiscoveryResponse>;
   subscribe: (event: string, listener: (payload: unknown) => void) => () => void;
   reportEvent: (message: string) => void;
 }
@@ -62,9 +75,11 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
   const [isController, setIsController] = useState(false);
   const [inCity, setInCity] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<string | null>(null);
-  const [serverTimestamp, setServerTimestamp] = useState<number | null>(null);
-  const [availableCommands, setAvailableCommands] = useState<CommandSchema[]>([]);
-  const [availableLocations, setAvailableLocations] = useState<LocationDef[]>([]);
+  const [citytime, setCitytime] = useState<number | null>(null);
+  const [currentPlace, setCurrentPlace] = useState<LocationDiscoveryCurrent | null>(null);
+  const [commandGroups, setCommandGroups] = useState<CommandDiscoveryGroup[]>([]);
+  const [discoveredCommands, setDiscoveredCommands] = useState<CommandSchema[]>([]);
+  const [discoveredLocations, setDiscoveredLocations] = useState<LocationDef[]>([]);
   const [events, setEvents] = useState<string[]>([]);
 
   const pushEvent = useCallback((message: string) => {
@@ -79,9 +94,7 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
     setIsController(nextState.isController);
     setInCity(nextState.inCity);
     setCurrentLocation(nextState.currentLocation);
-    setServerTimestamp(nextState.serverTimestamp);
-    setAvailableCommands(nextState.availableCommands);
-    setAvailableLocations(nextState.availableLocations);
+    setCitytime(nextState.citytime);
   }, []);
 
   const resetRuntimeState = useCallback((clearEvents = false) => {
@@ -92,9 +105,11 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
     setIsController(false);
     setInCity(false);
     setCurrentLocation(null);
-    setServerTimestamp(null);
-    setAvailableCommands([]);
-    setAvailableLocations([]);
+    setCitytime(null);
+    setCurrentPlace(null);
+    setCommandGroups([]);
+    setDiscoveredCommands([]);
+    setDiscoveredLocations([]);
     if (clearEvents) {
       setEvents([]);
     }
@@ -143,6 +158,20 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
       transport.dispose();
     };
   }, [applySharedState, emitRuntimeMessage, pushEvent]);
+
+  useEffect(() => {
+    if (!inCity) {
+      setCurrentPlace({ place: 'outside', locationId: null, locationName: null });
+      return;
+    }
+    if (!currentLocation) {
+      setCurrentPlace({ place: 'city', locationId: null, locationName: null });
+      return;
+    }
+
+    const locationName = discoveredLocations.find((location) => location.id === currentLocation)?.name ?? null;
+    setCurrentPlace({ place: 'location', locationId: currentLocation, locationName });
+  }, [discoveredLocations, currentLocation, inCity]);
 
   useEffect(() => {
     const transport = transportRef.current;
@@ -199,9 +228,11 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
     setIsController(false);
     setInCity(false);
     setCurrentLocation(null);
-    setServerTimestamp(null);
-    setAvailableCommands([]);
-    setAvailableLocations([]);
+    setCitytime(null);
+    setCurrentPlace(null);
+    setCommandGroups([]);
+    setDiscoveredCommands([]);
+    setDiscoveredLocations([]);
     pushEvent(i18n.t('runtime:events.disconnected'));
   }, [pushEvent]);
 
@@ -210,7 +241,14 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const refreshSessionState = useCallback(async () => {
-    return transportRef.current.send<RuntimeSnapshot>('session_state');
+    return transportRef.current.send<RuntimeSnapshot>('what_state_am_i');
+  }, []);
+
+  const refreshLocations = useCallback(async () => {
+    const result = await transportRef.current.send<LocationDiscoveryResult>('where_can_i_go');
+    setDiscoveredLocations(result.locations);
+    setCurrentPlace(result.current);
+    return result;
   }, []);
 
   const claimControl = useCallback(async () => {
@@ -237,9 +275,16 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
     await sendCommand('leave_location');
   }, [sendCommand]);
 
-  const refreshCommands = useCallback(async () => {
-    await refreshSessionState();
-  }, [refreshSessionState]);
+  const refreshCommands = useCallback(async (query?: CommandDiscoveryQuery) => {
+    const result = await transportRef.current.send<CommandDiscoveryResponse>('what_can_i_do', query);
+    if (result.level === 'summary') {
+      setCommandGroups(result.groups);
+      setDiscoveredCommands([]);
+      return result;
+    }
+    setDiscoveredCommands(result.commands);
+    return result;
+  }, []);
 
   const subscribe = useCallback((event: string, listener: (payload: unknown) => void) => {
     const listeners = eventListenersRef.current;
@@ -268,15 +313,18 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
       agentSession,
       inCity,
       currentLocation,
-      serverTimestamp,
-      availableCommands,
-      availableLocations,
+      citytime,
+      currentPlace,
+      commandGroups,
+      discoveredCommands,
+      discoveredLocations,
       events,
       connect,
       disconnect,
       claimControl,
       releaseControl,
       refreshSessionState,
+      refreshLocations,
       sendCommand,
       enterCity,
       leaveCity,
@@ -296,15 +344,18 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
       agentSession,
       inCity,
       currentLocation,
-      serverTimestamp,
-      availableCommands,
-      availableLocations,
+      citytime,
+      currentPlace,
+      commandGroups,
+      discoveredCommands,
+      discoveredLocations,
       events,
       connect,
       disconnect,
       claimControl,
       releaseControl,
       refreshSessionState,
+      refreshLocations,
       sendCommand,
       enterCity,
       leaveCity,

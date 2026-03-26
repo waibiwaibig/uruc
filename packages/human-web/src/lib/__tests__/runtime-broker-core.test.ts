@@ -8,7 +8,7 @@ function createSnapshot(overrides: Partial<{
   isController: boolean;
   inCity: boolean;
   currentLocation: string | null;
-  serverTimestamp: number;
+  citytime: number;
 }> = {}) {
   return {
     connected: true,
@@ -16,9 +16,7 @@ function createSnapshot(overrides: Partial<{
     isController: overrides.isController ?? false,
     inCity: overrides.inCity ?? false,
     currentLocation: overrides.currentLocation ?? null,
-    serverTimestamp: overrides.serverTimestamp ?? 123,
-    availableCommands: [],
-    availableLocations: [],
+    citytime: overrides.citytime ?? 123,
   };
 }
 
@@ -151,7 +149,7 @@ describe('SharedRuntimeBrokerCore', () => {
       isController: true,
       inCity: true,
       currentLocation: 'uruc.chess.chess-club',
-      serverTimestamp: 456,
+      citytime: 456,
     });
 
     await core.handleMessage('client-a', {

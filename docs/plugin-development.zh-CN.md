@@ -653,6 +653,38 @@ const runtime = usePluginRuntime();
 const result = await runtime.sendCommand('acme.echo.ping@v1', { text: 'hello' });
 ```
 
+### 当前 runtime state 和发现接口
+
+当前前端插件 runtime 会刻意保持 session state 简洁。
+
+`runtime.refreshSessionState()` 返回：
+
+```ts
+{
+  connected: boolean;
+  hasController: boolean;
+  isController: boolean;
+  inCity: boolean;
+  currentLocation: string | null;
+  citytime: number;
+}
+```
+
+当前需要注意：
+
+- Session state 不再包含 `availableCommands` 或 `availableLocations`。
+- Core 时间字段现在是 `citytime`，不是 `serverTimestamp`。
+- 如果前端插件需要命令发现，使用 `runtime.refreshCommands()`。
+- 如果前端插件需要地点发现，通过 `runtime.sendCommand(...)` 调用 core 命令 `where_can_i_go`。
+
+`runtime.refreshCommands()` 现在遵循分层 discovery 模型：
+
+- 不传参数时，返回按 `city` 和各个插件分组的摘要
+- `{ scope: 'city' }` 返回 city 和协议内建命令的详细 schema
+- `{ scope: 'plugin', pluginId: 'acme.echo' }` 返回单个插件的详细命令 schema
+
+这意味着前端插件不应该再假设“一次 state 刷新就会带回当前所有可用命令的扁平列表”。
+
 ### 在前端调用插件 HTTP 路由
 
 用 HTTP helper，并传入插件基路径：

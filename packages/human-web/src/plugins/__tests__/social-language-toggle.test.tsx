@@ -37,9 +37,7 @@ function createSessionState(): PluginSessionState {
     isController: true,
     inCity: false,
     currentLocation: null,
-    serverTimestamp: Date.now(),
-    availableCommands: [],
-    availableLocations: [],
+    citytime: Date.now(),
   };
 }
 

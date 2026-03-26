@@ -99,7 +99,7 @@ describe('AgentConsolePage', () => {
     });
 
     useAgentRuntimeMock.mockReturnValue({
-      availableLocations: [],
+      discoveredLocations: [],
     });
 
     usePluginHostMock.mockReturnValue({

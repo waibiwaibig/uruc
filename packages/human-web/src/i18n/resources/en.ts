@@ -106,7 +106,6 @@ const en = {
       tokenCredentials: 'Connection credentials',
       blockedLocations: 'Blocked locations',
       recentActivity: 'Recent activity',
-      availableCommands: 'Available commands',
       realtimeEvents: 'Realtime events',
       keyword: 'Keyword',
       category: 'Category',

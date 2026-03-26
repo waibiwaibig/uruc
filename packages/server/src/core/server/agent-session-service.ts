@@ -16,7 +16,7 @@ export interface AgentSessionSnapshot {
   isController: boolean;
   inCity: boolean;
   currentLocation: string | null;
-  serverTimestamp: number;
+  citytime: number;
 }
 
 interface ClaimResult {
@@ -43,7 +43,7 @@ export class AgentSessionService {
       isController: Boolean(connectionId) && session.controllerConnectionId === connectionId && session.controllerConnected,
       inCity: session.inCity,
       currentLocation: session.currentLocation,
-      serverTimestamp: Date.now(),
+      citytime: Date.now(),
     };
   }
 

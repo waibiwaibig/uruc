@@ -187,6 +187,17 @@ function createLayoutScopeFixture() {
   };
 }
 
+function createSessionState(): PluginSessionState {
+  return {
+    connected: true,
+    hasController: true,
+    isController: true,
+    inCity: false,
+    currentLocation: null,
+    citytime: Date.now(),
+  };
+}
+
 function createRuntime(overrides: Partial<PluginRuntimeApi> = {}) {
   const listeners = new Map<string, Set<(payload: unknown) => void>>();
   const sendCommand: PluginRuntimeApi['sendCommand'] = async <T,>() => ({} as T);

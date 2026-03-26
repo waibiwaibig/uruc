@@ -175,8 +175,8 @@ export function PlayPage() {
   );
 
   const destinations = useMemo(
-    () => buildDestinations(runtime.availableLocations, runtime.currentLocation, locationBlueprints, t),
-    [locationBlueprints, runtime.availableLocations, runtime.currentLocation, t],
+    () => buildDestinations(runtime.discoveredLocations, runtime.currentLocation, locationBlueprints, t),
+    [locationBlueprints, runtime.discoveredLocations, runtime.currentLocation, t],
   );
   const roads = useMemo(() => buildRoads(destinations), [destinations]);
   const focusDestination = useMemo(
@@ -237,7 +237,7 @@ export function PlayPage() {
     if (!synced.inCity) {
       await runtime.enterCity();
     }
-    await runtime.refreshCommands();
+    await runtime.refreshLocations();
   };
 
   useEffect(() => {
@@ -301,7 +301,7 @@ export function PlayPage() {
         await withGameplayControl(runtime.enterCity);
       }
       await withGameplayControl(() => runtime.enterLocation(locationId));
-      await runtime.refreshCommands();
+      await runtime.refreshLocations();
 
       if (route) {
         preparedVenue!.navigate(route);
@@ -321,7 +321,7 @@ export function PlayPage() {
     if (!currentLocation) return;
     if (!window.confirm(t('play:playPage.leaveVenueConfirm'))) return;
     await withGameplayControl(runtime.leaveLocation);
-    await runtime.refreshCommands();
+    await runtime.refreshLocations();
   });
 
   const leaveCity = () => run(t('play:playPage.leaveCityLabel'), async () => {

@@ -106,7 +106,6 @@ const zhCN = {
       tokenCredentials: '连接凭证',
       blockedLocations: '禁止进入的地点',
       recentActivity: '最近记录',
-      availableCommands: '可用命令',
       realtimeEvents: '实时事件',
       keyword: '关键词',
       category: '类目',

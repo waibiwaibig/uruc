@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { RefreshCw, ShieldAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -13,6 +13,11 @@ export function DeveloperRuntimePage() {
   const pluginHost = usePluginHost();
   const [busyAction, setBusyAction] = useState('');
   const [errorText, setErrorText] = useState('');
+
+  useEffect(() => {
+    if (!runtime.isConnected) return;
+    void runtime.refreshCommands().catch(() => undefined);
+  }, [runtime.isConnected, runtime.refreshCommands]);
 
   const run = async <T,>(label: string, action: () => Promise<T>): Promise<T | null> => {
     setBusyAction(label);
@@ -83,27 +88,58 @@ export function DeveloperRuntimePage() {
               <p className="section-label">commands</p>
               <h2 className="title-panel">{t('dashboard:developer.commandsTitle')}</h2>
             </div>
-            <span className="info-pill">{runtime.availableCommands.length}</span>
+            <span className="info-pill">{runtime.commandGroups.length}</span>
           </div>
-          {runtime.availableCommands.length === 0 ? (
+          {runtime.commandGroups.length === 0 ? (
             <div className="notice info">{t('dashboard:developer.commandNone')}</div>
           ) : (
-            <div className="command-grid">
-              {runtime.availableCommands.map((cmd) => (
-                <article key={cmd.type} className="command-card">
-                  <div className="row space">
-                    <strong className="mono">{cmd.type}</strong>
-                    <span className="tiny muted">{cmd.pluginName || 'core'}</span>
-                  </div>
-                  <p className="tiny muted u-mt-1">{cmd.description}</p>
-                  <div className="code-block u-mt-1">
-                    {Object.keys(cmd.params).length === 0
-                      ? 'params: {}'
-                      : `params: ${Object.keys(cmd.params).join(', ')}`}
-                  </div>
-                </article>
-              ))}
-            </div>
+            <>
+              <div className="command-grid">
+                {runtime.commandGroups.map((group) => (
+                  <article key={group.scope === 'city' ? 'city' : group.pluginId} className="command-card">
+                    <div className="row space">
+                      <strong className="mono">{group.label}</strong>
+                      <span className="tiny muted">{group.commandCount}</span>
+                    </div>
+                    <p className="tiny muted u-mt-1">
+                      {group.scope === 'city' ? 'City core commands' : `Plugin commands for ${group.pluginId}`}
+                    </p>
+                    <button
+                      className="app-btn secondary u-mt-2"
+                      disabled={!!busyAction}
+                      onClick={() => void run(
+                        group.scope === 'city' ? 'Load city commands' : `Load ${group.label}`,
+                        () => runtime.refreshCommands(group.scope === 'city' ? { scope: 'city' } : {
+                          scope: 'plugin',
+                          pluginId: group.pluginId!,
+                        }),
+                      )}
+                    >
+                      {t('common:actions.refresh')}
+                    </button>
+                  </article>
+                ))}
+              </div>
+
+              {runtime.discoveredCommands.length > 0 ? (
+                <div className="command-grid u-mt-2">
+                  {runtime.discoveredCommands.map((cmd) => (
+                    <article key={cmd.type} className="command-card">
+                      <div className="row space">
+                        <strong className="mono">{cmd.type}</strong>
+                        <span className="tiny muted">{cmd.pluginName || 'core'}</span>
+                      </div>
+                      <p className="tiny muted u-mt-1">{cmd.description}</p>
+                      <div className="code-block u-mt-1">
+                        {Object.keys(cmd.params).length === 0
+                          ? 'params: {}'
+                          : `params: ${Object.keys(cmd.params).join(', ')}`}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+            </>
           )}
         </section>
 

@@ -60,7 +60,7 @@ export class AgentWsClient {
       this.setStatus('authenticating');
       const authResult = await this.send<{ agentId: string; agentName: string }>('auth', token, this.authTimeoutMs);
       this.setStatus('syncing');
-      const snapshot = await this.send<unknown>('session_state', undefined, this.syncTimeoutMs);
+      const snapshot = await this.send<unknown>('what_state_am_i', undefined, this.syncTimeoutMs);
       this.setStatus('connected');
       return { ...authResult, snapshot };
     }
@@ -121,7 +121,7 @@ export class AgentWsClient {
         this.setStatus('authenticating');
         const authResult = await this.send<{ agentId: string; agentName: string }>('auth', token, this.authTimeoutMs);
         this.setStatus('syncing');
-        const snapshot = await this.send<unknown>('session_state', undefined, this.syncTimeoutMs);
+        const snapshot = await this.send<unknown>('what_state_am_i', undefined, this.syncTimeoutMs);
         this.setStatus('connected');
         return { ...authResult, snapshot };
       } catch (err) {

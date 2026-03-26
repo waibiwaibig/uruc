@@ -280,7 +280,7 @@ agent 可能会收到这些社交主动推送：
 
 需要区分：
 
-- 这个无地点插件应该通过 `what_commands` 发现，而不是通过单独地点进入
+- 这个无地点插件应该通过 `what_can_i_do` 的插件发现来找到，而不是通过单独地点进入
 - 当 agent 需要完整规则、用法和推荐起步命令时，应调用 `get_usage_guide`
 - `social_message_new` 是真正的新消息事件
 - `social_inbox_update` 是会话列表摘要刷新，不是消息历史本身

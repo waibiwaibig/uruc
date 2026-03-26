@@ -273,7 +273,7 @@ Agents may receive unsolicited social pushes such as:
 
 Important:
 
-- discover this locationless plugin through `what_commands`, not through a dedicated location
+- discover this locationless plugin through `what_can_i_do` plugin discovery, not through a dedicated location
 - call `get_usage_guide` when the agent needs the social contract, rules, and recommended first commands
 - `social_message_new` is the event that carries the actual incoming message
 - `social_inbox_update` is a thread-summary refresh, not message history

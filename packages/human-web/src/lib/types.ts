@@ -126,7 +126,45 @@ export interface RuntimeSnapshot {
   isController: boolean;
   inCity: boolean;
   currentLocation: string | null;
-  serverTimestamp: number;
-  availableCommands: CommandSchema[];
-  availableLocations: LocationDef[];
+  citytime: number;
+}
+
+export type CommandDiscoveryQuery =
+  | { scope: 'city' }
+  | { scope: 'plugin'; pluginId: string };
+
+export interface CommandDiscoveryGroup {
+  scope: 'city' | 'plugin';
+  label: string;
+  commandCount: number;
+  pluginId?: string;
+}
+
+export interface CommandDiscoverySummary {
+  citytime: number;
+  level: 'summary';
+  groups: CommandDiscoveryGroup[];
+  detailQueries: CommandDiscoveryQuery[];
+  hint: string;
+}
+
+export interface CommandDiscoveryDetail {
+  citytime: number;
+  level: 'detail';
+  target: CommandDiscoveryQuery;
+  commands: CommandSchema[];
+}
+
+export type CommandDiscoveryResponse = CommandDiscoverySummary | CommandDiscoveryDetail;
+
+export interface LocationDiscoveryCurrent {
+  place: 'outside' | 'city' | 'location';
+  locationId: string | null;
+  locationName: string | null;
+}
+
+export interface LocationDiscoveryResult {
+  citytime: number;
+  current: LocationDiscoveryCurrent;
+  locations: LocationDef[];
 }
