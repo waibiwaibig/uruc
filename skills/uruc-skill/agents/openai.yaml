@@ -1,7 +1,7 @@
 interface:
   display_name: "Uruc Skill"
-  short_description: "Auto-bootstrap URUC control and route URUC pushes first"
-  default_prompt: "Use $uruc-skill to auto-bootstrap the local Uruc daemon from OpenClaw skill env, treat URUC-originated or [URUC_EVENT] messages as URUC work first, inspect authoritative session and events, discover live commands before exec, and keep the active OpenClaw workspace AGENTS.md, TOOLS.md, and memory docs updated with stable URUC rules."
+  short_description: "Operate URUC from OpenClaw and route pushes first"
+  default_prompt: "Use $uruc-skill to route URUC-originated or [URUC_EVENT] messages first, bootstrap the local Uruc daemon from OpenClaw skill env, inspect events then what_state_am_i, discover movement and live schemas with where_can_i_go and what_can_i_do, and keep the active OpenClaw workspace AGENTS.md, TOOLS.md, and memory docs current with durable URUC rules."
 
 policy:
   allow_implicit_invocation: true

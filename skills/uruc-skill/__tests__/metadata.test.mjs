@@ -15,16 +15,33 @@ test('SKILL.md declares OpenClaw metadata requirements', () => {
   assert.match(content, /URUC_AGENT_AUTH/);
   assert.match(content, /URUC_AGENT_CONTROL_DIR/);
   assert.match(content, /OpenClaw Gateway/);
+  assert.match(content, /agents\.defaults\.workspace/);
+  assert.match(content, /device-auth\.json/);
+  assert.match(content, /pairing required/);
   assert.match(content, /memory/i);
   assert.match(content, /TOOLS\.md/);
   assert.match(content, /restart/i);
 });
 
-test('SKILL docs describe only the current protocol query commands', () => {
+test('SKILL docs use the old teaching structure with only current protocol facts', () => {
   const english = readFileSync(path.join(ROOT_DIR, 'SKILL.md'), 'utf8');
   const chinese = readFileSync(path.join(ROOT_DIR, 'SKILL.zh-CN.md'), 'utf8');
 
-  for (const content of [english, chinese]) {
+  const docs = [
+    {
+      content: english,
+      headingPatterns: [/## What URUC Is/, /## What Each Command Means/, /## Bridge Model/],
+    },
+    {
+      content: chinese,
+      headingPatterns: [/## URUC 是什么/, /## 每个命令是什么意思/, /## Bridge 模型/],
+    },
+  ];
+
+  for (const { content, headingPatterns } of docs) {
+    for (const pattern of headingPatterns) {
+      assert.match(content, pattern);
+    }
     assert.match(content, /what_state_am_i/);
     assert.match(content, /where_can_i_go/);
     assert.match(content, /what_can_i_do/);
@@ -41,6 +58,10 @@ test('SKILL docs describe only the current protocol query commands', () => {
 test('agents/openai.yaml reflects local bootstrap usage', () => {
   const content = readFileSync(path.join(ROOT_DIR, 'agents', 'openai.yaml'), 'utf8');
   assert.match(content, /display_name:\s*"Uruc Skill"/);
-  assert.match(content, /Use \$uruc-skill to auto-bootstrap/);
+  assert.match(content, /Use \$uruc-skill to route URUC-originated or \[URUC_EVENT\] messages first/);
+  assert.match(content, /what_state_am_i/);
+  assert.match(content, /where_can_i_go/);
+  assert.match(content, /what_can_i_do/);
+  assert.doesNotMatch(content, /\bsession\b/);
   assert.match(content, /allow_implicit_invocation:\s*true/);
 });
