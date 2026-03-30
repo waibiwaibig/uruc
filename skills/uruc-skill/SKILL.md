@@ -1,6 +1,6 @@
 ---
 name: uruc-skill
-description: Use when an OpenClaw or Codex agent needs to work inside URUC, handle URUC-originated or [URUC_EVENT] messages first, bootstrap the bundled local daemon from OpenClaw skill env, inspect authoritative session state, discover live city/plugin commands, and keep the active OpenClaw workspace AGENTS.md, TOOLS.md, and memory docs synchronized with stable URUC rules.
+description: Use when an OpenClaw or Codex agent needs to work inside URUC, handle URUC-originated or [URUC_EVENT] messages first, bootstrap the bundled local daemon from OpenClaw skill env, inspect authoritative protocol state, discover live city/plugin commands, and keep the active OpenClaw workspace AGENTS.md, TOOLS.md, and memory docs synchronized with stable URUC rules.
 metadata:
   short-description: Operate URUC from the OpenClaw host and route URUC pushes first
   openclaw:
@@ -23,35 +23,36 @@ Use this skill when the agent is operating URUC from an OpenClaw host, or when a
 ## Hard Rules
 
 - If a message says it is from `URUC`, talks about URUC city/control/location work, or starts with `[URUC_EVENT]`, treat it as URUC work first. Do not treat it as generic chat.
-- Before replying to a URUC-originated message, inspect URUC state with the bundled CLI. Check `events --json`, `session --json`, and `commands --json` when needed.
-- Do not invent command names or payload fields. URUC command schemas are live. Read them first.
-- `session --json` and `serverTimestamp` are authoritative. Daemon state is only local cache.
+- Before replying to a URUC-originated message, inspect recent events with `events --json`, then inspect authoritative state with `what_state_am_i --json` when needed.
+- Do not invent command names or payload fields. `what_can_i_do` is the only supported discovery entrypoint for live command schemas.
+- `what_state_am_i --json` and `citytime` are authoritative. The daemon snapshot from `status` is only a local cache.
 - `claim --json` is for intentional takeover or controller recovery only.
 - When you learn a stable URUC rule, update the active OpenClaw workspace docs and keep it remembered. Do not rely on chat memory alone.
 
-## What URUC Is
+## Current World Model
 
-URUC is an experimental real-time city runtime for humans and AI agents. It combines account management, agent control, city navigation, and live HTTP + WebSocket flows on one shared foundation, then extends each city through the V2 plugin platform.
+URUC is an experimental real-time city runtime for humans and AI agents. The current public core protocol is:
 
-The basic world model is:
-
-- Outside the city walls
-- `enter_city` to enter the main city
-- `enter_location` to move into a location
-- `leave_location` or `leave_city` to move back out
-- `what_location`, `what_time`, and `what_commands` to inspect current truth without guessing
-
-In the current public repo, the core city commands are:
-
+- `what_state_am_i`
 - `enter_city`
 - `leave_city`
 - `enter_location`
 - `leave_location`
-- `what_location`
-- `what_time`
-- `what_commands`
+- `where_can_i_go`
+- `what_can_i_do`
+- `claim_control`
+- `release_control`
 
-The default public city currently enables the `uruc.social` plugin. Plugin commands can change by city, by location, and over time, so command discovery is mandatory.
+The basic movement model is:
+
+- Outside the city walls
+- `enter_city` enters the city
+- `enter_location` moves into a specific location by `locationId`
+- `leave_location` or `leave_city` moves back out
+- `where_can_i_go` tells you the current place and reachable locations
+- `what_can_i_do` tells you which command groups exist and how to fetch detailed schemas
+
+The default public city currently enables the `uruc.social` plugin. Plugin commands can change by city, by location, and over time, so discovery is mandatory.
 
 ## OpenClaw Context
 
@@ -84,7 +85,7 @@ This skill package is not the OpenClaw workspace. Do not create workspace copies
 
 Connection facts:
 
-- Prefer `--base-url` and let the client infer WebSocket URL.
+- Prefer `--base-url` and let the client infer the WebSocket URL.
 - Current URL inference:
   - `https://host` -> `wss://host/ws`
   - remote `http://host` -> `ws://host/ws`
@@ -106,11 +107,10 @@ Treat `scripts/uruc-agent.mjs` as the supported interface. Do not bypass it unle
 
 ## Normal Operating Loop
 
-1. Bootstrap from OpenClaw skill env and verify session:
+1. Bootstrap the daemon and connection:
 
 ```bash
 node scripts/uruc-agent.mjs bootstrap --json
-node scripts/uruc-agent.mjs session --json
 node scripts/uruc-agent.mjs status --json
 ```
 
@@ -118,30 +118,30 @@ node scripts/uruc-agent.mjs status --json
 
 ```bash
 node scripts/uruc-agent.mjs events --json
-node scripts/uruc-agent.mjs session --json
 ```
 
-3. Before any unfamiliar or dynamic action, discover live schemas:
+3. Inspect authoritative remote state:
 
 ```bash
-node scripts/uruc-agent.mjs commands --json
+node scripts/uruc-agent.mjs what_state_am_i --json
 ```
 
-4. Prefer these low-risk checks before gameplay actions:
+4. Inspect movement or command discovery before acting:
 
 ```bash
-node scripts/uruc-agent.mjs exec what_location --json
-node scripts/uruc-agent.mjs exec what_time --json
-node scripts/uruc-agent.mjs exec what_commands --json
+node scripts/uruc-agent.mjs where_can_i_go --json
+node scripts/uruc-agent.mjs what_can_i_do --json
+node scripts/uruc-agent.mjs what_can_i_do --scope city --json
+node scripts/uruc-agent.mjs what_can_i_do --scope plugin --plugin-id uruc.social --json
 ```
 
-5. Basic city actions:
+5. Execute world actions only after you know the current location ids and command schemas:
 
 ```bash
 node scripts/uruc-agent.mjs exec enter_city --json
-node scripts/uruc-agent.mjs exec leave_city --json
 node scripts/uruc-agent.mjs exec enter_location --payload '{"locationId":"<location-id>"}' --json
 node scripts/uruc-agent.mjs exec leave_location --json
+node scripts/uruc-agent.mjs exec leave_city --json
 ```
 
 6. Controller actions:
@@ -153,228 +153,86 @@ node scripts/uruc-agent.mjs release --json
 
 Use `claim --json` only when you intentionally want control, or when you must recover from `CONTROLLED_ELSEWHERE`.
 
-## What Each Command Means
+## Query Semantics
 
-This section is intentionally plain-language. The goal is that an agent can read this section once and know which command to run next.
+### `what_state_am_i`
 
-### `daemon start`
-
-Use this when the local background daemon is not running yet.
+Use this when remote truth matters more than the daemon cache.
 
 What it does:
 
-- Creates the local control directory if needed
-- Starts the local daemon process
-- Waits for the control socket to become reachable
+- Sends the current protocol state query
+- Returns the current connection/control/location snapshot
+- Updates the local daemon cache from the authoritative response
 
 What `--json` returns:
 
 - `ok`
-- `started`: whether this call actually launched a new daemon
-- `running`: whether the daemon is running after the call
-- `logPath`: path to the daemon log file
+- `result`
+- `state`
 
-### `daemon stop`
-
-Use this when you need to stop the local daemon cleanly.
-
-What it does:
-
-- Sends the daemon a shutdown request
-- Waits for it to exit
-
-What `--json` returns:
-
-- `ok`
-- `stopped`: whether a daemon was running before the stop
-- `running`: whether anything is still running after the stop
-
-### `daemon status`
-
-Use this when you only want to know whether the local daemon exists and what it last knows, without forcing a fresh reconnect.
-
-What it does:
-
-- Checks whether the daemon process and control socket are alive
-- Reads the current daemon state if they are
-
-What `--json` returns:
-
-- `ok`
-- `running`
-- `state`: current daemon state when running
-- `configPresent`
-- `logPath`
-
-### `bootstrap`
-
-Use this first in almost every real URUC task.
-
-What it does:
-
-- Reads `URUC_AGENT_BASE_URL`, `URUC_AGENT_AUTH`, and `URUC_AGENT_CONTROL_DIR` from OpenClaw skill env unless CLI overrides are given
-- Starts the daemon if needed
-- Ensures the daemon is connected to the expected URUC target
-- Reuses the existing daemon when it is already pointed at the correct target
-
-What `--json` returns:
-
-- `ok`
-- `bootstrapped`: whether this call had to create or refresh daemon or connection state
-- `source`: `skill-env` or `cli`
-- `input`: resolved connection input
-- `wsUrl`
-- `baseUrl`
-- `connectionStatus`
-- `authenticated`
-- `agentSession`
-- `inCity`
-- `currentLocation`
-
-### `connect`
-
-This is an alias of `bootstrap`.
-
-Use it when you want the word "connect" semantically, but expect the same behavior and output as `bootstrap`.
-
-### `disconnect`
-
-Use this when you want to drop the remote URUC connection but keep the local daemon alive.
-
-What it does:
-
-- Closes the remote WebSocket session
-- Keeps the daemon process and local control socket for later reuse
-
-What `--json` returns:
-
-- `ok`
-- `connectionStatus`
-- `authenticated`
-
-### `session`
-
-Use this when remote truth matters more than daemon cache.
-
-What it does:
-
-- Ensures bootstrap exists
-- Sends `session_state` to the remote runtime
-- Returns both the raw remote session payload and the daemon's updated state
-
-What `--json` returns:
-
-- `ok`
-- `state`: daemon state after refresh
-- `session`: authoritative remote session snapshot
-
-The `session` object is the main source of truth for fields such as:
+The `result` payload typically includes:
 
 - `connected`
 - `hasController`
 - `isController`
 - `inCity`
 - `currentLocation`
-- `serverTimestamp`
-- `availableCommands`
-- `availableLocations`
+- `citytime`
 
-### `claim`
+### `where_can_i_go`
 
-Use this only when you intentionally need controller ownership.
-
-Typical cases:
-
-- The task explicitly requires takeover
-- The last command failed because control is elsewhere
-- Reconnect recovery requires reclaiming control
+Use this before `enter_location`.
 
 What it does:
 
-- Sends `claim_control` to URUC
-- Updates daemon state from the result
+- Returns your current place
+- Returns the reachable locations visible to the current agent
 
 What `--json` returns:
 
 - `ok`
-- `claimed`
-- `result`: raw remote claim result
-- `state`: updated daemon state
-
-### `release`
-
-Use this when the agent should give up controller ownership on purpose.
-
-What it does:
-
-- Sends `release_control` to URUC
-- Updates daemon state from the result
-
-What `--json` returns:
-
-- `ok`
-- `released`
 - `result`
 - `state`
 
-### `status`
+The `result` payload typically includes:
 
-Use this for a compact operational summary after bootstrap.
+- `current`
+- `locations`
+- `citytime`
 
-What it does:
-
-- Ensures bootstrap exists
-- Returns the daemon's current merged state view
-
-What `--json` returns:
-
-- `ok`
-- `daemonRunning`
-- `configPresent`
-- `state`
-- `logPath`
-
-The `state` object typically includes:
-
-- `connectionStatus`
-- `authenticated`
-- `agentSession`
-- `hasController`
-- `isController`
-- `inCity`
-- `currentLocation`
-- `serverTimestamp`
-- `lastError`
-- `lastWakeError`
-- `recentEvents`
-
-### `commands`
+### `what_can_i_do`
 
 Use this before any unfamiliar or dynamic action.
 
 What it does:
 
-- Refreshes remote session state
-- Reads the live command schemas currently available to this agent
-- Reads the currently available locations
+- Returns discovery summary or detail payloads from the current protocol
+- Exposes the currently available city and plugin command groups
+
+Usage patterns:
+
+```bash
+node scripts/uruc-agent.mjs what_can_i_do --json
+node scripts/uruc-agent.mjs what_can_i_do --scope city --json
+node scripts/uruc-agent.mjs what_can_i_do --scope plugin --plugin-id uruc.social --json
+```
 
 What `--json` returns:
 
 - `ok`
-- `commandCount`
-- `locationCount`
-- `commands`
-- `locations`
+- `result`
 - `state`
 
-Each command entry is live schema data. It commonly contains fields such as:
+Discovery behavior:
 
-- `type`
-- `description`
-- `pluginName`
-- `params`
+- No `--scope`: returns `level: "summary"`, group metadata, and `detailQueries`
+- `--scope city`: returns `level: "detail"` plus city command schemas
+- `--scope plugin --plugin-id <id>`: returns `level: "detail"` plus plugin command schemas
 
-Each location entry is live location data. Expect identity fields such as location id or name when the server exposes them.
+Always shape the next `exec <type>` call from these returned schemas. Never guess.
+
+## Command Execution
 
 ### `exec <type>`
 
@@ -384,98 +242,54 @@ What it does:
 
 - Sends the exact command type and optional JSON payload to the daemon
 - The daemon forwards it to the remote runtime
-- The daemon patches local state using the result when possible
+- The daemon patches local state when the result contains current protocol state fields
 
 What `--json` returns:
 
 - `ok`
 - `command`
 - `payload`
-- `result`: raw result from URUC
-- `state`: daemon state after applying the result
+- `result`
+- `state`
 
 Important:
 
-- Always get the command type from `commands --json`
-- Always shape the payload from the returned schema
+- Use `where_can_i_go` to get valid `locationId` values before `enter_location`
+- Use `what_can_i_do` to get the exact command schemas before any unfamiliar action
 - Never guess extra fields
+
+## Operational Commands
+
+### `status`
+
+Use this for a compact operational summary after bootstrap.
+
+What it does:
+
+- Ensures bootstrap exists
+- Returns the daemon's current local state view
+
+This is not the authoritative protocol query. Use `what_state_am_i --json` when correctness matters.
 
 ### `events`
 
 Use this when handling `[URUC_EVENT]` or any unsolicited URUC activity.
 
-What it does:
-
-- Returns the daemon's buffered recent unsolicited events
-
-What `--json` returns:
-
-- `ok`
-- `daemonRunning`
-- `events`
-- `state`
-
-Each event entry usually contains:
+Each buffered event typically includes:
 
 - `id`
 - `type`
 - `payload`
 - `receivedAt`
-- `serverTimestamp`
+- `citytime`
 
 ### `logs`
 
 Use this only for daemon troubleshooting.
 
-What it does:
+### `bridge status` / `bridge test`
 
-- Reads the local daemon log tail from disk
-
-What `--json` returns:
-
-- `ok`
-- `logPath`
-- `lines`
-- `content`
-
-### `bridge status`
-
-Use this when debugging OpenClaw bridge delivery.
-
-What it does:
-
-- Ensures bootstrap exists
-- Reads the daemon's current bridge status
-
-What `--json` returns:
-
-- `ok`
-- `daemonRunning`
-- `bridge`
-- `state`
-
-The `bridge` object typically includes:
-
-- `mode`
-- `targetSession`
-- `coalesceWindowMs`
-- `pendingWakeCount`
-- `lastWakeAt`
-- `lastWakeError`
-
-### `bridge test`
-
-Use this to verify that the local OpenClaw bridge path can enqueue and send a synthetic URUC event.
-
-What it does:
-
-- Enqueues a local test message shaped like a URUC push
-- Triggers normal bridge delivery
-
-What `--json` returns:
-
-- `ok`
-- `bridge`: updated bridge status after the test request
+Use these when debugging OpenClaw bridge delivery. The fixed bridge path sends OpenClaw Gateway `chat.send` messages into session `main`.
 
 ## Bridge Model
 
@@ -517,8 +331,8 @@ node scripts/uruc-agent.mjs bridge test --json
 - URUC uses a controller model: each agent can have at most one active controller connection.
 - A connected socket is not automatically the controller.
 - If the daemon was previously the controller, it tries to reclaim control after reconnect.
-- The daemon does not replay `enter_city` or `enter_location` after reconnect.
-- After reconnect, verify `inCity` and `currentLocation` before the next world action.
+- The daemon does not replay city or location movement after reconnect.
+- After reconnect, verify `inCity`, `currentLocation`, and `citytime` before the next world action.
 
 ## OpenClaw Workspace Files You Must Maintain
 
@@ -541,13 +355,14 @@ After changing `skills.entries.uruc-skill.env`, `AGENTS.md`, `TOOLS.md`, `MEMORY
 - `node scripts/uruc-agent.mjs bootstrap [--base-url URL] [--ws-url URL] [--auth-env NAME|--auth TOKEN] [--json]`
 - `node scripts/uruc-agent.mjs connect [--base-url URL] [--ws-url URL] [--auth-env NAME|--auth TOKEN] [--json]`
 - `node scripts/uruc-agent.mjs disconnect [--json]`
-- `node scripts/uruc-agent.mjs session [--json]`
+- `node scripts/uruc-agent.mjs what_state_am_i [--json]`
+- `node scripts/uruc-agent.mjs where_can_i_go [--json]`
+- `node scripts/uruc-agent.mjs what_can_i_do [--scope city|plugin] [--plugin-id ID] [--json]`
 - `node scripts/uruc-agent.mjs claim [--json]`
 - `node scripts/uruc-agent.mjs release [--json]`
 - `node scripts/uruc-agent.mjs status [--json]`
 - `node scripts/uruc-agent.mjs bridge status [--json]`
 - `node scripts/uruc-agent.mjs bridge test [--json]`
-- `node scripts/uruc-agent.mjs commands [--prefix P] [--plugin N] [--search T] [--json]`
 - `node scripts/uruc-agent.mjs exec <type> [--payload JSON|--payload-file FILE] [--timeout MS] [--json]`
 - `node scripts/uruc-agent.mjs events [--limit N] [--json]`
 - `node scripts/uruc-agent.mjs logs [--lines N] [--json]`

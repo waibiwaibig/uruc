@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { buildBootstrapConfig } from '../lib/common.mjs';
-import { ensureBootstrap, resolveBootstrapInput } from '../uruc-agent.mjs';
+import { ensureBootstrap, main, resolveBootstrapInput } from '../uruc-agent.mjs';
 
 test('resolveBootstrapInput reads OpenClaw skill env by default', () => {
   const input = resolveBootstrapInput({}, {
@@ -137,3 +137,207 @@ test('ensureBootstrap reconfigures when auth drifts', async () => {
   assert.deepEqual(bootstrapPayload, nextInput);
   assert.equal(result.bootstrapped, true);
 });
+
+test('help lists current protocol query commands and omits removed legacy queries', async () => {
+  const output = await captureStdout(async () => {
+    await main(['help'], {
+      env: {},
+    });
+  });
+
+  assert.match(output, /what_state_am_i/);
+  assert.match(output, /where_can_i_go/);
+  assert.match(output, /what_can_i_do/);
+  assert.doesNotMatch(output, /\n\s+session\s+/);
+  assert.doesNotMatch(output, /\n\s+commands\s+/);
+});
+
+test('what_state_am_i queries the daemon through the current protocol name', async () => {
+  const calls = [];
+  const state = {
+    connectionStatus: 'connected',
+    authenticated: true,
+    wsUrl: 'ws://127.0.0.1:3001',
+    baseUrl: 'http://127.0.0.1:3000',
+    citytime: 123,
+    inCity: true,
+    currentLocation: null,
+  };
+
+  const output = await captureStdout(async () => {
+    await main(['what_state_am_i', '--json'], {
+      env: {
+        URUC_AGENT_BASE_URL: state.baseUrl,
+        URUC_AGENT_AUTH: 'agent-token',
+      },
+      readConfig: () => buildBootstrapConfig({
+        baseUrl: state.baseUrl,
+        wsUrl: state.wsUrl,
+        auth: 'agent-token',
+      }),
+      isDaemonRunning: async () => true,
+      startDaemon: async () => {
+        throw new Error('daemon should not start');
+      },
+      callDaemon: async (action, payload) => {
+        calls.push({ action, payload });
+        if (action === 'status') return state;
+        if (action === 'exec') {
+          return {
+            result: {
+              connected: true,
+              citytime: 123,
+              inCity: true,
+              currentLocation: null,
+            },
+            state,
+          };
+        }
+        throw new Error(`unexpected action: ${action}`);
+      },
+    });
+  });
+
+  assert.deepEqual(calls, [
+    { action: 'status', payload: undefined },
+    {
+      action: 'exec',
+      payload: {
+        type: 'what_state_am_i',
+        payload: undefined,
+        timeoutMs: 10_000,
+      },
+    },
+  ]);
+  assert.deepEqual(JSON.parse(output), {
+    ok: true,
+    state,
+    result: {
+      connected: true,
+      citytime: 123,
+      inCity: true,
+      currentLocation: null,
+    },
+  });
+});
+
+test('what_can_i_do forwards detail scopes using current protocol payloads', async () => {
+  const calls = [];
+  const state = {
+    connectionStatus: 'connected',
+    authenticated: true,
+    wsUrl: 'ws://127.0.0.1:3001',
+    baseUrl: 'http://127.0.0.1:3000',
+    citytime: 456,
+    inCity: true,
+    currentLocation: null,
+  };
+
+  await captureStdout(async () => {
+    await main(['what_can_i_do', '--scope', 'city', '--json'], {
+      env: {
+        URUC_AGENT_BASE_URL: state.baseUrl,
+        URUC_AGENT_AUTH: 'agent-token',
+      },
+      readConfig: () => buildBootstrapConfig({
+        baseUrl: state.baseUrl,
+        wsUrl: state.wsUrl,
+        auth: 'agent-token',
+      }),
+      isDaemonRunning: async () => true,
+      startDaemon: async () => {
+        throw new Error('daemon should not start');
+      },
+      callDaemon: async (action, payload) => {
+        calls.push({ action, payload });
+        if (action === 'status') return state;
+        if (action === 'exec') {
+          return {
+            result: {
+              level: 'detail',
+              target: { scope: 'city' },
+              commands: [{ type: 'what_state_am_i' }],
+            },
+            state,
+          };
+        }
+        throw new Error(`unexpected action: ${action}`);
+      },
+    });
+  });
+
+  await captureStdout(async () => {
+    await main(['what_can_i_do', '--scope', 'plugin', '--plugin-id', 'uruc.social', '--json'], {
+      env: {
+        URUC_AGENT_BASE_URL: state.baseUrl,
+        URUC_AGENT_AUTH: 'agent-token',
+      },
+      readConfig: () => buildBootstrapConfig({
+        baseUrl: state.baseUrl,
+        wsUrl: state.wsUrl,
+        auth: 'agent-token',
+      }),
+      isDaemonRunning: async () => true,
+      startDaemon: async () => {
+        throw new Error('daemon should not start');
+      },
+      callDaemon: async (action, payload) => {
+        calls.push({ action, payload });
+        if (action === 'status') return state;
+        if (action === 'exec') {
+          return {
+            result: {
+              level: 'detail',
+              target: { scope: 'plugin', pluginId: 'uruc.social' },
+              commands: [{ type: 'uruc.social.get_usage_guide@v1' }],
+            },
+            state,
+          };
+        }
+        throw new Error(`unexpected action: ${action}`);
+      },
+    });
+  });
+
+  assert.deepEqual(calls, [
+    { action: 'status', payload: undefined },
+    {
+      action: 'exec',
+      payload: {
+        type: 'what_can_i_do',
+        payload: { scope: 'city' },
+        timeoutMs: 10_000,
+      },
+    },
+    { action: 'status', payload: undefined },
+    {
+      action: 'exec',
+      payload: {
+        type: 'what_can_i_do',
+        payload: { scope: 'plugin', pluginId: 'uruc.social' },
+        timeoutMs: 10_000,
+      },
+    },
+  ]);
+});
+
+test('removed legacy session and commands entrypoints now error immediately', async () => {
+  await assert.rejects(() => main(['session'], { env: {} }), /未知命令: session/);
+  await assert.rejects(() => main(['commands'], { env: {} }), /未知命令: commands/);
+});
+
+async function captureStdout(run) {
+  const lines = [];
+  const originalLog = console.log;
+  console.log = (...args) => {
+    lines.push(args.join(' '));
+  };
+
+  try {
+    await run();
+  } finally {
+    console.log = originalLog;
+  }
+
+  return lines.join('\n');
+}

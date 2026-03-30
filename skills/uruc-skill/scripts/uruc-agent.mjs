@@ -9,7 +9,6 @@ import { callDaemon, isDaemonRunning } from './lib/client.mjs';
 import {
   ensureNodeVersion,
   ensureControlDir,
-  filterCommandSchemas,
   formatJson,
   getLogPath,
   isBootstrapConfigSatisfied,
@@ -61,8 +60,8 @@ export async function main(args = process.argv.slice(2), deps = createCliDeps())
     case 'disconnect':
       await handleDisconnect(args.slice(1), deps);
       return;
-    case 'session':
-      await handleSession(args.slice(1), deps);
+    case 'what_state_am_i':
+      await handleWhatStateAmI(args.slice(1), deps);
       return;
     case 'claim':
       await handleClaim(args.slice(1), deps);
@@ -76,8 +75,11 @@ export async function main(args = process.argv.slice(2), deps = createCliDeps())
     case 'status':
       await handleStatus(args.slice(1), deps);
       return;
-    case 'commands':
-      await handleCommands(args.slice(1), deps);
+    case 'where_can_i_go':
+      await handleWhereCanIGo(args.slice(1), deps);
+      return;
+    case 'what_can_i_do':
+      await handleWhatCanIDo(args.slice(1), deps);
       return;
     case 'exec':
       await handleExec(args.slice(1), deps);
@@ -212,25 +214,6 @@ async function handleDisconnect(args, deps) {
   console.log('已断开远程 Uruc 连接');
 }
 
-async function handleSession(args, deps) {
-  const options = parseOptions(args, { booleans: ['json'] });
-  await ensureBootstrap(undefined, deps);
-  const response = await deps.callDaemon('exec', { type: 'session_state', payload: undefined, timeoutMs: 10_000 }, 12_000);
-  const output = {
-    ok: true,
-    state: response.state,
-    session: response.result,
-  };
-
-  if (options.json) {
-    printJson(output);
-    return;
-  }
-
-  console.log('session:');
-  console.log(formatJson(output.session));
-}
-
 async function handleClaim(args, deps) {
   const options = parseOptions(args, { booleans: ['json'] });
   await ensureBootstrap(undefined, deps);
@@ -269,6 +252,48 @@ async function handleRelease(args, deps) {
 
   console.log('已释放当前 Agent 控制权');
   console.log(formatJson(output.result));
+}
+
+async function handleWhatStateAmI(args, deps) {
+  await handleProtocolQuery(args, deps, {
+    type: 'what_state_am_i',
+    timeoutMs: 10_000,
+    label: 'what_state_am_i',
+  });
+}
+
+async function handleWhereCanIGo(args, deps) {
+  await handleProtocolQuery(args, deps, {
+    type: 'where_can_i_go',
+    timeoutMs: 10_000,
+    label: 'where_can_i_go',
+  });
+}
+
+async function handleWhatCanIDo(args, deps) {
+  const options = parseOptions(args, {
+    strings: ['scope', 'plugin-id'],
+    booleans: ['json'],
+  });
+  const payload = {};
+
+  if (options.scope) {
+    payload.scope = options.scope;
+  }
+  if (options['plugin-id']) {
+    payload.pluginId = options['plugin-id'];
+  }
+  if (payload.scope === 'plugin' && !payload.pluginId) {
+    throw new Error('scope=plugin 时必须提供 --plugin-id');
+  }
+
+  await handleProtocolQuery(args, deps, {
+    type: 'what_can_i_do',
+    timeoutMs: 10_000,
+    label: 'what_can_i_do',
+    options,
+    payload: Object.keys(payload).length === 0 ? undefined : payload,
+  });
 }
 
 async function handleBridge(args, deps) {
@@ -340,9 +365,10 @@ async function handleStatus(args, deps) {
   console.log(`controller: ${state.isController ? 'yes' : state.hasController ? 'other connection' : 'no'}`);
   console.log(`inCity: ${state.inCity ? 'yes' : 'no'}`);
   console.log(`currentLocation: ${state.currentLocation ?? 'none'}`);
-  if (typeof state.serverTimestamp === 'number') {
-    console.log(`serverTimestamp: ${state.serverTimestamp}`);
+  if (typeof state.citytime === 'number') {
+    console.log(`citytime: ${state.citytime}`);
   }
+  console.log('authoritative: use `what_state_am_i --json`');
   console.log(`bridge: ${state.bridgeEnabled ? 'local' : 'disabled'}`);
   console.log(`pendingWakeCount: ${state.pendingWakeCount ?? 0}`);
   if (state.lastError) {
@@ -350,44 +376,6 @@ async function handleStatus(args, deps) {
   }
   if (state.lastWakeError) {
     console.log(`lastWakeError: ${state.lastWakeError}`);
-  }
-}
-
-async function handleCommands(args, deps) {
-  const options = parseOptions(args, {
-    strings: ['prefix', 'plugin', 'search'],
-    booleans: ['json'],
-  });
-
-  await ensureBootstrap(undefined, deps);
-  const response = await deps.callDaemon('commands', undefined, 20_000);
-  const commands = filterCommandSchemas(response.commands ?? [], {
-    prefix: options.prefix,
-    plugin: options.plugin,
-    search: options.search,
-  });
-  const output = {
-    ok: true,
-    commandCount: commands.length,
-    locationCount: (response.locations ?? []).length,
-    commands,
-    locations: response.locations ?? [],
-    state: response.state,
-  };
-
-  if (options.json) {
-    printJson(output);
-    return;
-  }
-
-  console.log(`commands (${commands.length})`);
-  for (const command of commands) {
-    console.log(`- ${command.type}${command.pluginName ? ` [${command.pluginName}]` : ''}: ${command.description}`);
-  }
-  console.log('');
-  console.log(`locations (${output.locationCount})`);
-  for (const location of output.locations) {
-    console.log(`- ${location.id}: ${location.name}`);
   }
 }
 
@@ -451,7 +439,7 @@ async function handleEvents(args, deps) {
   }
 
   for (const event of output.events) {
-    const timeSuffix = typeof event.serverTimestamp === 'number' ? ` serverTimestamp=${event.serverTimestamp}` : '';
+    const timeSuffix = typeof event.citytime === 'number' ? ` citytime=${event.citytime}` : '';
     console.log(`[${event.receivedAt}] ${event.type}${timeSuffix}`);
     console.log(formatJson(event.payload));
   }
@@ -640,7 +628,9 @@ function printHelp() {
 
 Usage:
   node /path/to/uruc-agent/scripts/uruc-agent.mjs bootstrap --json
-  node /path/to/uruc-agent/scripts/uruc-agent.mjs session --json
+  node /path/to/uruc-agent/scripts/uruc-agent.mjs what_state_am_i --json
+  node /path/to/uruc-agent/scripts/uruc-agent.mjs where_can_i_go --json
+  node /path/to/uruc-agent/scripts/uruc-agent.mjs what_can_i_do --json
   node /path/to/uruc-agent/scripts/uruc-agent.mjs claim --json
   node /path/to/uruc-agent/scripts/uruc-agent.mjs bridge status --json
   node /path/to/uruc-agent/scripts/uruc-agent.mjs exec enter_city --json
@@ -649,13 +639,14 @@ Commands:
   daemon start|stop|status   Manage the local background daemon
   bootstrap                  Bootstrap from OpenClaw skill env and ensure daemon/connection
   connect                    Alias of bootstrap; optional explicit override for recovery
-  disconnect                 Disconnect the remote Uruc session but keep daemon alive
-  session                    Fetch the authoritative remote session snapshot
+  disconnect                 Disconnect the remote Uruc connection but keep daemon alive
+  what_state_am_i            Fetch the authoritative remote agent state snapshot
   claim                      Claim control of the current Agent
   release                    Release control of the current Agent
   bridge status|test         Inspect or test the fixed local OpenClaw bridge path
-  status                     Show daemon and remote session state
-  commands                   Fetch dynamic command schemas and locations
+  status                     Show the local daemon snapshot (not the authoritative protocol query)
+  where_can_i_go             Fetch the current place and reachable locations
+  what_can_i_do              Fetch command discovery summary or detail payloads
   exec <type>                Execute any discovered Uruc command
   events                     Show recent unsolicited events buffered by the daemon
   logs                       Show recent daemon log lines
@@ -666,9 +657,34 @@ Common flags:
   --ws-url URL               Explicit ws/wss endpoint
   --auth TOKEN               JWT or agent token
   --auth-env NAME            Read auth token from an env var
+  --scope NAME               Discovery scope for what_can_i_do (city|plugin)
+  --plugin-id ID             Plugin id for what_can_i_do --scope plugin
   --payload JSON             JSON payload for exec
   --payload-file FILE        Read exec payload JSON from a file
 `);
+}
+
+async function handleProtocolQuery(args, deps, config) {
+  const options = config.options ?? parseOptions(args, { booleans: ['json'] });
+  await ensureBootstrap(undefined, deps);
+  const response = await deps.callDaemon('exec', {
+    type: config.type,
+    payload: config.payload,
+    timeoutMs: config.timeoutMs,
+  }, config.timeoutMs + 2000);
+  const output = {
+    ok: true,
+    state: response.state,
+    result: response.result,
+  };
+
+  if (options.json) {
+    printJson(output);
+    return;
+  }
+
+  console.log(`${config.label}:`);
+  console.log(formatJson(output.result));
 }
 
 function printJson(value) {

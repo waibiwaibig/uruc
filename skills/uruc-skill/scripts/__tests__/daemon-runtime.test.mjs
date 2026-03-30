@@ -24,6 +24,48 @@ class FailingWakeDaemon extends AgentDaemon {
   }
 }
 
+class RecordingRemoteDaemon extends AgentDaemon {
+  constructor() {
+    super();
+    this.remoteCalls = [];
+  }
+
+  bindRemoteSocket(socket) {
+    this.remoteSocket = socket;
+  }
+
+  async disconnectRemote({ clearSession }) {
+    this.remoteSocket = null;
+    this.state = {
+      ...this.state,
+      connectionStatus: 'idle',
+      authenticated: false,
+      agentSession: clearSession ? null : this.state.agentSession,
+    };
+  }
+
+  async sendRemote(type, payload) {
+    this.remoteCalls.push({ type, payload });
+    if (type === 'auth') {
+      return {
+        agentId: 'agent-1',
+        agentName: 'Agent One',
+      };
+    }
+    if (type === 'what_state_am_i') {
+      return {
+        connected: true,
+        hasController: true,
+        isController: true,
+        inCity: true,
+        currentLocation: 'uruc.chess.chess-club',
+        citytime: 789,
+      };
+    }
+    throw new Error(`unexpected remote call: ${type}`);
+  }
+}
+
 function withTempControlDir(t) {
   const previous = process.env.URUC_AGENT_CONTROL_DIR;
   const controlDir = mkdtempSync(path.join(os.tmpdir(), 'uruc-skill-test-'));
@@ -202,4 +244,103 @@ test('legacy bridge queue envelopes are discarded on boot', (t) => {
 
   const daemon = new AgentDaemon();
   assert.deepEqual(daemon.bridgeQueue, { batches: [] });
+});
+
+test('connectRemote refreshes authoritative state via what_state_am_i after auth', async (t) => {
+  const OriginalWebSocket = globalThis.WebSocket;
+
+  class FakeWebSocket {
+    static OPEN = 1;
+
+    constructor(url) {
+      this.url = url;
+      this.readyState = FakeWebSocket.OPEN;
+      queueMicrotask(() => {
+        this.onopen?.();
+      });
+    }
+
+    close() {
+      this.readyState = 3;
+      this.onclose?.({ code: 1000, reason: '' });
+    }
+  }
+
+  globalThis.WebSocket = FakeWebSocket;
+  t.after(() => {
+    globalThis.WebSocket = OriginalWebSocket;
+  });
+
+  const daemon = new RecordingRemoteDaemon();
+  await daemon.connectRemote(buildBootstrapConfig({
+    baseUrl: 'http://127.0.0.1:3000',
+    wsUrl: 'ws://127.0.0.1:3001',
+    auth: 'agent-token',
+  }));
+
+  assert.deepEqual(daemon.remoteCalls, [
+    { type: 'auth', payload: 'agent-token' },
+    { type: 'what_state_am_i', payload: undefined },
+  ]);
+  assert.equal(daemon.state.citytime, 789);
+  assert.equal(daemon.state.currentLocation, 'uruc.chess.chess-club');
+});
+
+test('passive session_state pushes update local state using citytime', () => {
+  const daemon = new AgentDaemon();
+  daemon.handleUnsolicitedMessage({
+    type: 'session_state',
+    payload: {
+      connected: true,
+      hasController: true,
+      isController: false,
+      inCity: true,
+      currentLocation: 'uruc.chess.chess-club',
+      citytime: 321,
+    },
+  });
+
+  assert.equal(daemon.state.inCity, true);
+  assert.equal(daemon.state.currentLocation, 'uruc.chess.chess-club');
+  assert.equal(daemon.state.citytime, 321);
+});
+
+test('where_can_i_go results do not create removed discovery caches in daemon state', async () => {
+  const daemon = new AgentDaemon();
+  daemon.remoteSocket = {
+    readyState: WebSocket.OPEN,
+    send() {},
+  };
+  daemon.sendRemote = async (type) => {
+    assert.equal(type, 'where_can_i_go');
+    return {
+      current: {
+        place: 'city',
+        locationId: null,
+        locationName: null,
+      },
+      locations: [
+        {
+          id: 'uruc.chess.chess-club',
+          name: '国际象棋馆',
+        },
+      ],
+      citytime: 654,
+    };
+  };
+
+  const response = await daemon.handleRequest({
+    id: 'where-1',
+    action: 'exec',
+    payload: {
+      type: 'where_can_i_go',
+      payload: undefined,
+      timeoutMs: 10_000,
+    },
+  });
+
+  assert.equal(response.ok, true);
+  assert.equal(response.data.state.citytime, 654);
+  assert.equal('availableCommands' in response.data.state, false);
+  assert.equal('availableLocations' in response.data.state, false);
 });

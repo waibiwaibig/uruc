@@ -74,9 +74,7 @@ export function createInitialState() {
     agentSession: null,
     inCity: false,
     currentLocation: null,
-    serverTimestamp: null,
-    availableCommands: [],
-    availableLocations: [],
+    citytime: null,
     lastError: '',
     lastEventAt: null,
     recentEvents: [],
@@ -226,18 +224,6 @@ export function parsePayloadArg(value) {
   }
 }
 
-export function filterCommandSchemas(commands, filters) {
-  return commands.filter((command) => {
-    if (filters.prefix && !command.type.startsWith(filters.prefix)) return false;
-    if (filters.plugin && command.pluginName !== filters.plugin) return false;
-    if (filters.search) {
-      const haystack = `${command.type} ${command.description} ${command.pluginName ?? ''}`.toLowerCase();
-      if (!haystack.includes(filters.search.toLowerCase())) return false;
-    }
-    return true;
-  });
-}
-
 export function appendEvent(state, entry) {
   const recentEvents = [...state.recentEvents, entry].slice(-200);
   return {
@@ -247,9 +233,13 @@ export function appendEvent(state, entry) {
   };
 }
 
-export function extractServerTimestamp(payload, fallback = null) {
+export function extractCitytime(payload, fallback = null) {
   if (payload && typeof payload === 'object') {
+    if (typeof payload.citytime === 'number') return payload.citytime;
     if (typeof payload.serverTimestamp === 'number') return payload.serverTimestamp;
+    if (payload.state && typeof payload.state === 'object' && typeof payload.state.citytime === 'number') {
+      return payload.state.citytime;
+    }
     if (payload.state && typeof payload.state === 'object' && typeof payload.state.serverTimestamp === 'number') {
       return payload.state.serverTimestamp;
     }
@@ -262,22 +252,25 @@ export function applyRuntimePatch(state, payload) {
   if (!payload || typeof payload !== 'object') return state;
   const data = payload;
   const next = { ...state };
+  const citytime = extractCitytime(data, null);
 
   if (typeof data.hasController === 'boolean') next.hasController = data.hasController;
   if (typeof data.isController === 'boolean') next.isController = data.isController;
   if (typeof data.inCity === 'boolean') next.inCity = data.inCity;
-  if (typeof data.serverTimestamp === 'number') next.serverTimestamp = data.serverTimestamp;
+  if (typeof citytime === 'number') next.citytime = citytime;
   if (typeof data.currentLocation === 'string' || data.currentLocation === null) {
     next.currentLocation = data.currentLocation;
   }
   if (typeof data.locationId === 'string' || data.locationId === null) {
     next.currentLocation = data.locationId;
   }
-  if (Array.isArray(data.availableCommands)) {
-    next.availableCommands = data.availableCommands;
-  }
-  if (Array.isArray(data.availableLocations)) {
-    next.availableLocations = data.availableLocations;
+  if (data.current && typeof data.current === 'object') {
+    const { place, locationId } = data.current;
+    if (place === 'outside') next.inCity = false;
+    if (place === 'city' || place === 'location') next.inCity = true;
+    if (typeof locationId === 'string' || locationId === null) {
+      next.currentLocation = locationId;
+    }
   }
   return next;
 }
@@ -298,6 +291,22 @@ export function applyExecResultPatch(state, commandType, commandPayload, resultP
   }
   if (commandType === 'leave_location') {
     next = { ...next, currentLocation: null };
+  }
+  if (commandType === 'where_can_i_go' && resultPayload && typeof resultPayload === 'object') {
+    const current = resultPayload.current;
+    if (current && typeof current === 'object') {
+      if (current.place === 'outside') {
+        next = { ...next, inCity: false, currentLocation: null };
+      } else if (current.place === 'city') {
+        next = { ...next, inCity: true, currentLocation: null };
+      } else if (current.place === 'location') {
+        next = {
+          ...next,
+          inCity: true,
+          currentLocation: typeof current.locationId === 'string' ? current.locationId : next.currentLocation,
+        };
+      }
+    }
   }
   return next;
 }

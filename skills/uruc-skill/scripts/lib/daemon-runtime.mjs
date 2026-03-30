@@ -11,7 +11,7 @@ import {
   createLocalBridgeConfig,
   DEFAULT_BRIDGE_COALESCE_MS,
   ensureControlDir,
-  extractServerTimestamp,
+  extractCitytime,
   getSocketPath,
   normalizeAgentConfig,
   readBridgeQueue,
@@ -141,25 +141,6 @@ export class AgentDaemon {
         case 'disconnect':
           await this.disconnectRemote({ clearSession: true });
           return { id: request.id, ok: true, data: this.state };
-
-        case 'commands': {
-          const response = await this.refreshSessionState();
-          this.state = {
-            ...this.state,
-            availableCommands: response.availableCommands ?? [],
-            availableLocations: response.availableLocations ?? [],
-          };
-          this.persistState();
-          return {
-            id: request.id,
-            ok: true,
-            data: {
-              commands: this.state.availableCommands,
-              locations: this.state.availableLocations,
-              state: this.state,
-            },
-          };
-        }
 
         case 'exec': {
           const payload = request.payload;
@@ -301,7 +282,7 @@ export class AgentDaemon {
       lastError: '',
     }, authResult);
     this.persistState();
-    await this.refreshSessionState();
+    await this.refreshAuthoritativeState();
     await this.restoreControlIfNeeded();
   }
 
@@ -366,7 +347,7 @@ export class AgentDaemon {
       type: message.type,
       payload: message.payload,
       receivedAt,
-      serverTimestamp: extractServerTimestamp(message.payload, this.state.serverTimestamp ?? Date.now()),
+      citytime: extractCitytime(message.payload, this.state.citytime ?? Date.now()),
     };
 
     this.state = appendEvent(this.state, entry);
@@ -441,8 +422,7 @@ export class AgentDaemon {
       isController: clearSession ? false : this.state.isController,
       inCity: clearSession ? false : this.state.inCity,
       currentLocation: clearSession ? null : this.state.currentLocation,
-      availableCommands: clearSession ? [] : this.state.availableCommands,
-      availableLocations: clearSession ? [] : this.state.availableLocations,
+      citytime: clearSession ? null : this.state.citytime,
     };
     this.persistState();
   }
@@ -528,8 +508,8 @@ export class AgentDaemon {
     });
   }
 
-  async refreshSessionState() {
-    const result = await this.sendRemote('session_state');
+  async refreshAuthoritativeState() {
+    const result = await this.sendRemote('what_state_am_i');
     this.state = applyRuntimePatch(this.state, result);
     this.persistState();
     return result;
@@ -705,13 +685,13 @@ export class AgentDaemon {
   }
 
   logPush(entry) {
-    const serverTimestamp = typeof entry.serverTimestamp === 'number' ? ` serverTimestamp=${entry.serverTimestamp}` : '';
-    console.log(`[uruc-agent] push type=${entry.type}${serverTimestamp}`);
+    const citytime = typeof entry.citytime === 'number' ? ` citytime=${entry.citytime}` : '';
+    console.log(`[uruc-agent] push type=${entry.type}${citytime}`);
   }
 
   logWake(batch) {
-    const serverTimestamp = extractWakeBatchServerTimestamp(batch.messages);
-    const timestampLabel = typeof serverTimestamp === 'number' ? ` serverTimestamp=${serverTimestamp}` : '';
+    const citytime = extractWakeBatchCitytime(batch.messages);
+    const timestampLabel = typeof citytime === 'number' ? ` citytime=${citytime}` : '';
     console.log(`[uruc-agent] bridge batch=${batch.id ?? 'unknown'} messages=${batch.messages.length}${timestampLabel}`);
   }
 }
@@ -726,10 +706,10 @@ function normalizeWakeBatch(batch) {
   };
 }
 
-function extractWakeBatchServerTimestamp(messages) {
+function extractWakeBatchCitytime(messages) {
   for (const message of messages) {
-    const serverTimestamp = extractServerTimestamp(message?.payload, null);
-    if (typeof serverTimestamp === 'number') return serverTimestamp;
+    const citytime = extractCitytime(message?.payload, null);
+    if (typeof citytime === 'number') return citytime;
   }
   return null;
 }
