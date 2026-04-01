@@ -12,6 +12,7 @@ import { setCorsHeaders, setSecurityHeaders } from '../server/security.js';
 import type { HttpContext, HookDisposable, CommandSchema, WSContext, WSMessage, HookRegistry, HttpHandler } from '../plugin-system/hook-registry.js';
 import { readCityConfig, readCityLock, writeCityLock } from './config.js';
 import { resolveConfiguredPlugin } from './inspection.js';
+import { readPluginPackageManifest } from './manifest.js';
 import { createSourceFingerprint, formatIntegrityFingerprint } from './source-fingerprint.js';
 import { DisposableScope, type Disposable } from './scope.js';
 import type { UrucDb } from '../database/index.js';
@@ -322,14 +323,23 @@ async function readPackageDependencies(packageRoot: string): Promise<Array<{ nam
 }
 
 async function hasInstalledDependency(packageRoot: string, dependencyName: string): Promise<boolean> {
-  try {
-    await access(path.join(packageRoot, 'node_modules', ...dependencyName.split('/'), 'package.json'));
-    return true;
-  } catch (error: any) {
-    if (error?.code === 'ENOENT') {
+  let currentDir = packageRoot;
+
+  while (true) {
+    try {
+      await access(path.join(currentDir, 'node_modules', ...dependencyName.split('/'), 'package.json'));
+      return true;
+    } catch (error: any) {
+      if (error?.code !== 'ENOENT') {
+        throw error;
+      }
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
       return false;
     }
-    throw error;
+    currentDir = parentDir;
   }
 }
 
@@ -455,6 +465,65 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
     }
   }
 
+  private async resolveFrontendBuildScriptPath(): Promise<string> {
+    const candidates = [
+      path.resolve(this.packageRoot, '..', '..', 'scripts', 'build-plugin-frontend.mjs'),
+      path.resolve(this.packageRoot, 'scripts', 'build-plugin-frontend.mjs'),
+    ];
+
+    for (const candidate of candidates) {
+      try {
+        await access(candidate);
+        return candidate;
+      } catch (error: any) {
+        if (error?.code !== 'ENOENT') {
+          throw error;
+        }
+      }
+    }
+
+    throw new Error(`Could not locate scripts/build-plugin-frontend.mjs from package root ${this.packageRoot}`);
+  }
+
+  private async ensureMaterializedFrontendBuild(
+    packageRoot: string,
+    pluginId: string,
+    sourceType: 'path' | 'package',
+  ) {
+    let manifest = await readPluginPackageManifest(packageRoot);
+    if (sourceType !== 'path' || !manifest.urucFrontend || manifest.frontendBuild) {
+      return manifest;
+    }
+
+    const buildScriptPath = await this.resolveFrontendBuildScriptPath();
+
+    try {
+      await execFileAsync(process.execPath, [
+        buildScriptPath,
+        '--plugin',
+        packageRoot,
+        '--out',
+        path.join(packageRoot, 'frontend-dist'),
+      ], {
+        cwd: this.packageRoot,
+        env: process.env,
+      });
+    } catch (error: any) {
+      const message = error?.stderr?.trim()
+        || error?.stdout?.trim()
+        || error?.message
+        || String(error);
+      throw new Error(`Failed to build frontend assets for plugin ${pluginId}: ${message}`);
+    }
+
+    manifest = await readPluginPackageManifest(packageRoot);
+    if (!manifest.frontendBuild) {
+      throw new Error(`Frontend build for plugin ${pluginId} did not produce frontend-dist/manifest.json`);
+    }
+
+    return manifest;
+  }
+
   async syncLockFile(): Promise<CityLockFile> {
     const config = normalizeConfig(await readCityConfig(this.configPath));
     const existingLock = await readCityLock(this.lockPath);
@@ -496,6 +565,7 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
         const packageRoot = needsRematerialization
           ? await this.materializePluginRevision(resolved.sourcePath, pluginId, revision, storeRoot)
           : previous.packageRoot;
+        const runtimeManifest = await this.ensureMaterializedFrontendBuild(packageRoot, pluginId, resolved.sourceType);
         await this.ensurePluginRuntimeDependencies(packageRoot, pluginId);
         await this.ensureRuntimeSdkBridge(packageRoot);
 
@@ -503,23 +573,23 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
           pluginId,
           packageName: resolved.expectedPackageName,
           version: resolved.expectedVersion,
-          publisher: resolved.manifest.urucPlugin.publisher,
+          publisher: runtimeManifest.urucPlugin.publisher,
           revision,
           sourcePath: resolved.sourcePath,
           packageRoot,
-          entryPath: path.resolve(packageRoot, resolved.manifest.urucPlugin.entry),
+          entryPath: path.resolve(packageRoot, runtimeManifest.urucPlugin.entry),
           enabled: pluginConfig.enabled ?? true,
-          dependencies: resolved.manifest.urucPlugin.dependencies ?? [],
-          activation: resolved.manifest.urucPlugin.activation ?? ['startup'],
+          dependencies: runtimeManifest.urucPlugin.dependencies ?? [],
+          activation: runtimeManifest.urucPlugin.activation ?? ['startup'],
           permissionsRequested: resolved.permissionsRequested,
           permissionsGranted: resolved.permissionsGranted,
           config: pluginConfig.config ?? {},
           source: pluginConfig.source ?? resolved.sourcedRelease?.sourceId,
           sourceType: resolved.sourceType,
-          frontend: resolved.manifest.frontendBuild,
+          frontend: runtimeManifest.frontendBuild,
           integrity: resolved.sourcedRelease?.integrity,
           sourceFingerprint,
-          healthcheck: resolved.manifest.urucPlugin.healthcheck,
+          healthcheck: runtimeManifest.urucPlugin.healthcheck,
           history,
           generatedAt: new Date().toISOString(),
         };

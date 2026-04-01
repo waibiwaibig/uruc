@@ -25,17 +25,33 @@ function getManagedStartSuccessMessage(mode: ManagedRuntimeMode, rebuilt: boolea
   return rebuilt ? 'Uruc rebuilt and started in background.' : 'Uruc started in background.';
 }
 
-function resolveConfiguredCityPath(): { configPath: string; isDefaultPath: boolean } {
+function resolveConfiguredRuntimePaths(): {
+  configPath: string;
+  lockPath: string;
+  pluginStoreDir: string;
+  isDefaultPath: boolean;
+} {
   const env = parseEnvFile();
   const defaultCityConfigPath = getCityConfigPath();
+  const defaultCityLockPath = getCityLockPath();
+  const defaultPluginStoreDir = getPluginStoreDir();
   const rawConfigured = env.CITY_CONFIG_PATH?.trim();
+  const rawLockPath = env.CITY_LOCK_PATH?.trim();
+  const rawPluginStoreDir = env.PLUGIN_STORE_DIR?.trim();
   if (!rawConfigured) {
-    return { configPath: defaultCityConfigPath, isDefaultPath: true };
+    return {
+      configPath: defaultCityConfigPath,
+      lockPath: rawLockPath ? resolveFromRuntimeHome(rawLockPath) : defaultCityLockPath,
+      pluginStoreDir: rawPluginStoreDir ? resolveFromRuntimeHome(rawPluginStoreDir) : defaultPluginStoreDir,
+      isDefaultPath: true,
+    };
   }
 
   const resolved = resolveFromRuntimeHome(rawConfigured);
   return {
     configPath: resolved,
+    lockPath: rawLockPath ? resolveFromRuntimeHome(rawLockPath) : defaultCityLockPath,
+    pluginStoreDir: rawPluginStoreDir ? resolveFromRuntimeHome(rawPluginStoreDir) : defaultPluginStoreDir,
     isDefaultPath: resolved === defaultCityConfigPath,
   };
 }
@@ -52,16 +68,16 @@ export async function runStartCommand(context: CommandContext): Promise<void> {
   }
 
   const background = hasFlag(context.args, '--background', '-b');
-  const { configPath, isDefaultPath } = resolveConfiguredCityPath();
+  const { configPath, lockPath, pluginStoreDir, isDefaultPath } = resolveConfiguredRuntimePaths();
   if (!existsSync(configPath) && !isDefaultPath) {
     throw new Error(`Configured city file does not exist at ${configPath}. Run \`uruc configure\` to create or fix it.`);
   }
 
   const cityState = await prepareCityRuntime({
     configPath,
-    lockPath: getCityLockPath(),
+    lockPath,
     packageRoot: getPackageRoot(),
-    pluginStoreDir: getPluginStoreDir(),
+    pluginStoreDir,
     autoCreateDefault: isDefaultPath,
   });
   if (cityState === 'created') {

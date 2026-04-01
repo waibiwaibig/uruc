@@ -14,17 +14,33 @@ function getRestartSuccessMessage(mode: 'background' | 'systemd', rebuilt: boole
   return rebuilt ? 'Uruc rebuilt and restarted in background.' : 'Uruc restarted in background.';
 }
 
-function resolveConfiguredCityPath(): { configPath: string; isDefaultPath: boolean } {
+function resolveConfiguredRuntimePaths(): {
+  configPath: string;
+  lockPath: string;
+  pluginStoreDir: string;
+  isDefaultPath: boolean;
+} {
   const env = parseEnvFile();
   const defaultCityConfigPath = getCityConfigPath();
+  const defaultCityLockPath = getCityLockPath();
+  const defaultPluginStoreDir = getPluginStoreDir();
   const rawConfigured = env.CITY_CONFIG_PATH?.trim();
+  const rawLockPath = env.CITY_LOCK_PATH?.trim();
+  const rawPluginStoreDir = env.PLUGIN_STORE_DIR?.trim();
   if (!rawConfigured) {
-    return { configPath: defaultCityConfigPath, isDefaultPath: true };
+    return {
+      configPath: defaultCityConfigPath,
+      lockPath: rawLockPath ? resolveFromRuntimeHome(rawLockPath) : defaultCityLockPath,
+      pluginStoreDir: rawPluginStoreDir ? resolveFromRuntimeHome(rawPluginStoreDir) : defaultPluginStoreDir,
+      isDefaultPath: true,
+    };
   }
 
   const resolved = resolveFromRuntimeHome(rawConfigured);
   return {
     configPath: resolved,
+    lockPath: rawLockPath ? resolveFromRuntimeHome(rawLockPath) : defaultCityLockPath,
+    pluginStoreDir: rawPluginStoreDir ? resolveFromRuntimeHome(rawPluginStoreDir) : defaultPluginStoreDir,
     isDefaultPath: resolved === defaultCityConfigPath,
   };
 }
@@ -35,16 +51,16 @@ export async function runRestartCommand(context: CommandContext): Promise<void> 
     throw new Error('Restart only works for managed background or systemd instances. Start Uruc in the background first.');
   }
 
-  const { configPath, isDefaultPath } = resolveConfiguredCityPath();
+  const { configPath, lockPath, pluginStoreDir, isDefaultPath } = resolveConfiguredRuntimePaths();
   if (!existsSync(configPath) && !isDefaultPath) {
     throw new Error(`Configured city file does not exist at ${configPath}. Run \`uruc configure\` to create or fix it.`);
   }
 
   await prepareCityRuntime({
     configPath,
-    lockPath: getCityLockPath(),
+    lockPath,
     packageRoot: getPackageRoot(),
-    pluginStoreDir: getPluginStoreDir(),
+    pluginStoreDir,
     autoCreateDefault: isDefaultPath,
   });
 

@@ -347,6 +347,87 @@ describe('PluginPlatformHost', () => {
     });
   });
 
+  it('builds frontend assets for path-backed frontend plugins when frontend-dist is missing', async () => {
+    const pluginRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-frontend-source-'));
+    tempDirs.push(pluginRoot);
+    await createPluginPackage(pluginRoot, {
+      pluginId: 'acme.frontend-source',
+      packageName: '@acme/plugin-frontend-source',
+      version: '0.1.0',
+      publisher: 'acme',
+      frontendEntry: './frontend/plugin.ts',
+    });
+    await mkdir(path.join(pluginRoot, 'frontend'), { recursive: true });
+    await writeFile(path.join(pluginRoot, 'frontend', 'plugin.ts'), `import { defineFrontendPlugin } from '@uruc/plugin-sdk/frontend';
+
+export default defineFrontendPlugin({
+  pluginId: 'acme.frontend-source',
+  version: '0.1.0',
+  contributes: [],
+});
+`, 'utf8');
+
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-frontend-source-runtime-'));
+    tempDirs.push(tempRoot);
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.frontend-source': {
+          pluginId: 'acme.frontend-source',
+          packageName: '@acme/plugin-frontend-source',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginRoot,
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    const lock = await host.syncLockFile();
+    const plugin = lock.plugins['acme.frontend-source'];
+
+    expect(plugin.frontend).toMatchObject({
+      apiVersion: 1,
+      format: 'global-script',
+      entry: './plugin.js',
+      css: [],
+      exportKey: 'acme.frontend-source',
+    });
+
+    expect(existsSync(path.join(plugin.packageRoot, 'frontend-dist', 'manifest.json'))).toBe(true);
+
+    await expect(host.readFrontendAsset(
+      'acme.frontend-source',
+      plugin.revision,
+      'frontend-dist/plugin.js',
+    )).resolves.toMatchObject({
+      body: expect.any(Buffer),
+    });
+
+    await expect(host.listFrontendPlugins()).resolves.toEqual([
+      expect.objectContaining({
+        pluginId: 'acme.frontend-source',
+        revision: plugin.revision,
+        entryUrl: `/api/plugin-assets/acme.frontend-source/${plugin.revision}/frontend-dist/plugin.js`,
+        cssUrls: [],
+        exportKey: 'acme.frontend-source',
+      }),
+    ]);
+  });
+
   it('rejects frontend asset paths that escape frontend-dist', async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-frontend-asset-'));
     tempDirs.push(tempRoot);
@@ -498,6 +579,95 @@ export default {
     await host.startAll({ db, hooks, services });
 
     expect(host.getPluginDiagnostics().find((item) => item.pluginId === 'acme.runtime-dep')?.state).toBe('active');
+
+    await host.stopAll();
+  });
+
+  it('reuses runtime dependencies that are already resolvable from ancestor node_modules', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-runtime-deps-ancestor-'));
+    tempDirs.push(tempRoot);
+
+    const dependencyRoot = path.join(tempRoot, 'node_modules', 'fixture-runtime-dep');
+    const pluginPath = path.join(tempRoot, 'plugins', 'runtime-dep-ancestor');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await mkdir(dependencyRoot, { recursive: true });
+    await writeFile(path.join(dependencyRoot, 'package.json'), `${JSON.stringify({
+      name: 'fixture-runtime-dep',
+      version: '1.0.0',
+      type: 'module',
+      exports: {
+        '.': './index.js',
+      },
+    }, null, 2)}\n`, 'utf8');
+    await writeFile(
+      path.join(dependencyRoot, 'index.js'),
+      "export function runtimeValue() { return 'runtime dependency loaded from ancestor'; }\n",
+      'utf8',
+    );
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'acme.runtime-dep-ancestor',
+      packageName: '@acme/plugin-runtime-dep-ancestor',
+      version: '1.0.0',
+      publisher: 'acme',
+      dependencies: {
+        'fixture-runtime-dep': '1.0.0',
+      },
+      body: `import { runtimeValue } from 'fixture-runtime-dep';
+
+export default {
+  kind: 'uruc.backend-plugin@v2',
+  pluginId: 'acme.runtime-dep-ancestor',
+  apiVersion: 2,
+  async setup(ctx) {
+    await ctx.commands.register({
+      id: 'ping',
+      description: 'ping',
+      inputSchema: {},
+      handler: async () => ({ ok: true, value: runtimeValue() }),
+    });
+  },
+};\n`,
+    });
+
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.runtime-dep-ancestor': {
+          pluginId: 'acme.runtime-dep-ancestor',
+          packageName: '@acme/plugin-runtime-dep-ancestor',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginPath,
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await host.syncLockFile();
+    const lock = await readCityLock(lockPath);
+    const entry = lock.plugins['acme.runtime-dep-ancestor'];
+    expect(entry).toBeDefined();
+    expect(existsSync(path.join(entry!.packageRoot, 'node_modules', 'fixture-runtime-dep', 'package.json'))).toBe(false);
+
+    const hooks = new HookRegistry();
+    const services = new ServiceRegistry();
+    const db = createDb(':memory:');
+    await host.startAll({ db, hooks, services });
+
+    expect(host.getPluginDiagnostics().find((item) => item.pluginId === 'acme.runtime-dep-ancestor')?.state).toBe('active');
 
     await host.stopAll();
   });
