@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { PanelLeftOpen } from 'lucide-react';
 
@@ -10,14 +10,17 @@ import { resolvePluginIcon } from '../../../plugins/icons';
 import { useTranslation } from 'react-i18next';
 import {
   STORAGE_KEYS,
+  getSavedAppShellAnchor,
   getRememberedLaunchMode,
   getSavedAppShellExpanded,
   getSavedLinkedVenueIds,
   getSavedStringList,
   rememberLaunchMode,
+  setSavedAppShellAnchor,
   setSavedAppShellExpanded,
   setSavedStringList,
   setSavedLinkedVenueIds,
+  type AppShellAnchor,
   type SavedLaunchMode,
 } from '../../../lib/storage';
 import { reconcilePersistedDestinationIds } from '../../../lib/destination-persistence';
@@ -48,6 +51,16 @@ import cityBg from '../../../assets/city-bg.png';
 import cityLightBg from '../../../assets/city-light-bg.png';
 
 const LAUNCH_CANCELLED_ERROR = 'Launch cancelled';
+const FLOATING_SHELL_TOGGLE_SIZE = 52;
+const FLOATING_SHELL_TOGGLE_MARGIN = 16;
+const FLOATING_SHELL_TOGGLE_DEFAULT_LEFT = 24;
+const FLOATING_SHELL_TOGGLE_DEFAULT_BOTTOM = 24;
+const FLOATING_SHELL_TOGGLE_DRAG_THRESHOLD = 4;
+
+type ViewportSize = {
+  width: number;
+  height: number;
+};
 
 type PendingLaunchRequest = {
   destination: Destination;
@@ -91,6 +104,43 @@ function buildTimeLabel(index: number): string {
   return index === 0 ? 'Just now' : `${index + 1} updates ago`;
 }
 
+export function getTopBarFrameClassName(isDesktopSidebarOpen: boolean): string {
+  return isDesktopSidebarOpen ? 'shrink-0' : 'shrink-0 lg:hidden';
+}
+
+function getViewportSize(): ViewportSize {
+  if (typeof window === 'undefined') {
+    return { width: 1280, height: 720 };
+  }
+  return {
+    width: window.innerWidth,
+    height: window.innerHeight,
+  };
+}
+
+export function getDefaultAppShellAnchor(viewport: ViewportSize = getViewportSize()): AppShellAnchor {
+  return {
+    left: FLOATING_SHELL_TOGGLE_DEFAULT_LEFT,
+    top: Math.max(
+      FLOATING_SHELL_TOGGLE_MARGIN,
+      viewport.height - FLOATING_SHELL_TOGGLE_SIZE - FLOATING_SHELL_TOGGLE_DEFAULT_BOTTOM,
+    ),
+  };
+}
+
+export function clampAppShellAnchor(
+  anchor: AppShellAnchor,
+  viewport: ViewportSize = getViewportSize(),
+): AppShellAnchor {
+  const maxLeft = Math.max(FLOATING_SHELL_TOGGLE_MARGIN, viewport.width - FLOATING_SHELL_TOGGLE_SIZE - FLOATING_SHELL_TOGGLE_MARGIN);
+  const maxTop = Math.max(FLOATING_SHELL_TOGGLE_MARGIN, viewport.height - FLOATING_SHELL_TOGGLE_SIZE - FLOATING_SHELL_TOGGLE_MARGIN);
+
+  return {
+    left: Math.min(Math.max(anchor.left, FLOATING_SHELL_TOGGLE_MARGIN), maxLeft),
+    top: Math.min(Math.max(anchor.top, FLOATING_SHELL_TOGGLE_MARGIN), maxTop),
+  };
+}
+
 export function WorkspaceLayout({
   isDark,
   toggleTheme,
@@ -116,6 +166,17 @@ export function WorkspaceLayout({
   const [preferences, setPreferences] = useState<WorkspacePreferences>(readSavedPreferences);
   const [launchError, setLaunchError] = useState('');
   const [pendingLaunchRequest, setPendingLaunchRequest] = useState<PendingLaunchRequest | null>(null);
+  const [floatingShellAnchor, setFloatingShellAnchor] = useState<AppShellAnchor>(() => (
+    clampAppShellAnchor(getSavedAppShellAnchor() ?? getDefaultAppShellAnchor())
+  ));
+  const floatingShellDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    origin: AppShellAnchor;
+    moved: boolean;
+  } | null>(null);
+  const floatingShellDragMovedRef = useRef(false);
 
   useEffect(() => {
     setSavedAppShellExpanded(isDesktopSidebarOpen);
@@ -133,6 +194,23 @@ export function WorkspaceLayout({
     if (typeof localStorage === 'undefined') return;
     localStorage.setItem(STORAGE_KEYS.preferences, JSON.stringify(preferences));
   }, [preferences]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleResize = () => {
+      setFloatingShellAnchor((current) => {
+        const next = clampAppShellAnchor(current);
+        if (next.left !== current.left || next.top !== current.top) {
+          setSavedAppShellAnchor(next);
+        }
+        return next;
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const visiblePageRoutes = useMemo(
     () => pluginHost.allPageRoutes.filter((route) => {
@@ -439,6 +517,64 @@ export function WorkspaceLayout({
     }));
   };
 
+  const updateFloatingShellAnchorFromDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = floatingShellDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return null;
+
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    if (Math.hypot(deltaX, deltaY) > FLOATING_SHELL_TOGGLE_DRAG_THRESHOLD) {
+      drag.moved = true;
+    }
+
+    const next = clampAppShellAnchor({
+      left: drag.origin.left + deltaX,
+      top: drag.origin.top + deltaY,
+    });
+    setFloatingShellAnchor(next);
+    return next;
+  };
+
+  const handleFloatingShellPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    floatingShellDragMovedRef.current = false;
+    floatingShellDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      origin: floatingShellAnchor,
+      moved: false,
+    };
+  };
+
+  const handleFloatingShellPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!floatingShellDragRef.current) return;
+    event.preventDefault();
+    updateFloatingShellAnchorFromDrag(event);
+  };
+
+  const finishFloatingShellDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = floatingShellDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    const next = updateFloatingShellAnchorFromDrag(event) ?? floatingShellAnchor;
+    floatingShellDragMovedRef.current = drag.moved;
+    floatingShellDragRef.current = null;
+
+    if (drag.moved) {
+      setSavedAppShellAnchor(next);
+      window.setTimeout(() => {
+        floatingShellDragMovedRef.current = false;
+      }, 0);
+    }
+  };
+
+  const handleFloatingShellToggleClick = () => {
+    if (floatingShellDragMovedRef.current) return;
+    setIsDesktopSidebarOpen(true);
+  };
+
   const activeSection: WorkspaceSection = location.pathname === '/workspace/agents'
     ? 'agents'
     : location.pathname === '/workspace/settings'
@@ -469,16 +605,18 @@ export function WorkspaceLayout({
       }}
     >
       <div className="flex h-screen w-full flex-col overflow-hidden bg-white font-sans text-zinc-950 antialiased transition-colors duration-200 selection:bg-zinc-900 selection:text-white dark:bg-[#09090B] dark:text-zinc-50 dark:selection:bg-white dark:selection:text-zinc-900">
-        <TopBar
-          isDark={isDark}
-          toggleTheme={toggleTheme}
-          onMenuClick={() => setIsMobileMenuOpen((current) => !current)}
-          onOpenTokens={() => setIsTokenTableOpen(true)}
-          onOpenCommand={() => setIsCommandOpen(true)}
-          onOpenSettings={() => navigate('/workspace/settings')}
-          session={session}
-          onSignOut={() => logout()}
-        />
+        <div className={getTopBarFrameClassName(isDesktopSidebarOpen)}>
+          <TopBar
+            isDark={isDark}
+            toggleTheme={toggleTheme}
+            onMenuClick={() => setIsMobileMenuOpen((current) => !current)}
+            onOpenTokens={() => setIsTokenTableOpen(true)}
+            onOpenCommand={() => setIsCommandOpen(true)}
+            onOpenSettings={() => navigate('/workspace/settings')}
+            session={session}
+            onSignOut={() => logout()}
+          />
+        </div>
 
         <TokenTable isOpen={isTokenTableOpen} onClose={() => setIsTokenTableOpen(false)} />
         <CommandCenterDialog
@@ -559,8 +697,19 @@ export function WorkspaceLayout({
 
           {!isDesktopSidebarOpen ? (
             <button
-              onClick={() => setIsDesktopSidebarOpen(true)}
-              className="absolute bottom-6 left-6 z-40 hidden h-10 w-10 items-center justify-center rounded-full border border-zinc-200/50 bg-white/60 text-zinc-600 shadow-lg backdrop-blur-xl transition-all hover:scale-110 hover:bg-white hover:text-zinc-900 dark:border-white/10 dark:bg-black/50 dark:text-zinc-400 dark:hover:bg-white/10 dark:hover:text-white lg:flex"
+              type="button"
+              aria-label="Expand workspace shell"
+              onClick={handleFloatingShellToggleClick}
+              onPointerDown={handleFloatingShellPointerDown}
+              onPointerMove={handleFloatingShellPointerMove}
+              onPointerUp={finishFloatingShellDrag}
+              onPointerCancel={finishFloatingShellDrag}
+              className="fixed z-40 hidden size-[52px] cursor-grab items-center justify-center rounded-full border border-white/55 bg-white/55 text-zinc-700 shadow-[0_18px_48px_rgba(15,23,42,0.16)] backdrop-blur-2xl backdrop-saturate-150 transition-[background-color,border-color,box-shadow,transform] hover:scale-105 hover:border-white/70 hover:bg-white/70 hover:text-zinc-950 active:cursor-grabbing dark:border-white/10 dark:bg-zinc-950/45 dark:text-zinc-300 dark:shadow-[0_18px_48px_rgba(0,0,0,0.32)] dark:hover:bg-white/10 dark:hover:text-white lg:flex"
+              style={{
+                left: floatingShellAnchor.left,
+                top: floatingShellAnchor.top,
+                touchAction: 'none',
+              }}
             >
               <PanelLeftOpen size={18} />
             </button>

@@ -48,11 +48,16 @@ export function Sidebar({
   return (
     <div
       className={cn(
-        'flex h-full w-64 flex-col border-r border-zinc-200/50 bg-white/40 backdrop-blur-2xl dark:border-white/10 dark:bg-black/40',
+        'relative isolate flex h-full w-64 flex-col overflow-hidden border-r border-white/35 bg-white/35 shadow-[18px_0_48px_rgba(15,23,42,0.08)] backdrop-blur-2xl backdrop-saturate-150 dark:border-white/10 dark:bg-zinc-950/35 dark:shadow-[18px_0_48px_rgba(0,0,0,0.28)]',
         className,
       )}
     >
-      <div className="flex h-14 items-center gap-3 border-b border-zinc-200/50 px-4 dark:border-white/10">
+      <div
+        aria-hidden="true"
+        data-app-shell-soft-edge="sidebar"
+        className="pointer-events-none absolute inset-y-0 right-0 z-0 w-14 bg-gradient-to-l from-white/20 via-white/10 to-transparent dark:from-white/5 dark:via-white/[0.03]"
+      />
+      <div className="relative z-10 flex h-14 items-center gap-3 border-b border-white/35 px-4 dark:border-white/10">
         <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-sm">
           <Terminal size={14} className="stroke-[2.5]" />
         </div>
@@ -68,7 +73,7 @@ export function Sidebar({
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
+      <div className="relative z-10 flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
         {workspaceSections.map((item) => {
           const Icon = item.icon;
           const isActive = item.id === activeSection;
@@ -171,8 +176,8 @@ export function Sidebar({
         </>
       </div>
 
-      <div className="border-t border-zinc-200/50 p-4 dark:border-white/10 mt-auto shrink-0">
-        <div className="rounded-xl border border-zinc-200/50 bg-white/50 p-4 shadow-sm dark:border-white/5 dark:bg-white/5 relative overflow-hidden">
+      <div className="relative z-10 mt-auto shrink-0 border-t border-white/35 p-4 dark:border-white/10">
+        <div className="relative overflow-hidden rounded-xl border border-white/45 bg-white/35 p-4 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
           
           {/* Cyber Deco Background */}
           <div className="absolute top-[-20%] right-[-10%] opacity-10 pointer-events-none select-none text-zinc-900 dark:text-white">
