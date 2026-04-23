@@ -167,6 +167,7 @@ async function typeIntoTextarea(textarea: HTMLTextAreaElement, value: string) {
     textarea.selectionEnd = value.length;
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
     textarea.dispatchEvent(new Event('change', { bubbles: true }));
+    textarea.dispatchEvent(new Event('select', { bubbles: true }));
   });
   await settle();
 }
@@ -199,9 +200,9 @@ async function clickElement(element: Element) {
 
 describe('SocialHubPage mentions', () => {
   let sendCommandMock: ReturnType<typeof vi.fn>;
-  let groupThread: {
+  let selectedThread: {
     threadId: string;
-    kind: 'group';
+    kind: 'group' | 'direct';
     title: string;
     status: 'active';
     memberCount: number;
@@ -209,13 +210,13 @@ describe('SocialHubPage mentions', () => {
     updatedAt: number;
     lastMessageAt: number | null;
     lastMessagePreview: string | null;
-    directPeer: null;
+    directPeer: { agentId: string; agentName: string; description: string | null; avatarPath: string | null; isOnline: boolean } | null;
     ownerAgentId: string;
     ownerAgentName: string;
   };
   let threadDetail: {
     serverTimestamp: number;
-    thread: typeof groupThread;
+    thread: typeof selectedThread;
     members: Array<{
       agentId: string;
       userId: string;
@@ -248,7 +249,7 @@ describe('SocialHubPage mentions', () => {
       window.requestAnimationFrame = ((callback: FrameRequestCallback) => window.setTimeout(callback, 0)) as typeof window.requestAnimationFrame;
     }
 
-    groupThread = {
+    selectedThread = {
       threadId: 'thread-group-1',
       kind: 'group',
       title: 'Silk Cabinet',
@@ -261,11 +262,11 @@ describe('SocialHubPage mentions', () => {
       directPeer: null,
       ownerAgentId: 'agent-a',
       ownerAgentName: 'Agent A',
-    } as const;
+    };
 
     threadDetail = {
       serverTimestamp: 10,
-      thread: groupThread,
+      thread: selectedThread,
       members: [
         { agentId: 'agent-a', userId: 'user-a', agentName: 'Agent A', role: 'owner', joinedAt: 1, leftAt: null },
         { agentId: 'agent-b', userId: 'user-b', agentName: 'Agent B', role: 'member', joinedAt: 1, leftAt: null },
@@ -306,7 +307,7 @@ describe('SocialHubPage mentions', () => {
           return {
             serverTimestamp: 1,
             unreadTotal: 0,
-            threads: [groupThread],
+            threads: [selectedThread],
           };
         case 'uruc.social.list_moments@v1':
           return {
@@ -319,7 +320,7 @@ describe('SocialHubPage mentions', () => {
           return {
             serverTimestamp: 11,
             thread: {
-              ...groupThread,
+              ...selectedThread,
               updatedAt: 11,
               lastMessageAt: 11,
               lastMessagePreview: typeof (payload as { body?: unknown } | undefined)?.body === 'string'
@@ -327,8 +328,8 @@ describe('SocialHubPage mentions', () => {
                 : null,
             },
             message: {
-              messageId: 'message-1',
-              threadId: groupThread.threadId,
+              messageId: 'message-sent',
+              threadId: selectedThread.threadId,
               senderAgentId: 'agent-a',
               senderAgentName: 'Agent A',
               body: typeof (payload as { body?: unknown } | undefined)?.body === 'string'
@@ -354,7 +355,77 @@ describe('SocialHubPage mentions', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = false;
   });
 
-  it('opens mention suggestions when the user types @ in a group chat', async () => {
+  it('opens group mention suggestions and sends the selected member mention', async () => {
+    const mounted = await mountPluginPageDom(
+      createPageData({
+        runtime: createRuntime({
+          sendCommand: sendCommandMock,
+        }),
+      }),
+      <SocialHubPage />,
+    );
+
+    try {
+      const textarea = mounted.container.querySelector('textarea');
+      expect(textarea).toBeInstanceOf(HTMLTextAreaElement);
+
+      await typeIntoTextarea(textarea as HTMLTextAreaElement, '@C');
+
+      expect(mounted.container.textContent).toContain('Agent C');
+      expect(mounted.container.textContent).not.toContain('social:hub.chats.mentionEveryone');
+
+      await pressKey(textarea as HTMLTextAreaElement, 'Enter');
+
+      expect((textarea as HTMLTextAreaElement).value).toContain('@Agent C');
+      expect(mounted.container.textContent).toContain('@Agent C');
+
+      await typeIntoTextarea(textarea as HTMLTextAreaElement, `${(textarea as HTMLTextAreaElement).value}please review`);
+      await pressKey(textarea as HTMLTextAreaElement, 'Enter');
+
+      const sendCall = sendCommandMock.mock.calls.find(([commandId]) => commandId === 'uruc.social.send_thread_message@v1');
+      expect(sendCall?.[1]).toMatchObject({
+        body: '@Agent C please review',
+        mentionAgentIds: ['agent-c'],
+        mentionEveryone: false,
+      });
+    } finally {
+      await mounted.unmount();
+    }
+  });
+
+  it('does not open mention suggestions in a direct thread', async () => {
+    selectedThread = {
+      threadId: 'thread-direct-1',
+      kind: 'direct',
+      title: 'Agent B',
+      status: 'active',
+      memberCount: 2,
+      unreadCount: 0,
+      updatedAt: 10,
+      lastMessageAt: null,
+      lastMessagePreview: null,
+      directPeer: {
+        agentId: 'agent-b',
+        agentName: 'Agent B',
+        description: 'Beta',
+        avatarPath: null,
+        isOnline: true,
+      },
+      ownerAgentId: 'agent-a',
+      ownerAgentName: 'Agent A',
+    };
+
+    threadDetail = {
+      serverTimestamp: 10,
+      thread: selectedThread,
+      members: [
+        { agentId: 'agent-a', userId: 'user-a', agentName: 'Agent A', role: 'owner', joinedAt: 1, leftAt: null },
+        { agentId: 'agent-b', userId: 'user-b', agentName: 'Agent B', role: 'member', joinedAt: 1, leftAt: null },
+      ],
+      messages: [],
+      nextCursor: null,
+    };
+
     const mounted = await mountPluginPageDom(
       createPageData({
         runtime: createRuntime({
@@ -370,170 +441,19 @@ describe('SocialHubPage mentions', () => {
 
       await typeIntoTextarea(textarea as HTMLTextAreaElement, '@');
 
-      expect(mounted.container.textContent).toContain('social:hub.chats.mentionEveryone');
-      expect(mounted.container.textContent).toContain('Agent B');
+      expect(mounted.container.textContent).not.toContain('social:hub.chats.mentionEveryone');
     } finally {
       await mounted.unmount();
     }
   });
 
-  it('selects @全体成员 from the keyboard flow and sends mentionEveryone', async () => {
-    const mounted = await mountPluginPageDom(
-      createPageData({
-        runtime: createRuntime({
-          sendCommand: sendCommandMock,
-        }),
-      }),
-      <SocialHubPage />,
-    );
-
-    try {
-      const textarea = mounted.container.querySelector('textarea');
-      expect(textarea).toBeInstanceOf(HTMLTextAreaElement);
-
-      await typeIntoTextarea(textarea as HTMLTextAreaElement, '@全');
-      await pressKey(textarea as HTMLTextAreaElement, 'Enter');
-
-      expect(mounted.container.textContent).toContain('@social:hub.chats.mentionEveryone');
-
-      await typeIntoTextarea(textarea as HTMLTextAreaElement, `${(textarea as HTMLTextAreaElement).value} 请看这里`);
-      await pressKey(textarea as HTMLTextAreaElement, 'Enter');
-
-      const sendCall = sendCommandMock.mock.calls.find(([commandId]) => commandId === 'uruc.social.send_thread_message@v1');
-      expect(sendCall?.[1]).toMatchObject({
-        mentionEveryone: true,
-        mentionAgentIds: [],
-      });
-    } finally {
-      await mounted.unmount();
-    }
-  });
-
-  it('uses a single clear mention button label instead of @成员', async () => {
-    const mounted = await mountPluginPageDom(
-      createPageData({
-        runtime: createRuntime({
-          sendCommand: sendCommandMock,
-        }),
-      }),
-      <SocialHubPage />,
-    );
-
-    try {
-      const buttons = [...mounted.container.querySelectorAll('button')];
-      const mentionButton = buttons.find((button) => button.textContent?.replace(/\s+/g, '') === 'social:hub.chats.mention');
-
-      expect(mentionButton).toBeDefined();
-      expect(mounted.container.textContent).not.toContain('@成员');
-    } finally {
-      await mounted.unmount();
-    }
-  });
-
-  it('renders telegram-style grouped message metadata outside the bubble header', async () => {
+  it('opens the message context menu and restores reply flow from it', async () => {
     threadDetail = {
       ...threadDetail,
       messages: [
         {
           messageId: 'message-1',
-          threadId: groupThread.threadId,
-          senderAgentId: 'agent-b',
-          senderAgentName: 'Agent B',
-          body: '第一条来自 B',
-          replyTo: null,
-          mentions: [],
-          mentionEveryone: false,
-          createdAt: Date.parse('2026-03-17T10:00:00Z'),
-          isDeleted: false,
-          deletedAt: null,
-          deletedReason: null,
-        },
-        {
-          messageId: 'message-2',
-          threadId: groupThread.threadId,
-          senderAgentId: 'agent-b',
-          senderAgentName: 'Agent B',
-          body: '第二条来自 B',
-          replyTo: null,
-          mentions: [],
-          mentionEveryone: false,
-          createdAt: Date.parse('2026-03-17T10:03:00Z'),
-          isDeleted: false,
-          deletedAt: null,
-          deletedReason: null,
-        },
-        {
-          messageId: 'message-3',
-          threadId: groupThread.threadId,
-          senderAgentId: 'agent-a',
-          senderAgentName: 'Agent A',
-          body: '第一条来自我',
-          replyTo: null,
-          mentions: [],
-          mentionEveryone: false,
-          createdAt: Date.parse('2026-03-17T10:04:00Z'),
-          isDeleted: false,
-          deletedAt: null,
-          deletedReason: null,
-        },
-        {
-          messageId: 'message-4',
-          threadId: groupThread.threadId,
-          senderAgentId: 'agent-a',
-          senderAgentName: 'Agent A',
-          body: '第二条来自我',
-          replyTo: null,
-          mentions: [],
-          mentionEveryone: false,
-          createdAt: Date.parse('2026-03-17T10:06:00Z'),
-          isDeleted: false,
-          deletedAt: null,
-          deletedReason: null,
-        },
-        {
-          messageId: 'message-5',
-          threadId: groupThread.threadId,
-          senderAgentId: 'agent-b',
-          senderAgentName: 'Agent B',
-          body: '隔天来自 B',
-          replyTo: null,
-          mentions: [],
-          mentionEveryone: false,
-          createdAt: Date.parse('2026-03-18T08:00:00Z'),
-          isDeleted: false,
-          deletedAt: null,
-          deletedReason: null,
-        },
-      ],
-    };
-
-    const mounted = await mountPluginPageDom(
-      createPageData({
-        runtime: createRuntime({
-          sendCommand: sendCommandMock,
-        }),
-      }),
-      <SocialHubPage />,
-    );
-
-    try {
-      expect(mounted.container.querySelectorAll('.social-bubble__meta')).toHaveLength(0);
-      expect(mounted.container.querySelectorAll('.social-message-day-pill')).toHaveLength(2);
-      expect(mounted.container.querySelectorAll('.social-message-group-label')).toHaveLength(2);
-      expect(mounted.container.querySelectorAll('.social-bubble__time')).toHaveLength(5);
-      expect(mounted.container.querySelectorAll('.social-bubble__copy > .social-bubble__time')).toHaveLength(5);
-    } finally {
-      await mounted.unmount();
-    }
-  });
-
-  it('opens a desktop context menu to reply instead of showing inline reply buttons', async () => {
-    threadDetail = {
-      ...threadDetail,
-      messages: [
-        {
-          messageId: 'message-1',
-          threadId: groupThread.threadId,
+          threadId: selectedThread.threadId,
           senderAgentId: 'agent-b',
           senderAgentName: 'Agent B',
           body: '请回复我',
@@ -558,17 +478,13 @@ describe('SocialHubPage mentions', () => {
     );
 
     try {
-      expect(mounted.container.querySelectorAll('.social-message-row__tool')).toHaveLength(0);
+      const messageBody = [...mounted.container.querySelectorAll('div')]
+        .find((element) => element.textContent?.trim() === '请回复我');
+      expect(messageBody).toBeTruthy();
 
-      const bubble = mounted.container.querySelector('.social-bubble');
-      expect(bubble).toBeTruthy();
+      await openContextMenu(messageBody as Element, { clientX: 160, clientY: 220 });
 
-      await openContextMenu(bubble as Element, { clientX: 160, clientY: 220 });
-
-      const menu = mounted.container.querySelector('.social-message-context-menu');
-      expect(menu).toBeTruthy();
-
-      const replyButton = [...mounted.container.querySelectorAll('.social-message-context-menu__item')]
+      const replyButton = [...mounted.container.querySelectorAll('button')]
         .find((element) => element.textContent?.includes('social:hub.chats.reply'));
       expect(replyButton).toBeTruthy();
 

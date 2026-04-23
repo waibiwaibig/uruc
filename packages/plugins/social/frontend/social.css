@@ -210,7 +210,7 @@
 .social-admin-stage {
   display: grid;
   gap: 18px;
-  grid-template-columns: 320px minmax(580px, 1fr) 340px;
+  grid-template-columns: minmax(260px, 320px) minmax(400px, 1fr) minmax(280px, 340px);
 }
 
 .social-stage {
