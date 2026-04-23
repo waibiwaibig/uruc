@@ -23,7 +23,7 @@ function statusClassName(tone: StatusTone) {
 export function AuthEntryPage({ defaultMode }: { defaultMode: AuthMode }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const redirectTo = (location.state as { from?: string } | null)?.from ?? '/workspace';
   const params = new URLSearchParams(location.search);
   const redirectError = params.get('error') ?? '';
@@ -62,6 +62,11 @@ export function AuthEntryPage({ defaultMode }: { defaultMode: AuthMode }) {
     setRegisterEmail(emailFromQuery);
     setCodeTargetEmail(emailFromQuery);
   }, [emailFromQuery]);
+
+  useEffect(() => {
+    if (!user) return;
+    navigate(redirectTo, { replace: true });
+  }, [navigate, redirectTo, user]);
 
   useEffect(() => {
     if (sendCodeCooldown <= 0) return undefined;
