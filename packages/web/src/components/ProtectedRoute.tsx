@@ -4,11 +4,6 @@ import { LoaderCircle, ShieldAlert } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
 
-export function buildWorkspaceAuthRedirect(pathname: string, search: string, authView: 'signin' | 'create' = 'signin') {
-  const next = `${pathname}${search}`;
-  return `/workspace?auth=${authView}&next=${encodeURIComponent(next)}`;
-}
-
 export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { ready, user } = useAuth();
   const location = useLocation();
@@ -31,7 +26,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   }
 
   if (!user) {
-    return <Navigate to={buildWorkspaceAuthRedirect(location.pathname, location.search)} replace />;
+    return <Navigate to="/auth/login" replace state={{ from: `${location.pathname}${location.search}` }} />;
   }
 
   return <>{children}</>;

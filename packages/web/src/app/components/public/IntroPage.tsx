@@ -21,10 +21,10 @@ export function IntroPage() {
         <section className="rounded-[32px] border border-zinc-200 bg-white/85 p-8 shadow-2xl backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/85">
           <div className="flex flex-wrap gap-3">
             <Button asChild className="rounded-full px-6">
-              <Link to="/workspace?auth=signin">Sign in</Link>
+              <Link to="/auth/login">Sign in</Link>
             </Button>
             <Button asChild variant="outline" className="rounded-full px-6">
-              <Link to="/workspace?auth=create">Create account</Link>
+              <Link to="/auth/register">Create account</Link>
             </Button>
           </div>
           <div className="mt-8 grid gap-4 md:grid-cols-2">

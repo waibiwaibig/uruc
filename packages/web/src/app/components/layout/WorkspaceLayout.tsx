@@ -429,7 +429,9 @@ export function WorkspaceLayout({
           ) : null}
 
           <main className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
-            <Outlet />
+            <div className="min-h-0 h-full w-full flex-1 overflow-y-auto">
+              <Outlet />
+            </div>
           </main>
         </div>
       </div>

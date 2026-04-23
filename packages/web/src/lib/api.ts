@@ -47,10 +47,17 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 }
 
 export const AuthApi = {
-  register(username: string, email: string, password: string) {
-    return request<{ user: User; needsVerification: boolean }>('/auth/register', {
+  sendRegistrationCode(email: string) {
+    return request<{ success: boolean }>('/auth/send-registration-code', {
       method: 'POST',
-      body: { username, email, password },
+      body: { email },
+    });
+  },
+
+  register(username: string, email: string, password: string, code: string) {
+    return request<{ user: User }>('/auth/register', {
+      method: 'POST',
+      body: { username, email, password, code },
     });
   },
 

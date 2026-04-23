@@ -69,9 +69,19 @@ export interface IAuthService {
   // === 用户认证方法 ===
 
   /**
+   * 发送注册验证码
+   */
+  sendRegistrationCode(email: string): Promise<void>;
+
+  /**
    * 用户注册
    */
   register(username: string, email: string, password: string): Promise<{ id: string; username: string; email: string }>;
+
+  /**
+   * 完成注册（验证码通过后才正式入库）
+   */
+  finalizeRegistration(username: string, email: string, password: string, code: string): Promise<User>;
 
   /**
    * 用户登录

@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, or } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { randomInt } from 'crypto';
 import bcrypt from 'bcryptjs';
@@ -41,6 +41,19 @@ export class AuthService implements IAuthService {
 
     // === User Authentication ===
 
+    async sendRegistrationCode(email: string) {
+        await this.cleanupLegacyUnverifiedRegistrations(email);
+        const [existingEmail] = await this.db.select()
+            .from(schema.users).where(eq(schema.users.email, email));
+        if (existingEmail) throw new AppError({ status: 400, code: CORE_ERROR_CODES.EMAIL_TAKEN, error: 'Email is already registered' });
+
+        const code = generateCode();
+        const now = new Date();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+        await this.upsertPendingRegistration(email, code, expiresAt, now);
+        await sendVerificationEmail(email, code);
+    }
+
     async register(username: string, email: string, password: string) {
         const [existingUser] = await this.db.select()
             .from(schema.users).where(eq(schema.users.username, username));
@@ -71,6 +84,51 @@ export class AuthService implements IAuthService {
         return { id, username, email };
     }
 
+    async finalizeRegistration(username: string, email: string, password: string, code: string) {
+        await this.cleanupLegacyUnverifiedRegistrations(email, username);
+
+        const [existingUser] = await this.db.select()
+            .from(schema.users).where(eq(schema.users.username, username));
+        if (existingUser) throw new AppError({ status: 400, code: CORE_ERROR_CODES.USERNAME_TAKEN, error: 'Username is already taken' });
+
+        const [existingEmail] = await this.db.select()
+            .from(schema.users).where(eq(schema.users.email, email));
+        if (existingEmail) throw new AppError({ status: 400, code: CORE_ERROR_CODES.EMAIL_TAKEN, error: 'Email is already registered' });
+
+        this.assertStrongPassword(password);
+
+        const [pending] = await this.db.select()
+            .from(schema.pendingRegistrations).where(eq(schema.pendingRegistrations.email, email));
+        if (!pending || pending.verificationCode !== code) {
+            throw new AppError({ status: 400, code: CORE_ERROR_CODES.INVALID_VERIFICATION_CODE, error: 'Invalid verification code' });
+        }
+        if (pending.verificationCodeExpiresAt < new Date()) {
+            throw new AppError({
+                status: 400,
+                code: CORE_ERROR_CODES.INVALID_VERIFICATION_CODE,
+                error: 'Verification code has expired. Please request a new one.',
+            });
+        }
+
+        const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+        const id = nanoid();
+        const now = new Date();
+        await this.db.insert(schema.users).values({
+            id,
+            username,
+            email,
+            passwordHash,
+            role: 'user',
+            emailVerified: true,
+            verificationCode: null,
+            verificationCodeExpiresAt: null,
+            createdAt: now,
+        });
+        await this.db.delete(schema.pendingRegistrations).where(eq(schema.pendingRegistrations.email, email));
+        await this.getOrCreateShadowAgent(id);
+        return { id, username, email, role: 'user', emailVerified: true };
+    }
+
     async verifyEmail(email: string, code: string) {
         const [user] = await this.db.select()
             .from(schema.users).where(eq(schema.users.email, email));
@@ -92,6 +150,19 @@ export class AuthService implements IAuthService {
     }
 
     async resendCode(email: string) {
+        const [pending] = await this.db.select()
+            .from(schema.pendingRegistrations).where(eq(schema.pendingRegistrations.email, email));
+        if (pending) {
+            const code = generateCode();
+            const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+            await this.db.update(schema.pendingRegistrations).set({
+                verificationCode: code,
+                verificationCodeExpiresAt: expiresAt,
+            }).where(eq(schema.pendingRegistrations.email, email));
+            await sendVerificationEmail(email, code);
+            return;
+        }
+
         const [user] = await this.db.select()
             .from(schema.users).where(eq(schema.users.email, email));
         if (!user || user.emailVerified) return;
@@ -104,6 +175,9 @@ export class AuthService implements IAuthService {
     }
 
     async shouldSendVerificationCode(email: string): Promise<boolean> {
+        const [pending] = await this.db.select()
+            .from(schema.pendingRegistrations).where(eq(schema.pendingRegistrations.email, email));
+        if (pending) return true;
         const [user] = await this.db.select()
             .from(schema.users).where(eq(schema.users.email, email));
         return Boolean(user && !user.emailVerified);
@@ -327,6 +401,41 @@ export class AuthService implements IAuthService {
             throw new AppError({ status: 404, code: CORE_ERROR_CODES.NOT_FOUND, error: 'Agent not found' });
         }
         return agent;
+    }
+
+    private async upsertPendingRegistration(email: string, code: string, expiresAt: Date, now: Date) {
+        const [existingPending] = await this.db.select()
+            .from(schema.pendingRegistrations).where(eq(schema.pendingRegistrations.email, email));
+        if (existingPending) {
+            await this.db.update(schema.pendingRegistrations).set({
+                verificationCode: code,
+                verificationCodeExpiresAt: expiresAt,
+                createdAt: now,
+            }).where(eq(schema.pendingRegistrations.email, email));
+            return;
+        }
+        await this.db.insert(schema.pendingRegistrations).values({
+            email,
+            verificationCode: code,
+            verificationCodeExpiresAt: expiresAt,
+            createdAt: now,
+        });
+    }
+
+    private async cleanupLegacyUnverifiedRegistrations(email: string, username?: string) {
+        const conditions = username
+            ? or(eq(schema.users.email, email), eq(schema.users.username, username))
+            : eq(schema.users.email, email);
+        const rows = await this.db.select()
+            .from(schema.users)
+            .where(conditions);
+
+        for (const row of rows) {
+            if (row.emailVerified) continue;
+            await this.db.delete(schema.agents).where(eq(schema.agents.userId, row.id));
+            await this.db.delete(schema.oauthAccounts).where(eq(schema.oauthAccounts.userId, row.id));
+            await this.db.delete(schema.users).where(eq(schema.users.id, row.id));
+        }
     }
 
     private assertStrongPassword(password: string): void {

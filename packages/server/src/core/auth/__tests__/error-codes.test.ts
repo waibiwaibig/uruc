@@ -78,13 +78,36 @@ describe('auth route error codes', () => {
     });
   });
 
+  async function sendRegistrationCode(email: string) {
+    const res = await fetch(`${baseUrl}/api/auth/send-registration-code`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '0.0.0.0' },
+      body: JSON.stringify({ email }),
+    });
+    return res;
+  }
+
+  async function readPendingCode(email: string) {
+    const [row] = await db.select().from(schema.pendingRegistrations).where(eq(schema.pendingRegistrations.email, email));
+    return row?.verificationCode ?? '';
+  }
+
   it('returns USERNAME_TAKEN for duplicate usernames', async () => {
-    await auth.register('gilgamesh', 'one@example.com', 'secret123');
+    const user = await auth.register('gilgamesh', 'one@example.com', 'secret123');
+    await db.update(schema.users).set({
+      emailVerified: true,
+      verificationCode: null,
+      verificationCodeExpiresAt: null,
+    }).where(eq(schema.users.id, user.id));
+
+    const sendRes = await sendRegistrationCode('two@example.com');
+    expect(sendRes.status).toBe(200);
+    const code = await readPendingCode('two@example.com');
 
     const res = await fetch(`${baseUrl}/api/auth/register`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-forwarded-for': '1.1.1.1' },
-      body: JSON.stringify({ username: 'gilgamesh', email: 'two@example.com', password: 'secret123' }),
+      body: JSON.stringify({ username: 'gilgamesh', email: 'two@example.com', password: 'secret123', code }),
     });
     const body = await res.json();
 
@@ -93,13 +116,14 @@ describe('auth route error codes', () => {
   });
 
   it('returns EMAIL_TAKEN for duplicate emails', async () => {
-    await auth.register('enkidu', 'shared@example.com', 'secret123');
+    const user = await auth.register('enkidu', 'shared@example.com', 'secret123');
+    await db.update(schema.users).set({
+      emailVerified: true,
+      verificationCode: null,
+      verificationCodeExpiresAt: null,
+    }).where(eq(schema.users.id, user.id));
 
-    const res = await fetch(`${baseUrl}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-forwarded-for': '2.2.2.2' },
-      body: JSON.stringify({ username: 'new-user', email: 'shared@example.com', password: 'secret123' }),
-    });
+    const res = await sendRegistrationCode('shared@example.com');
     const body = await res.json();
 
     expect(res.status).toBe(400);
@@ -107,10 +131,14 @@ describe('auth route error codes', () => {
   });
 
   it('returns WEAK_PASSWORD for weak registration passwords', async () => {
+    const sendRes = await sendRegistrationCode('weak@example.com');
+    expect(sendRes.status).toBe(200);
+    const code = await readPendingCode('weak@example.com');
+
     const res = await fetch(`${baseUrl}/api/auth/register`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-forwarded-for': '3.3.3.3' },
-      body: JSON.stringify({ username: 'weakling', email: 'weak@example.com', password: 'abcdefgh' }),
+      body: JSON.stringify({ username: 'weakling', email: 'weak@example.com', password: 'abcdefgh', code }),
     });
     const body = await res.json();
 
@@ -152,12 +180,13 @@ describe('auth route error codes', () => {
   });
 
   it('returns INVALID_VERIFICATION_CODE for bad verification attempts', async () => {
-    await auth.register('marduk', 'marduk@example.com', 'secret123');
+    const sendRes = await sendRegistrationCode('marduk@example.com');
+    expect(sendRes.status).toBe(200);
 
-    const res = await fetch(`${baseUrl}/api/auth/verify-email`, {
+    const res = await fetch(`${baseUrl}/api/auth/register`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-forwarded-for': '6.6.6.6' },
-      body: JSON.stringify({ email: 'marduk@example.com', code: '000000' }),
+      body: JSON.stringify({ username: 'marduk', email: 'marduk@example.com', password: 'secret123', code: '000000' }),
     });
     const body = await res.json();
 

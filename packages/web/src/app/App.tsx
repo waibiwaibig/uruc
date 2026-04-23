@@ -79,10 +79,38 @@ export default function App() {
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
         <Route element={<WorkspaceLayout isDark={isDark} toggleTheme={() => setIsDark((current) => !current)} />}>
-          <Route path="/workspace" element={<HomePage />} />
-          <Route path="/workspace/venues" element={<LibraryPage />} />
-          <Route path="/workspace/agents" element={<AgentsPage />} />
-          <Route path="/workspace/settings" element={<SettingsPage isDark={isDark} toggleTheme={() => setIsDark((current) => !current)} />} />
+          <Route
+            path="/workspace"
+            element={(
+              <ProtectedRoute>
+                <HomePage />
+              </ProtectedRoute>
+            )}
+          />
+          <Route
+            path="/workspace/venues"
+            element={(
+              <ProtectedRoute>
+                <LibraryPage />
+              </ProtectedRoute>
+            )}
+          />
+          <Route
+            path="/workspace/agents"
+            element={(
+              <ProtectedRoute>
+                <AgentsPage />
+              </ProtectedRoute>
+            )}
+          />
+          <Route
+            path="/workspace/settings"
+            element={(
+              <ProtectedRoute>
+                <SettingsPage isDark={isDark} toggleTheme={() => setIsDark((current) => !current)} />
+              </ProtectedRoute>
+            )}
+          />
           <Route
             path="/workspace/dev/runtime"
             element={(

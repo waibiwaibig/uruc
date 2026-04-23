@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
-import { AdminOnlyMessage, buildWorkspaceAuthRedirect } from './ProtectedRoute';
+import { AdminOnlyMessage } from './ProtectedRoute';
 
 export function AdminRoute({ children }: { children: ReactNode }) {
   const { ready, user } = useAuth();
@@ -10,7 +10,7 @@ export function AdminRoute({ children }: { children: ReactNode }) {
 
   if (!ready) return null;
   if (!user) {
-    return <Navigate to={buildWorkspaceAuthRedirect(location.pathname, location.search)} replace />;
+    return <Navigate to="/auth/login" replace state={{ from: `${location.pathname}${location.search}` }} />;
   }
   if (user.role !== 'admin') {
     return <AdminOnlyMessage />;

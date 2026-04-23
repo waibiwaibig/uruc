@@ -34,6 +34,13 @@ export function createDb(dbPath: string = getDbPath()) {
     created_at INTEGER NOT NULL
   )`);
 
+  db.run(sql`CREATE TABLE IF NOT EXISTS pending_registrations (
+    email TEXT PRIMARY KEY,
+    verification_code TEXT NOT NULL,
+    verification_code_expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  )`);
+
   db.run(sql`CREATE TABLE IF NOT EXISTS oauth_accounts (
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id),
     provider TEXT NOT NULL, provider_id TEXT NOT NULL,

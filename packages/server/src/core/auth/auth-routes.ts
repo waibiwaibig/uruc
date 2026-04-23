@@ -1,7 +1,7 @@
 /**
  * Public Auth HTTP Routes — self-registered via HookRegistry.
  *
- * Covers: register, login, verify-email, resend-code, OAuth, change-password
+ * Covers: send-registration-code, register, login, verify-email, resend-code, OAuth, change-password
  * No login required (except change-password).
  */
 
@@ -49,19 +49,44 @@ export function registerAuthRoutes(hooks: HookRegistry, auth: AuthService) {
     hooks.registerHttpRoute(async (ctx: HttpContext) => {
         const { path, method, req, res, session } = ctx;
 
+        if (path === '/api/auth/send-registration-code' && method === 'POST') {
+            if (process.env.ALLOW_REGISTER !== 'true') {
+                sendError(res, 403, { error: 'Registration is disabled. Contact an administrator.', code: CORE_ERROR_CODES.FORBIDDEN }, req);
+                return true;
+            }
+            const { email } = await parseBody(req);
+            if (!email) {
+                sendError(res, 400, { error: 'Please provide email.', code: CORE_ERROR_CODES.BAD_REQUEST }, req);
+                return true;
+            }
+            try {
+                const validatedEmail = assertEmail(email);
+                const limitKey = `${validatedEmail}:${getClientIp(req)}`;
+                if (checkResendLimit(limitKey)) {
+                    await auth.sendRegistrationCode(validatedEmail);
+                }
+                sendJson(res, 200, { success: true }, req);
+            } catch (error) {
+                sendHttpError(res, req, error, { status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: 'Unable to send registration code.' });
+            }
+            return true;
+        }
+
         if (path === '/api/auth/register' && method === 'POST') {
             if (process.env.ALLOW_REGISTER !== 'true') {
                 sendError(res, 403, { error: 'Registration is disabled. Contact an administrator.', code: CORE_ERROR_CODES.FORBIDDEN }, req);
                 return true;
             }
-            const { username, email, password } = await parseBody(req);
-            if (!username || !email || !password) {
-                sendError(res, 400, { error: 'Please provide username, email, and password.', code: CORE_ERROR_CODES.BAD_REQUEST }, req);
+            const { username, email, password, code } = await parseBody(req);
+            if (!username || !email || !password || !code) {
+                sendError(res, 400, { error: 'Please provide username, email, password, and verification code.', code: CORE_ERROR_CODES.BAD_REQUEST }, req);
                 return true;
             }
             try {
-                const user = await auth.register(username, email, password);
-                sendJson(res, 201, { user, needsVerification: true }, req);
+                const user = await auth.finalizeRegistration(username, email, password, code);
+                const token = signToken(user.id, user.role);
+                setAuthSessionCookie(res, req, token);
+                sendJson(res, 201, { user }, req);
             } catch (error) {
                 sendHttpError(res, req, error, { status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: 'Registration failed.' });
             }

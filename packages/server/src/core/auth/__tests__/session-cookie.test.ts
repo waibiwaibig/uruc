@@ -38,9 +38,11 @@ describe('owner session cookie flow', () => {
   let httpServer: Server;
   let baseUrl: string;
   const originalTrustProxy = process.env.TRUST_PROXY;
+  const originalAllowRegister = process.env.ALLOW_REGISTER;
 
   beforeEach(async () => {
     process.env.TRUST_PROXY = 'true';
+    process.env.ALLOW_REGISTER = 'true';
 
     db = createDb(':memory:');
     auth = new AuthService(db);
@@ -65,6 +67,9 @@ describe('owner session cookie flow', () => {
   afterEach(async () => {
     if (originalTrustProxy === undefined) delete process.env.TRUST_PROXY;
     else process.env.TRUST_PROXY = originalTrustProxy;
+
+    if (originalAllowRegister === undefined) delete process.env.ALLOW_REGISTER;
+    else process.env.ALLOW_REGISTER = originalAllowRegister;
 
     await new Promise<void>((resolve) => {
       if (!httpServer) return resolve();
@@ -166,6 +171,49 @@ describe('owner session cookie flow', () => {
     });
     expect(verifyBody.token).toBeUndefined();
     extractSessionCookie(verifyRes);
+  });
+
+  it('does not insert a user until registration code verification succeeds', async () => {
+    const sendRes = await fetch(`${baseUrl}/api/auth/send-registration-code`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '3.3.3.3' },
+      body: JSON.stringify({ email: 'builder@example.com' }),
+    });
+    const sendBody = await sendRes.json();
+    expect(sendRes.status).toBe(200);
+    expect(sendBody).toEqual({ success: true });
+
+    const [beforeUser] = await db.select().from(schema.users).where(eq(schema.users.email, 'builder@example.com'));
+    expect(beforeUser).toBeUndefined();
+
+    const [pending] = await db.select().from(schema.pendingRegistrations).where(eq(schema.pendingRegistrations.email, 'builder@example.com'));
+    expect(pending).toBeDefined();
+
+    const registerRes = await fetch(`${baseUrl}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '3.3.3.4' },
+      body: JSON.stringify({
+        username: 'builder',
+        email: 'builder@example.com',
+        password: 'secret123',
+        code: pending!.verificationCode,
+      }),
+    });
+    const registerBody = await registerRes.json();
+
+    expect(registerRes.status).toBe(201);
+    expect(registerBody).toEqual({
+      user: expect.objectContaining({
+        username: 'builder',
+        email: 'builder@example.com',
+        emailVerified: true,
+      }),
+    });
+    expect(registerBody.token).toBeUndefined();
+    extractSessionCookie(registerRes);
+
+    const [createdUser] = await db.select().from(schema.users).where(eq(schema.users.email, 'builder@example.com'));
+    expect(createdUser?.emailVerified).toBe(true);
   });
 
   it('clears the session cookie on logout', async () => {
