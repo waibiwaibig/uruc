@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { LoaderCircle } from 'lucide-react';
 
 import { AdminRoute } from '../components/AdminRoute';
 import { ProtectedRoute } from '../components/ProtectedRoute';
@@ -36,6 +37,32 @@ function withRouteGuard(route: RegisteredPageRoute, element: ReactNode) {
     return <ProtectedRoute>{element}</ProtectedRoute>;
   }
   return element;
+}
+
+function DeferredPluginRouteFallback() {
+  const location = useLocation();
+  const { registryReady } = usePluginHost();
+  const normalizedPath = normalizePluginPath(location.pathname);
+  const isPluginRoute = normalizedPath.startsWith('/workspace/plugins/');
+
+  if (isPluginRoute && !registryReady) {
+    return (
+      <div className="mx-auto flex w-full max-w-6xl flex-1 items-center justify-center p-6">
+        <div className="flex w-full max-w-md flex-col gap-3 rounded-[28px] border border-zinc-200 bg-white/90 p-8 text-zinc-900 shadow-xl backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/90 dark:text-zinc-100">
+          <div className="flex items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400">
+            <LoaderCircle className="size-4 animate-spin" />
+            Loading plugin routes
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">Resolving workspace plugin page</h1>
+          <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+            The frontend plugin registry is still loading, so the workspace is waiting before routing this direct plugin URL.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return <Navigate to="/" replace />;
 }
 
 export default function App() {
@@ -141,7 +168,7 @@ export default function App() {
           <Route key={route.path} path={route.path} element={<Navigate to={route.to} replace />} />
         ))}
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<DeferredPluginRouteFallback />} />
       </Routes>
     </BrowserRouter>
   );
