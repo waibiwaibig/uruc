@@ -6,17 +6,16 @@ import { fileURLToPath } from 'node:url';
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(scriptDir, '..');
 const pluginPackagesRoot = path.join(root, 'packages/plugins');
-const coreTypesFile = path.join(root, 'packages/human-web/src/lib/types.ts');
-const coreApiFile = path.join(root, 'packages/human-web/src/lib/api.ts');
-const registryFile = path.join(root, 'packages/human-web/src/plugins/registry.ts');
+const coreTypesFile = path.join(root, 'packages/web/src/lib/types.ts');
+const coreApiFile = path.join(root, 'packages/web/src/lib/api.ts');
+const registryFile = path.join(root, 'packages/web/src/plugins/registry.ts');
 
 const forbiddenImportSnippets = [
-  'human-web/src/context/',
-  'human-web/src/i18n',
-  'human-web/src/lib/ws',
-  'human-web/src/components/GameShell',
-  'human-web/src/lib/types',
-  'human-web/src/lib/api',
+  'web/src/context/',
+  'web/src/i18n',
+  'web/src/lib/ws',
+  'web/src/lib/types',
+  'web/src/lib/api',
 ];
 
 async function walk(dir) {

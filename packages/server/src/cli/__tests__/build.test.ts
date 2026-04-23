@@ -47,7 +47,7 @@ describe('buildAll', () => {
     mocks.isWorkspaceLayout.mockReturnValue(true);
   });
 
-  it('builds plugin-sdk before server and human-web when forced', async () => {
+  it('builds plugin-sdk before server and web when forced', async () => {
     await buildAll(true);
 
     expect(mocks.runOrThrow).toHaveBeenNthCalledWith(
@@ -65,7 +65,7 @@ describe('buildAll', () => {
     expect(mocks.runOrThrow).toHaveBeenNthCalledWith(
       3,
       'npm',
-      ['run', 'build', '--workspace=packages/human-web'],
+      ['run', 'build', '--workspace=packages/web'],
       expect.anything(),
     );
   });

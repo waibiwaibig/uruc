@@ -6,19 +6,19 @@ COPY package-lock.json ./package-lock.json
 COPY tsconfig.base.json ./tsconfig.base.json
 COPY packages/plugin-sdk/package.json packages/plugin-sdk/
 COPY packages/server/package.json packages/server/
-COPY packages/human-web/package.json packages/human-web/
+COPY packages/web/package.json packages/web/
 COPY packages/plugins/social/package.json packages/plugins/social/
 
 RUN npm ci
 
 COPY packages/plugin-sdk packages/plugin-sdk
 COPY packages/server packages/server
-COPY packages/human-web packages/human-web
+COPY packages/web packages/web
 COPY packages/plugins/social packages/plugins/social
 
 RUN npm run build --workspace=@uruc/plugin-sdk \
   && npm run build --workspace=@uruc/server \
-  && npm run build --workspace=@uruc/human-web
+  && npm run build --workspace=packages/web
 
 RUN node --input-type=module -e "import path from 'path'; import { syncCityLock } from './packages/server/dist/cli/lib/city.js'; const packageRoot = path.resolve('./packages/server'); await syncCityLock({ configPath: path.join(packageRoot, 'uruc.city.json'), lockPath: path.join(packageRoot, 'uruc.city.lock.json'), packageRoot, pluginStoreDir: path.join(packageRoot, '.uruc', 'plugins') });"
 
@@ -36,7 +36,7 @@ COPY --from=builder /app/packages/server/dist ./packages/server/dist
 COPY --from=builder /app/packages/server/uruc.city.json ./packages/server/uruc.city.json
 COPY --from=builder /app/packages/server/uruc.city.lock.json ./packages/server/uruc.city.lock.json
 COPY --from=builder /app/packages/server/.uruc ./packages/server/.uruc
-COPY --from=builder /app/packages/human-web/dist ./public
+COPY --from=builder /app/packages/web/dist ./public
 
 WORKDIR /app/packages/server
 EXPOSE 3000 3001

@@ -112,7 +112,7 @@ uruc build [--force] [--json]
 
 Current behavior:
 
-- Builds `packages/server` and `packages/human-web`.
+- Builds `packages/server` and `packages/web`.
 - Returns JSON when `--json` is present.
 - `--force` is forwarded to the build helper.
 

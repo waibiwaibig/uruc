@@ -1,0 +1,555 @@
+
+> @uruc/human-web-design@0.1.0 dev
+> vite
+
+
+  VITE v7.3.1  ready in 249 ms
+
+  ➜  Local:   http://localhost:5176/
+  ➜  Network: http://10.165.143.59:5176/
+  ➜  Network: http://100.127.24.102:5176/
+  ➜  Network: http://198.18.0.1:5176/
+3:00:12 AM [vite] (client) hmr update /src/app/components/workspace/HomePage.tsx, /src/styles/index.css
+3:07:55 AM [vite] (client) hmr update /src/app/components/layout/Sidebar.tsx, /src/styles/index.css
+3:08:22 AM [vite] (client) hmr update /src/app/App.tsx, /src/styles/index.css
+3:12:36 AM [vite] (client) hmr update /src/app/components/workspace/HomePage.tsx, /src/styles/index.css
+3:13:01 AM [vite] (client) hmr update /src/app/components/workspace/LibraryPage.tsx, /src/styles/index.css
+3:13:21 AM [vite] (client) hmr update /src/app/App.tsx, /src/styles/index.css
+3:16:07 AM [vite] (client) hmr update /src/app/App.tsx, /src/styles/index.css
+3:16:23 AM [vite] (client) hmr update /src/app/components/layout/Sidebar.tsx, /src/styles/index.css
+1:24:23 PM [vite] (client) hmr update /src/app/App.tsx, /src/styles/index.css
+1:31:11 PM [vite] (client) hmr update /src/app/App.tsx, /src/styles/index.css
+1:31:50 PM [vite] (client) hmr update /src/app/components/layout/Sidebar.tsx, /src/styles/index.css
+1:32:54 PM [vite] (client) hmr update /src/app/components/workspace/HomePage.tsx, /src/styles/index.css
+1:48:32 PM [vite] (client) hmr update /src/app/App.tsx, /src/styles/index.css
+1:49:09 PM [vite] (client) hmr update /src/app/components/workspace/HomePage.tsx, /src/styles/index.css
+1:49:42 PM [vite] (client) hmr update /src/app/components/layout/Sidebar.tsx, /src/styles/index.css
+1:50:25 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+1:57:46 PM [vite] (client) hmr update /src/app/App.tsx, /src/styles/index.css
+1:58:20 PM [vite] (client) hmr update /src/app/components/layout/Sidebar.tsx, /src/styles/index.css
+1:58:55 PM [vite] (client) hmr update /src/styles/index.css, /src/app/components/ui/card.tsx
+1:59:30 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+2:01:21 PM [vite] (client) hmr update /src/styles/index.css, /src/app/components/ui/card.tsx
+2:01:21 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+2:01:21 PM [vite] (client) hmr update /src/app/components/workspace/HomePage.tsx, /src/styles/index.css
+2:01:21 PM [vite] (client) hmr update /src/app/components/layout/Sidebar.tsx, /src/styles/index.css
+2:01:21 PM [vite] (client) hmr update /src/app/App.tsx, /src/styles/index.css
+2:14:03 PM [vite] (client) hmr update /src/app/App.tsx
+2:15:03 PM [vite] (client) hmr update /src/app/components/workspace/HomePage.tsx, /src/styles/index.css
+2:21:30 PM [vite] (client) hmr update /src/app/App.tsx, /src/styles/index.css
+2:21:31 PM [vite] (client) hmr update /src/app/App.tsx, /src/app/components/workspace/CommandCenterDialog.tsx, /src/app/components/layout/Sidebar.tsx, /src/app/components/workspace/HomePage.tsx, /src/app/components/workspace/ActivityPage.tsx, /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+2:21:32 PM [vite] (client) hmr update /src/app/components/workspace/ActivityPage.tsx, /src/styles/index.css
+2:23:37 PM [vite] (client) hmr update /src/app/App.tsx, /src/styles/index.css
+2:54:03 PM [vite] (client) hmr update /src/app/components/workspace/LibraryPage.tsx, /src/styles/index.css
+2:54:30 PM [vite] (client) hmr update /src/app/components/workspace/LibraryPage.tsx, /src/styles/index.css
+2:56:12 PM [vite] (client) hmr update /src/app/components/workspace/LibraryPage.tsx, /src/styles/index.css
+3:07:50 PM [vite] (client) hmr update /src/app/App.tsx, /src/app/components/workspace/CommandCenterDialog.tsx, /src/app/components/layout/Sidebar.tsx, /src/app/components/workspace/HomePage.tsx, /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+3:08:42 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+3:42:18 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+3:45:12 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+3:48:16 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+3:50:29 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+3:53:27 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+3:53:46 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+3:55:05 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+3:57:03 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+3:57:16 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+3:58:48 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+4:00:34 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+4:02:02 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+4:03:23 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+4:05:35 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+4:06:09 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+4:10:40 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+4:15:24 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+4:15:24 PM [vite] Internal server error: /Users/waibiwaibi/uruc/source/packages/human-web-design/src/app/components/workspace/AgentsPage.tsx: Expected corresponding JSX closing tag for <>. (593:4)
+
+  591 |         </DialogContent>
+  592 |       </Dialog>
+> 593 |     </div>
+      |     ^
+  594 |   );
+  595 | }
+  596 |
+  Plugin: vite:react-babel
+  File: /Users/waibiwaibi/uruc/source/packages/human-web-design/src/app/components/workspace/AgentsPage.tsx:593:4
+  591 |          </DialogContent>
+  592 |        </Dialog>
+  593 |      </div>
+      |      ^
+  594 |    );
+  595 |  }
+      at constructor (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:365:19)
+      at TypeScriptParserMixin.raise (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:6599:19)
+      at TypeScriptParserMixin.jsxParseElementAt (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4720:14)
+      at TypeScriptParserMixin.jsxParseElement (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4749:17)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4759:19)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11081:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11066:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11046:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9837:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10899:61)
+      at TypeScriptParserMixin.parseExprOps (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10904:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10881:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10831:21)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9775:39
+      at TypeScriptParserMixin.tryParse (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:6907:20)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9775:18)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10800:39
+      at TypeScriptParserMixin.allowInAnd (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12426:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10800:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12493:17)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11675:28)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11331:23)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4764:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11081:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11066:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11046:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9837:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10899:61)
+      at TypeScriptParserMixin.parseExprOps (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10904:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10881:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10831:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9786:20)
+      at TypeScriptParserMixin.parseExpressionBase (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10784:23)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10780:39
+      at TypeScriptParserMixin.allowInAnd (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12421:16)
+      at TypeScriptParserMixin.parseExpression (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10780:17)
+      at TypeScriptParserMixin.parseReturnStatement (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13142:28)
+      at TypeScriptParserMixin.parseStatementContent (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12798:21)
+      at TypeScriptParserMixin.parseStatementContent (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9508:18)
+      at TypeScriptParserMixin.parseStatementLike (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12767:17)
+      at TypeScriptParserMixin.parseStatementListItem (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12747:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13316:61)
+      at TypeScriptParserMixin.parseBlockBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13309:10)
+      at TypeScriptParserMixin.parseBlock (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13297:10)
+      at TypeScriptParserMixin.parseFunctionBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12100:24)
+      at TypeScriptParserMixin.parseFunctionBodyAndFinish (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12086:10)
+      at TypeScriptParserMixin.parseFunctionBodyAndFinish (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9172:18)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13445:12
+      at TypeScriptParserMixin.withSmartMixTopicForbiddingContext (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12403:14)
+      at TypeScriptParserMixin.parseFunction (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13444:10)
+4:15:24 PM [vite] Internal server error: /Users/waibiwaibi/uruc/source/packages/human-web-design/src/app/components/workspace/AgentsPage.tsx: Expected corresponding JSX closing tag for <>. (593:4)
+
+  591 |         </DialogContent>
+  592 |       </Dialog>
+> 593 |     </div>
+      |     ^
+  594 |   );
+  595 | }
+  596 |
+  Plugin: vite:react-babel
+  File: /Users/waibiwaibi/uruc/source/packages/human-web-design/src/app/components/workspace/AgentsPage.tsx:593:4
+  591 |          </DialogContent>
+  592 |        </Dialog>
+  593 |      </div>
+      |      ^
+  594 |    );
+  595 |  }
+      at constructor (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:365:19)
+      at TypeScriptParserMixin.raise (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:6599:19)
+      at TypeScriptParserMixin.jsxParseElementAt (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4720:14)
+      at TypeScriptParserMixin.jsxParseElement (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4749:17)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4759:19)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11081:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11066:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11046:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9837:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10899:61)
+      at TypeScriptParserMixin.parseExprOps (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10904:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10881:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10831:21)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9775:39
+      at TypeScriptParserMixin.tryParse (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:6907:20)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9775:18)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10800:39
+      at TypeScriptParserMixin.allowInAnd (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12426:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10800:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12493:17)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11675:28)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11331:23)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4764:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11081:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11066:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11046:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9837:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10899:61)
+      at TypeScriptParserMixin.parseExprOps (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10904:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10881:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10831:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9786:20)
+      at TypeScriptParserMixin.parseExpressionBase (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10784:23)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10780:39
+      at TypeScriptParserMixin.allowInAnd (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12421:16)
+      at TypeScriptParserMixin.parseExpression (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10780:17)
+      at TypeScriptParserMixin.parseReturnStatement (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13142:28)
+      at TypeScriptParserMixin.parseStatementContent (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12798:21)
+      at TypeScriptParserMixin.parseStatementContent (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9508:18)
+      at TypeScriptParserMixin.parseStatementLike (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12767:17)
+      at TypeScriptParserMixin.parseStatementListItem (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12747:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13316:61)
+      at TypeScriptParserMixin.parseBlockBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13309:10)
+      at TypeScriptParserMixin.parseBlock (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13297:10)
+      at TypeScriptParserMixin.parseFunctionBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12100:24)
+      at TypeScriptParserMixin.parseFunctionBodyAndFinish (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12086:10)
+      at TypeScriptParserMixin.parseFunctionBodyAndFinish (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9172:18)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13445:12
+      at TypeScriptParserMixin.withSmartMixTopicForbiddingContext (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12403:14)
+      at TypeScriptParserMixin.parseFunction (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13444:10)
+4:15:39 PM [vite] (client) hmr update /src/app/App.tsx, /src/styles/index.css
+4:15:39 PM [vite] (client) Pre-transform error: /Users/waibiwaibi/uruc/source/packages/human-web-design/src/app/components/workspace/AgentsPage.tsx: Expected corresponding JSX closing tag for <>. (593:4)
+
+  591 |         </DialogContent>
+  592 |       </Dialog>
+> 593 |     </div>
+      |     ^
+  594 |   );
+  595 | }
+  596 |
+  Plugin: vite:react-babel
+  File: /Users/waibiwaibi/uruc/source/packages/human-web-design/src/app/components/workspace/AgentsPage.tsx:593:4
+  591 |          </DialogContent>
+  592 |        </Dialog>
+  593 |      </div>
+      |      ^
+  594 |    );
+  595 |  }
+4:16:45 PM [vite] Internal server error: /Users/waibiwaibi/uruc/source/packages/human-web-design/src/app/components/workspace/AgentsPage.tsx: Expected corresponding JSX closing tag for <>. (593:4)
+
+  591 |         </DialogContent>
+  592 |       </Dialog>
+> 593 |     </div>
+      |     ^
+  594 |   );
+  595 | }
+  596 |
+  Plugin: vite:react-babel
+  File: /Users/waibiwaibi/uruc/source/packages/human-web-design/src/app/components/workspace/AgentsPage.tsx:593:4
+  591 |          </DialogContent>
+  592 |        </Dialog>
+  593 |      </div>
+      |      ^
+  594 |    );
+  595 |  }
+      at constructor (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:365:19)
+      at TypeScriptParserMixin.raise (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:6599:19)
+      at TypeScriptParserMixin.jsxParseElementAt (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4720:14)
+      at TypeScriptParserMixin.jsxParseElement (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4749:17)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4759:19)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11081:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11066:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11046:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9837:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10899:61)
+      at TypeScriptParserMixin.parseExprOps (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10904:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10881:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10831:21)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9775:39
+      at TypeScriptParserMixin.tryParse (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:6907:20)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9775:18)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10800:39
+      at TypeScriptParserMixin.allowInAnd (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12426:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10800:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12493:17)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11675:28)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11331:23)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4764:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11081:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11066:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11046:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9837:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10899:61)
+      at TypeScriptParserMixin.parseExprOps (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10904:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10881:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10831:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9786:20)
+      at TypeScriptParserMixin.parseExpressionBase (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10784:23)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10780:39
+      at TypeScriptParserMixin.allowInAnd (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12421:16)
+      at TypeScriptParserMixin.parseExpression (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10780:17)
+      at TypeScriptParserMixin.parseReturnStatement (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13142:28)
+      at TypeScriptParserMixin.parseStatementContent (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12798:21)
+      at TypeScriptParserMixin.parseStatementContent (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9508:18)
+      at TypeScriptParserMixin.parseStatementLike (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12767:17)
+      at TypeScriptParserMixin.parseStatementListItem (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12747:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13316:61)
+      at TypeScriptParserMixin.parseBlockBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13309:10)
+      at TypeScriptParserMixin.parseBlock (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13297:10)
+      at TypeScriptParserMixin.parseFunctionBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12100:24)
+      at TypeScriptParserMixin.parseFunctionBodyAndFinish (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12086:10)
+      at TypeScriptParserMixin.parseFunctionBodyAndFinish (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9172:18)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13445:12
+      at TypeScriptParserMixin.withSmartMixTopicForbiddingContext (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12403:14)
+      at TypeScriptParserMixin.parseFunction (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13444:10)
+4:16:46 PM [vite] Internal server error: /Users/waibiwaibi/uruc/source/packages/human-web-design/src/app/components/workspace/AgentsPage.tsx: Expected corresponding JSX closing tag for <>. (593:4)
+
+  591 |         </DialogContent>
+  592 |       </Dialog>
+> 593 |     </div>
+      |     ^
+  594 |   );
+  595 | }
+  596 |
+  Plugin: vite:react-babel
+  File: /Users/waibiwaibi/uruc/source/packages/human-web-design/src/app/components/workspace/AgentsPage.tsx:593:4
+  591 |          </DialogContent>
+  592 |        </Dialog>
+  593 |      </div>
+      |      ^
+  594 |    );
+  595 |  }
+      at constructor (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:365:19)
+      at TypeScriptParserMixin.raise (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:6599:19)
+      at TypeScriptParserMixin.jsxParseElementAt (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4720:14)
+      at TypeScriptParserMixin.jsxParseElement (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4749:17)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4759:19)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11081:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11066:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11046:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9837:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10899:61)
+      at TypeScriptParserMixin.parseExprOps (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10904:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10881:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10831:21)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9775:39
+      at TypeScriptParserMixin.tryParse (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:6907:20)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9775:18)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10800:39
+      at TypeScriptParserMixin.allowInAnd (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12426:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10800:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12493:17)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11675:28)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11331:23)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4764:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11081:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11066:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11046:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9837:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10899:61)
+      at TypeScriptParserMixin.parseExprOps (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10904:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10881:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10831:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9786:20)
+      at TypeScriptParserMixin.parseExpressionBase (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10784:23)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10780:39
+      at TypeScriptParserMixin.allowInAnd (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12421:16)
+      at TypeScriptParserMixin.parseExpression (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10780:17)
+      at TypeScriptParserMixin.parseReturnStatement (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13142:28)
+      at TypeScriptParserMixin.parseStatementContent (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12798:21)
+      at TypeScriptParserMixin.parseStatementContent (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9508:18)
+      at TypeScriptParserMixin.parseStatementLike (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12767:17)
+      at TypeScriptParserMixin.parseStatementListItem (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12747:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13316:61)
+      at TypeScriptParserMixin.parseBlockBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13309:10)
+      at TypeScriptParserMixin.parseBlock (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13297:10)
+      at TypeScriptParserMixin.parseFunctionBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12100:24)
+      at TypeScriptParserMixin.parseFunctionBodyAndFinish (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12086:10)
+      at TypeScriptParserMixin.parseFunctionBodyAndFinish (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9172:18)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13445:12
+      at TypeScriptParserMixin.withSmartMixTopicForbiddingContext (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12403:14)
+      at TypeScriptParserMixin.parseFunction (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13444:10)
+4:17:40 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+4:17:40 PM [vite] Internal server error: /Users/waibiwaibi/uruc/source/packages/human-web-design/src/app/components/workspace/AgentsPage.tsx: Expected corresponding JSX closing tag for <Dialog>. (592:8)
+
+  590 |           </DialogFooter>
+  591 |         </DialogContent>
+> 592 |         </DialogContent>
+      |         ^
+  593 |       </Dialog>
+  594 |     </>
+  595 |   );
+  Plugin: vite:react-babel
+  File: /Users/waibiwaibi/uruc/source/packages/human-web-design/src/app/components/workspace/AgentsPage.tsx:592:8
+  590 |            </DialogFooter>
+  591 |          </DialogContent>
+  592 |          </DialogContent>
+      |          ^
+  593 |        </Dialog>
+  594 |      </>
+      at constructor (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:365:19)
+      at TypeScriptParserMixin.raise (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:6599:19)
+      at TypeScriptParserMixin.jsxParseElementAt (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4727:16)
+      at TypeScriptParserMixin.jsxParseElementAt (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4698:32)
+      at TypeScriptParserMixin.jsxParseElement (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4749:17)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4759:19)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11081:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11066:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11046:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9837:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10899:61)
+      at TypeScriptParserMixin.parseExprOps (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10904:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10881:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10831:21)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9775:39
+      at TypeScriptParserMixin.tryParse (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:6907:20)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9775:18)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10800:39
+      at TypeScriptParserMixin.allowInAnd (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12426:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10800:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12493:17)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11675:28)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11331:23)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4764:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11081:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11066:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11046:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9837:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10899:61)
+      at TypeScriptParserMixin.parseExprOps (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10904:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10881:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10831:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9786:20)
+      at TypeScriptParserMixin.parseExpressionBase (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10784:23)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10780:39
+      at TypeScriptParserMixin.allowInAnd (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12421:16)
+      at TypeScriptParserMixin.parseExpression (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10780:17)
+      at TypeScriptParserMixin.parseReturnStatement (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13142:28)
+      at TypeScriptParserMixin.parseStatementContent (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12798:21)
+      at TypeScriptParserMixin.parseStatementContent (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9508:18)
+      at TypeScriptParserMixin.parseStatementLike (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12767:17)
+      at TypeScriptParserMixin.parseStatementListItem (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12747:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13316:61)
+      at TypeScriptParserMixin.parseBlockBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13309:10)
+      at TypeScriptParserMixin.parseBlock (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13297:10)
+      at TypeScriptParserMixin.parseFunctionBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12100:24)
+      at TypeScriptParserMixin.parseFunctionBodyAndFinish (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12086:10)
+      at TypeScriptParserMixin.parseFunctionBodyAndFinish (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9172:18)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13445:12
+      at TypeScriptParserMixin.withSmartMixTopicForbiddingContext (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12403:14)
+4:17:40 PM [vite] (client) Pre-transform error: /Users/waibiwaibi/uruc/source/packages/human-web-design/src/app/components/workspace/AgentsPage.tsx: Expected corresponding JSX closing tag for <Dialog>. (592:8)
+
+  590 |           </DialogFooter>
+  591 |         </DialogContent>
+> 592 |         </DialogContent>
+      |         ^
+  593 |       </Dialog>
+  594 |     </>
+  595 |   );
+  Plugin: vite:react-babel
+  File: /Users/waibiwaibi/uruc/source/packages/human-web-design/src/app/components/workspace/AgentsPage.tsx:592:8
+  590 |            </DialogFooter>
+  591 |          </DialogContent>
+  592 |          </DialogContent>
+      |          ^
+  593 |        </Dialog>
+  594 |      </>
+4:17:40 PM [vite] Internal server error: /Users/waibiwaibi/uruc/source/packages/human-web-design/src/app/components/workspace/AgentsPage.tsx: Expected corresponding JSX closing tag for <Dialog>. (592:8)
+
+  590 |           </DialogFooter>
+  591 |         </DialogContent>
+> 592 |         </DialogContent>
+      |         ^
+  593 |       </Dialog>
+  594 |     </>
+  595 |   );
+  Plugin: vite:react-babel
+  File: /Users/waibiwaibi/uruc/source/packages/human-web-design/src/app/components/workspace/AgentsPage.tsx:592:8
+  590 |            </DialogFooter>
+  591 |          </DialogContent>
+  592 |          </DialogContent>
+      |          ^
+  593 |        </Dialog>
+  594 |      </>
+      at constructor (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:365:19)
+      at TypeScriptParserMixin.raise (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:6599:19)
+      at TypeScriptParserMixin.jsxParseElementAt (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4727:16)
+      at TypeScriptParserMixin.jsxParseElementAt (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4698:32)
+      at TypeScriptParserMixin.jsxParseElement (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4749:17)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4759:19)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11081:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11066:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11046:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9837:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10899:61)
+      at TypeScriptParserMixin.parseExprOps (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10904:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10881:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10831:21)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9775:39
+      at TypeScriptParserMixin.tryParse (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:6907:20)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9775:18)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10800:39
+      at TypeScriptParserMixin.allowInAnd (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12426:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10800:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12493:17)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11675:28)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11331:23)
+      at TypeScriptParserMixin.parseExprAtom (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:4764:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11081:23)
+      at TypeScriptParserMixin.parseUpdate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11066:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:11046:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9837:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10899:61)
+      at TypeScriptParserMixin.parseExprOps (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10904:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10881:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10831:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9786:20)
+      at TypeScriptParserMixin.parseExpressionBase (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10784:23)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10780:39
+      at TypeScriptParserMixin.allowInAnd (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12421:16)
+      at TypeScriptParserMixin.parseExpression (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:10780:17)
+      at TypeScriptParserMixin.parseReturnStatement (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13142:28)
+      at TypeScriptParserMixin.parseStatementContent (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12798:21)
+      at TypeScriptParserMixin.parseStatementContent (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9508:18)
+      at TypeScriptParserMixin.parseStatementLike (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12767:17)
+      at TypeScriptParserMixin.parseStatementListItem (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12747:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13316:61)
+      at TypeScriptParserMixin.parseBlockBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13309:10)
+      at TypeScriptParserMixin.parseBlock (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13297:10)
+      at TypeScriptParserMixin.parseFunctionBody (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12100:24)
+      at TypeScriptParserMixin.parseFunctionBodyAndFinish (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12086:10)
+      at TypeScriptParserMixin.parseFunctionBodyAndFinish (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:9172:18)
+      at /Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:13445:12
+      at TypeScriptParserMixin.withSmartMixTopicForbiddingContext (/Users/waibiwaibi/uruc/source/node_modules/@babel/parser/lib/index.js:12403:14)
+4:17:49 PM [vite] (client) hmr update /src/app/components/workspace/AgentsPage.tsx, /src/styles/index.css
+4:23:41 PM [vite] (client) hmr update /src/app/components/layout/Sidebar.tsx, /src/styles/index.css
+4:24:48 PM [vite] (client) hmr update /src/app/components/layout/TopBar.tsx, /src/styles/index.css
+4:31:27 PM [vite] changed tsconfig file detected: /Users/waibiwaibi/uruc/source/packages/human-web-design/tsconfig.app.json - Clearing cache and forcing full-reload to ensure TypeScript is compiled with updated config values.
+4:31:27 PM [vite] changed tsconfig file detected: /Users/waibiwaibi/uruc/source/packages/human-web-design/tsconfig.json - Clearing cache and forcing full-reload to ensure TypeScript is compiled with updated config values.
+4:31:27 PM [vite] vite.config.ts changed, restarting server...
+4:31:27 PM [vite] (client) page reload index.html
+4:31:27 PM [vite] (client) page reload src/app/App.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/dashboard/TokenTable.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/layout/AccountControls.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/layout/Sidebar.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/layout/TopBar.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/ui/Badge.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/ui/Button.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/ui/avatar.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/ui/card.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/ui/command.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/ui/dialog.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/ui/dropdown-menu.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/ui/input.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/ui/label.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/ui/scroll-area.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/ui/select.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/ui/separator.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/ui/switch.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/ui/table.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/ui/tabs.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/ui/textarea.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/ui/utils.ts
+4:31:27 PM [vite] (client) page reload src/app/components/workspace/AgentsPage.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/workspace/CommandCenterDialog.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/workspace/DestinationLaunchDialog.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/workspace/HomePage.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/workspace/LibraryPage.tsx
+4:31:27 PM [vite] (client) page reload src/app/components/workspace/SettingsPage.tsx
+4:31:27 PM [vite] (client) page reload src/app/utils/cn.ts
+4:31:27 PM [vite] (client) page reload src/app/workspace-data.ts
+4:31:27 PM [vite] (client) page reload src/assets/city-bg.png
+4:31:27 PM [vite] (client) page reload src/assets/city-core.png
+4:31:27 PM [vite] (client) page reload src/assets/slide-chess.png
+4:31:27 PM [vite] (client) page reload src/assets/slide-market.png
+4:31:27 PM [vite] (client) page reload src/assets/slide-social.png
+4:31:27 PM [vite] (client) page reload src/assets/agents-bg.png
+4:31:27 PM [vite] (client) page reload src/assets/glass-bg.png
+4:31:27 PM [vite] (client) page reload src/assets/city-light-bg.png
+4:31:27 PM [vite] (client) page reload src/main.tsx
+4:31:27 PM [vite] (client) page reload src/styles/fonts.css
+4:31:27 PM [vite] (client) hmr update /src/styles/index.css
+4:31:27 PM [vite] (client) page reload src/styles/tailwind.css
+4:31:27 PM [vite] server restarted.
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose

@@ -91,7 +91,7 @@ const mocks = vi.hoisted(() => ({
     allowedOrigins: `http://${publicHost}:${httpPort}`,
     jwtSecret: 'secret',
     baseUrl: `${siteProtocol}://${publicHost}:${httpPort}`,
-    publicDir: '../human-web/dist',
+    publicDir: '../web/dist',
     uploadsDir: './uploads',
     resendApiKey: '',
     fromEmail: 'noreply@example.com',
@@ -261,7 +261,7 @@ function makeCurrentDefaults(cityConfigPath: string) {
     allowedOrigins: 'http://127.0.0.1:3000',
     jwtSecret: 'secret',
     baseUrl: 'http://127.0.0.1:3000',
-    publicDir: '../human-web/dist',
+    publicDir: '../web/dist',
     uploadsDir: './uploads',
     resendApiKey: '',
     fromEmail: 'noreply@example.com',
@@ -379,7 +379,7 @@ describe('configure command', () => {
     mocks.promptInput
       .mockResolvedValueOnce('3000')
       .mockResolvedValueOnce('3001')
-      .mockResolvedValueOnce('../human-web/dist')
+      .mockResolvedValueOnce('../web/dist')
       .mockResolvedValueOnce('./uploads');
 
     const { runConfigureCommand } = await import('../commands/configure.js');
@@ -420,7 +420,7 @@ describe('configure command', () => {
     mocks.promptInput
       .mockResolvedValueOnce('3000')
       .mockResolvedValueOnce('3001')
-      .mockResolvedValueOnce('../human-web/dist')
+      .mockResolvedValueOnce('../web/dist')
       .mockResolvedValueOnce('./uploads');
 
     const { runConfigureCommand } = await import('../commands/configure.js');

@@ -53,7 +53,7 @@ describe('installed env defaults', () => {
     mocks.getRootEnvPath.mockReturnValue(rootEnvPath);
     mocks.getServerEnvPath.mockReturnValue(serverEnvPath);
 
-    await writeFile(serverEnvPath, 'PUBLIC_DIR=../human-web/dist\n', 'utf8');
+    await writeFile(serverEnvPath, 'PUBLIC_DIR=../web/dist\n', 'utf8');
 
     const env = await import('../lib/env.js');
     const defaults = env.currentConfigureDefaults('local', 'test', '127.0.0.1', '3000', '3001', 'http');

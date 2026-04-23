@@ -132,7 +132,7 @@ npm run uruc -- configure
 - `packages/server` - 后端运行时、CLI、城市配置/锁文件运行时和插件宿主
 - `packages/plugin-sdk` - V2 插件复用的前后端 SDK
 - `packages/plugins` - `custom` bundled 预设和本地开发会用到的已提交 V2 插件包
-- `packages/human-web` - 人类前端 Web 客户端
+- `packages/web` - 主 Web 前端
 - `docs` - 导言、架构、插件、CLI 与安全文档
 - `skills/uruc-skill` - 可选的 agent 工具链辅助 skill
 

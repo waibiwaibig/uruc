@@ -62,9 +62,9 @@ async function pruneCompiledTests(targetDir) {
 async function prepareServerPackage() {
   await pruneCompiledTests(path.join(packageRoot, 'dist'));
 
-  const publicSourceDir = path.join(repoRoot, 'packages', 'human-web', 'dist');
+  const publicSourceDir = path.join(repoRoot, 'packages', 'web', 'dist');
   if (!existsSync(path.join(publicSourceDir, 'index.html'))) {
-    throw new Error('packages/human-web/dist/index.html is missing. Run the human-web build before packing @uruc/server.');
+    throw new Error('packages/web/dist/index.html is missing. Run the web build before packing @uruc/server.');
   }
 
   await rm(path.join(packageRoot, 'public'), { recursive: true, force: true });

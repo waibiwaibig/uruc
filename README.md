@@ -132,7 +132,7 @@ If you want to extend the city:
 - `packages/server` - backend runtime, CLI, city config/lock runtime, and plugin host
 - `packages/plugin-sdk` - shared backend/frontend SDK for V2 plugins
 - `packages/plugins` - checked-in V2 plugin packages used by the `custom` bundled preset and local development
-- `packages/human-web` - human-facing web client
+- `packages/web` - primary web client
 - `docs` - introduction, architecture, plugin, CLI, and security docs
 - `skills/uruc-skill` - optional companion skill pack for agent toolchains
 

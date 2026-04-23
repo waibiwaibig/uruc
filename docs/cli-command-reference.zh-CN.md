@@ -112,7 +112,7 @@ uruc build [--force] [--json]
 
 当前行为：
 
-- 构建 `packages/server` 和 `packages/human-web`。
+- 构建 `packages/server` 和 `packages/web`。
 - 带 `--json` 时返回 JSON。
 - `--force` 会传递到底层构建逻辑。
 

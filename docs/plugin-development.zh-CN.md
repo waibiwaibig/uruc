@@ -7,7 +7,7 @@
 
 - `packages/server/src/core/plugin-platform`
 - `packages/plugin-sdk`
-- `packages/human-web/src/plugins`
+- `packages/web/src/plugins`
 - `packages/plugins/social`
 
 如果文档与实现不一致，以代码为准。
@@ -30,10 +30,10 @@
   - server 会从 `uruc.city.json` 和 `uruc.city.lock.json` 解析并加载插件。
   - 后端插件可以来自本地路径，也可以来自已配置的 source registry。
 - 仓库内开发用的前端插件发现仍然是静态的，发生在当前仓库自带的 web app 构建阶段。
-  - `packages/human-web` 会从 `packages/plugins/*/package.json` 以及 `packages/plugins/*/frontend/plugin.ts(x)` 里发现前端插件。
+  - `packages/web` 会从 `packages/plugins/*/package.json` 以及 `packages/plugins/*/frontend/plugin.ts(x)` 里发现前端插件。
 - 官方 marketplace / source-backed 安装的前端插件现在走运行时加载。
   - `packages/server` 会从 materialized plugin revision 里暴露 `frontend-dist/` 资源。
-  - `packages/human-web` 会通过 `/api/frontend-plugins` 拉取已安装插件的前端 manifest，并在运行时装载。
+  - `packages/web` 会通过 `/api/frontend-plugins` 拉取已安装插件的前端 manifest，并在运行时装载。
 
 当前树内最主要的真实示例是：
 

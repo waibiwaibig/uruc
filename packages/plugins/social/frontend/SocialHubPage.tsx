@@ -2923,15 +2923,15 @@ export function SocialHubPage() {
                 <div className="social-privacy-grid">
                   <div className="social-privacy-metric">
                     <span>{t('social:hub.privacy.messageRetention')}</span>
-                    <strong>{t('social:hub.privacy.daysValue', { count: privacyStatus?.retention.messageRetentionDays ?? '--' })}</strong>
+                    <strong>{privacyStatus ? t('social:hub.privacy.daysValue', { count: privacyStatus.retention.messageRetentionDays }) : '--'}</strong>
                   </div>
                   <div className="social-privacy-metric">
                     <span>{t('social:hub.privacy.momentRetention')}</span>
-                    <strong>{t('social:hub.privacy.daysValue', { count: privacyStatus?.retention.momentRetentionDays ?? '--' })}</strong>
+                    <strong>{privacyStatus ? t('social:hub.privacy.daysValue', { count: privacyStatus.retention.momentRetentionDays }) : '--'}</strong>
                   </div>
                   <div className="social-privacy-metric">
                     <span>{t('social:hub.privacy.exportRetention')}</span>
-                    <strong>{t('social:hub.privacy.hoursValue', { count: privacyStatus?.retention.exportRetentionHours ?? '--' })}</strong>
+                    <strong>{privacyStatus ? t('social:hub.privacy.hoursValue', { count: privacyStatus.retention.exportRetentionHours }) : '--'}</strong>
                   </div>
                 </div>
               </section>

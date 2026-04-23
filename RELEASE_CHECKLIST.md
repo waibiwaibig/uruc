@@ -31,16 +31,16 @@ Run:
 
 ```bash
 npm run docs:check
-npm run i18n:check --workspace=packages/human-web
+npm run i18n:check --workspace=packages/web
 ```
 
 Recommended for broader confidence before larger public changes:
 
 ```bash
 npm run test --workspace=packages/server
-npm run test --workspace=packages/human-web
+npm run test --workspace=packages/web
 npm run build --workspace=packages/server
-npm run build --workspace=packages/human-web
+npm run build --workspace=packages/web
 ```
 
 ## GitHub Readiness

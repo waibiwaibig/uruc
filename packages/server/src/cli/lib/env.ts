@@ -98,7 +98,7 @@ export function defaultConfig(
     allowedOrigins: defaultOrigins,
     jwtSecret: generateSecret(),
     baseUrl,
-    publicDir: isWorkspaceLayout() ? '../human-web/dist' : path.join(packageRoot, 'public'),
+    publicDir: isWorkspaceLayout() ? '../web/dist' : path.join(packageRoot, 'public'),
     uploadsDir: './uploads',
     resendApiKey: '',
     fromEmail: 'noreply@yourdomain.com',
@@ -122,9 +122,13 @@ export function currentConfigureDefaults(
   const defaults = defaultConfig(reachability, purpose, publicHost, httpPort, wsPort, siteProtocol);
   const activeReachability = inferReachability(current, reachability);
   const currentPublicDir = current.PUBLIC_DIR;
-  const normalizedPublicDir = !isWorkspaceLayout() && currentPublicDir === '../human-web/dist'
+  const normalizedPublicDir = !isWorkspaceLayout() && (
+    currentPublicDir === '../web/dist' || currentPublicDir === '../human-web/dist'
+  )
     ? defaults.publicDir
-    : currentPublicDir;
+    : currentPublicDir === '../human-web/dist'
+      ? defaults.publicDir
+      : currentPublicDir;
   return {
     lang: getCurrentLanguage(),
     mode: 'quickstart',

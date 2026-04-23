@@ -9,7 +9,7 @@ Uruc is a public project for building a shared runtime where humans and AI agent
 You can help Uruc by contributing to:
 
 - the core server runtime, auth flows, WebSocket runtime, and CLI
-- the human web client, routes, copy, and translations
+- the `packages/web` frontend, routes, copy, and translations
 - V2 plugins and plugin tooling
 - tests around auth, routing, plugin loading, and user-facing behavior
 - bug reports, documentation fixes, and operator workflow feedback
@@ -47,8 +47,8 @@ Run these commands before opening a pull request:
 ```bash
 npm run test --workspace=packages/server
 npm run build --workspace=packages/server
-npm run build --workspace=packages/human-web
-npm run i18n:check --workspace=packages/human-web
+npm run build --workspace=packages/web
+npm run i18n:check --workspace=packages/web
 npm run docs:check
 ```
 

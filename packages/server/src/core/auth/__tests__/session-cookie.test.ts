@@ -112,6 +112,39 @@ describe('owner session cookie flow', () => {
     expect(meBody.user.username).toBe('gilgamesh');
   });
 
+  it('accepts email identifiers on login without changing the session cookie flow', async () => {
+    const user = await auth.register('enkidu', 'enkidu@example.com', 'secret123');
+    await db.update(schema.users).set({
+      emailVerified: true,
+      verificationCode: null,
+      verificationCodeExpiresAt: null,
+    }).where(eq(schema.users.id, user.id));
+
+    const loginRes = await fetch(`${baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '1.1.1.2' },
+      body: JSON.stringify({ username: 'enkidu@example.com', password: 'secret123' }),
+    });
+    const loginBody = await loginRes.json();
+
+    expect(loginRes.status).toBe(200);
+    expect(loginBody).toEqual({
+      user: expect.objectContaining({
+        id: user.id,
+        username: 'enkidu',
+        email: 'enkidu@example.com',
+      }),
+    });
+    const cookie = extractSessionCookie(loginRes);
+
+    const meRes = await fetch(`${baseUrl}/api/dashboard/me`, {
+      headers: { Cookie: cookie },
+    });
+    const meBody = await meRes.json();
+    expect(meRes.status).toBe(200);
+    expect(meBody.user.username).toBe('enkidu');
+  });
+
   it('sets a session cookie on verify-email and does not return token in json', async () => {
     const user = await auth.register('ishtar', 'ishtar@example.com', 'secret123');
     const [row] = await db.select().from(schema.users).where(eq(schema.users.id, user.id));

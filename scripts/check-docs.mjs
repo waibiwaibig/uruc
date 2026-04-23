@@ -97,12 +97,12 @@ for (const file of DOC_LINK_CHECK_SET) {
 
 const rootPackage = JSON.parse(read('package.json'));
 const serverPackage = JSON.parse(read('packages/server/package.json'));
-const webPackage = JSON.parse(read('packages/human-web/package.json'));
+const webPackage = JSON.parse(read('packages/web/package.json'));
 
 for (const [label, pkg] of [
   ['root package.json', rootPackage],
   ['packages/server/package.json', serverPackage],
-  ['packages/human-web/package.json', webPackage],
+  ['packages/web/package.json', webPackage],
 ]) {
   if (pkg.license !== 'Apache-2.0') errors.push(`${label} must declare Apache-2.0`);
 }

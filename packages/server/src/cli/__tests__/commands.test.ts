@@ -28,7 +28,7 @@ function makeAnswers(overrides: Partial<ConfigureAnswers> = {}): ConfigureAnswer
     allowedOrigins: 'http://127.0.0.1:3000,http://localhost:5173',
     jwtSecret: 'secret',
     baseUrl: 'http://127.0.0.1:3000',
-    publicDir: '../human-web/dist',
+    publicDir: '../web/dist',
     uploadsDir: './uploads',
     resendApiKey: '',
     fromEmail: 'noreply@example.com',

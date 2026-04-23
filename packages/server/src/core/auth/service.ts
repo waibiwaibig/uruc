@@ -110,9 +110,15 @@ export class AuthService implements IAuthService {
     }
 
     async login(username: string, password: string) {
-        const [user] = await this.db.select()
+        const identifier = username.trim();
+        let [user] = await this.db.select()
             .from(schema.users)
-            .where(eq(schema.users.username, username));
+            .where(eq(schema.users.username, identifier));
+        if (!user && identifier.includes('@')) {
+            [user] = await this.db.select()
+                .from(schema.users)
+                .where(eq(schema.users.email, identifier));
+        }
         if (!user) throw new AppError({ status: 401, code: CORE_ERROR_CODES.INVALID_CREDENTIALS, error: 'User not found' });
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) throw new AppError({ status: 401, code: CORE_ERROR_CODES.INVALID_CREDENTIALS, error: 'Incorrect password' });

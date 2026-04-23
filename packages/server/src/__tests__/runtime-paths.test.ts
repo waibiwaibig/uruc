@@ -80,7 +80,7 @@ describe('runtime home defaults', () => {
       '..',
     );
     const workspaceMarkerPaths = new Set([
-      path.resolve(packageRoot, '..', 'human-web', 'package.json'),
+      path.resolve(packageRoot, '..', 'web', 'package.json'),
       path.resolve(packageRoot, '..', 'plugin-sdk', 'package.json'),
       path.resolve(packageRoot, '..', '..', 'package.json'),
     ]);

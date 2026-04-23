@@ -9,7 +9,7 @@ const workspaceLayout = detectWorkspaceLayout();
 
 function detectWorkspaceLayout(): boolean {
   const workspaceMarkers = [
-    path.resolve(packageRoot, '..', 'human-web', 'package.json'),
+    path.resolve(packageRoot, '..', 'web', 'package.json'),
     path.resolve(packageRoot, '..', 'plugin-sdk', 'package.json'),
     path.resolve(packageRoot, '..', '..', 'package.json'),
   ];
@@ -119,9 +119,9 @@ export function getPublicDir(): string {
   if (override) return resolveFromRuntimeHome(override);
 
   if (workspaceLayout) {
-    const humanWebDist = path.resolve(packageRoot, '..', 'human-web', 'dist');
-    if (existsSync(path.join(humanWebDist, 'index.html'))) {
-      return humanWebDist;
+    const webDist = path.resolve(packageRoot, '..', 'web', 'dist');
+    if (existsSync(path.join(webDist, 'index.html'))) {
+      return webDist;
     }
   }
 

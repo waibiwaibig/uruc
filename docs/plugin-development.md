@@ -7,7 +7,7 @@ It is written against the code that exists today in:
 
 - `packages/server/src/core/plugin-platform`
 - `packages/plugin-sdk`
-- `packages/human-web/src/plugins`
+- `packages/web/src/plugins`
 - `packages/plugins/social`
 
 If this document and the implementation diverge, the code is the source of truth.
@@ -30,10 +30,10 @@ There are two frontend loading paths:
   - The server resolves plugins from `uruc.city.json` and `uruc.city.lock.json`.
   - A backend plugin can come from a local path or from a configured source registry.
 - Frontend plugin discovery for in-repo development is static in the checked-in web app.
-  - `packages/human-web` discovers frontend plugins from `packages/plugins/*/package.json` plus `packages/plugins/*/frontend/plugin.ts(x)`.
+  - `packages/web` discovers frontend plugins from `packages/plugins/*/package.json` plus `packages/plugins/*/frontend/plugin.ts(x)`.
 - Frontend plugin loading for installed marketplace artifacts is runtime-based.
   - `packages/server` serves `frontend-dist/` assets from the materialized plugin revision.
-  - `packages/human-web` fetches `/api/frontend-plugins` and loads those installed plugin frontends at runtime.
+  - `packages/web` fetches `/api/frontend-plugins` and loads those installed plugin frontends at runtime.
 
 The main in-tree example today is:
 

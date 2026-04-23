@@ -16,8 +16,8 @@ const INPUT_PATHS = [
   path.join(packageRoot, 'src'),
   path.join(packageRoot, 'package.json'),
   path.join(packageRoot, 'tsconfig.json'),
-  path.join(repoRoot, 'packages', 'human-web', 'src'),
-  path.join(repoRoot, 'packages', 'human-web', 'package.json'),
+  path.join(repoRoot, 'packages', 'web', 'src'),
+  path.join(repoRoot, 'packages', 'web', 'package.json'),
   path.join(repoRoot, 'package.json'),
   path.join(repoRoot, 'package-lock.json'),
 ];
@@ -25,7 +25,7 @@ const INPUT_PATHS = [
 const OUTPUT_PATHS = [
   path.join(repoRoot, 'packages', 'plugin-sdk', 'dist', 'index.js'),
   path.join(packageRoot, 'dist', 'index.js'),
-  path.join(repoRoot, 'packages', 'human-web', 'dist', 'index.html'),
+  path.join(repoRoot, 'packages', 'web', 'dist', 'index.html'),
 ];
 
 const INSTALLED_OUTPUT_PATHS = [
@@ -131,7 +131,7 @@ export async function buildAll(force = false): Promise<BuildFreshness> {
 
   await runOrThrow('npm', ['run', 'build', '--workspace=@uruc/plugin-sdk'], { cwd: repoRoot });
   await runOrThrow('npm', ['run', 'build', '--workspace=packages/server'], { cwd: repoRoot });
-  await runOrThrow('npm', ['run', 'build', '--workspace=packages/human-web'], { cwd: repoRoot });
+  await runOrThrow('npm', ['run', 'build', '--workspace=packages/web'], { cwd: repoRoot });
 
   const next = getBuildFreshness();
   const state: BuildState = {

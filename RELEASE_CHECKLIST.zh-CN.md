@@ -31,16 +31,16 @@
 
 ```bash
 npm run docs:check
-npm run i18n:check --workspace=packages/human-web
+npm run i18n:check --workspace=packages/web
 ```
 
 如果是较大的公开变更，建议额外运行：
 
 ```bash
 npm run test --workspace=packages/server
-npm run test --workspace=packages/human-web
+npm run test --workspace=packages/web
 npm run build --workspace=packages/server
-npm run build --workspace=packages/human-web
+npm run build --workspace=packages/web
 ```
 
 ## GitHub 就绪项
