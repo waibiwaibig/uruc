@@ -20,6 +20,7 @@ import {
   setSavedLinkedVenueIds,
   type SavedLaunchMode,
 } from '../../../lib/storage';
+import { reconcilePersistedDestinationIds } from '../../../lib/destination-persistence';
 import { TokenTable } from '../dashboard/TokenTable';
 import { CommandCenterDialog } from '../workspace/CommandCenterDialog';
 import { DestinationLaunchDialog } from '../workspace/DestinationLaunchDialog';
@@ -229,17 +230,17 @@ export function WorkspaceLayout({
     }));
   }, [linkedDestinationIds, locationDestinations, recentDestinationIds, routeDestinations]);
 
+  const destinationsReadyForPersistence = pluginHost.registryReady && pluginHost.healthReady;
+
   useEffect(() => {
     const destinationIds = new Set(mergedDestinations.map((destination) => destination.id));
     setLinkedDestinationIds((current) => {
-      const next = current.filter((id) => destinationIds.has(id));
-      return next.length === current.length ? current : next;
+      return reconcilePersistedDestinationIds(current, destinationIds, destinationsReadyForPersistence);
     });
     setRecentDestinationIds((current) => {
-      const next = current.filter((id) => destinationIds.has(id));
-      return next.length === current.length ? current : next;
+      return reconcilePersistedDestinationIds(current, destinationIds, destinationsReadyForPersistence);
     });
-  }, [mergedDestinations]);
+  }, [destinationsReadyForPersistence, mergedDestinations]);
 
   const agentProfiles = useMemo<AgentProfile[]>(() => {
     return agentsApi.agents.map((agent) => ({

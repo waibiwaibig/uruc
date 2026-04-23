@@ -21,6 +21,7 @@ import {
 
 interface PluginHostContextValue {
   health: HealthResponse | null;
+  healthReady: boolean;
   registryReady: boolean;
   registry: FrontendPluginRegistry;
   diagnostics: FrontendPluginDiagnostic[];
@@ -55,6 +56,7 @@ export function PluginHostProvider({ children }: { children: React.ReactNode }) 
   const { shadowAgent } = useAgents();
   const runtime = useAgentRuntime();
   const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [healthReady, setHealthReady] = useState(false);
   const [registryReady, setRegistryReady] = useState(false);
   const [registry, setRegistry] = useState<FrontendPluginRegistry>(() => createEmptyFrontendPluginRegistry());
   const [runtimeDiagnostics, setRuntimeDiagnostics] = useState<FrontendPluginDiagnostic[]>([]);
@@ -94,10 +96,12 @@ export function PluginHostProvider({ children }: { children: React.ReactNode }) 
       .then((response) => {
         if (!active) return;
         setHealth(response);
+        setHealthReady(true);
       })
       .catch(() => {
         if (!active) return;
         setHealth(null);
+        setHealthReady(true);
       });
     return () => {
       active = false;
@@ -238,6 +242,7 @@ export function PluginHostProvider({ children }: { children: React.ReactNode }) 
 
     return {
       health,
+      healthReady,
       registryReady,
       registry,
       diagnostics: [...registry.diagnostics, ...runtimeDiagnostics],
@@ -253,7 +258,7 @@ export function PluginHostProvider({ children }: { children: React.ReactNode }) 
       isPluginEnabled,
       buildPageContext,
     };
-  }, [buildPageContext, enabledPluginIds, health, registry, registryReady, runtimeDiagnostics]);
+  }, [buildPageContext, enabledPluginIds, health, healthReady, registry, registryReady, runtimeDiagnostics]);
 
   return <PluginHostContext.Provider value={value}>{children}</PluginHostContext.Provider>;
 }
