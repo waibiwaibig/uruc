@@ -6,15 +6,12 @@ import {
   LayoutGrid,
   MessageSquare,
   Settings2,
-  ShoppingBag,
-  Swords,
-  TowerControl,
   UserRoundCog,
   Waypoints,
 } from 'lucide-react';
 
 export type WorkspaceSection = 'home' | 'library' | 'agents' | 'settings';
-export type DestinationKind = 'communication' | 'entertainment' | 'commerce' | 'infrastructure';
+export type DestinationKind = 'communication' | 'public space' | 'private space' | 'else';
 export type DestinationShell = 'app' | 'standalone';
 export type DestinationStatus = 'ready' | 'active' | 'attention' | 'syncing';
 export type AgentStatus = 'ready' | 'busy' | 'offline';
@@ -32,7 +29,7 @@ export type Destination = {
   shell: DestinationShell;
   path: string;
   icon: LucideIcon;
-  isPinned: boolean;
+  isLinked: boolean;
   isRecent: boolean;
   lastUsedLabel: string;
   statusNote: string;
@@ -99,14 +96,21 @@ export const workspaceSections: Array<{
 
 const DESTINATION_KIND_ICONS: Record<DestinationKind, LucideIcon> = {
   communication: MessageSquare,
-  entertainment: Swords,
-  commerce: ShoppingBag,
-  infrastructure: Waypoints,
+  'public space': Landmark,
+  'private space': Waypoints,
+  else: LayoutGrid,
 };
 
 export function iconForDestinationKind(kind: DestinationKind): LucideIcon {
   return DESTINATION_KIND_ICONS[kind] ?? Landmark;
 }
+
+export const DESTINATION_KIND_ORDER: DestinationKind[] = [
+  'communication',
+  'public space',
+  'private space',
+  'else',
+];
 
 export function makeAgentInitials(value: string): string {
   return value
@@ -200,24 +204,26 @@ export function buildDefaultCityPulse(): CityPulse {
   };
 }
 
-export function toDestinationKind(pluginId: string): DestinationKind {
-  if (pluginId.includes('social') || pluginId.includes('message') || pluginId.includes('chat')) {
-    return 'communication';
-  }
-  if (pluginId.includes('market') || pluginId.includes('shop') || pluginId.includes('trade')) {
-    return 'commerce';
-  }
-  if (pluginId.includes('portal') || pluginId.includes('network') || pluginId.includes('broadcast')) {
-    return 'infrastructure';
-  }
-  return 'entertainment';
+export function normalizeDestinationKind(kind?: DestinationKind | null): DestinationKind {
+  return kind ?? 'else';
 }
 
-export function toDestinationIcon(pluginId: string, fallback?: string): LucideIcon {
+export function toDestinationIcon(fallback?: string, kind?: DestinationKind): LucideIcon {
   if (fallback === 'landmark') return Landmark;
-  if (fallback === 'tower') return TowerControl;
-  if (fallback === 'shoppingBag' || fallback === 'marketplace') return ShoppingBag;
-  if (fallback === 'swords') return Swords;
   if (fallback === 'bot') return Bot;
-  return iconForDestinationKind(toDestinationKind(pluginId));
+  return iconForDestinationKind(normalizeDestinationKind(kind));
+}
+
+export function dedupeDestinations(destinations: Destination[]): Destination[] {
+  const map = new Map<string, Destination>();
+
+  destinations.forEach((destination) => {
+    const key = destination.locationId ?? destination.path;
+    const current = map.get(key);
+    if (!current || (!current.locationId && destination.locationId)) {
+      map.set(key, destination);
+    }
+  });
+
+  return Array.from(map.values());
 }

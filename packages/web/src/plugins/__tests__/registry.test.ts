@@ -37,12 +37,22 @@ describe('frontend plugin registry v2', () => {
       aliases: ['/app/social'],
       shell: 'app',
       guard: 'auth',
+      venue: {
+        titleKey: 'social:nav.label',
+        descriptionKey: 'social:intro.body',
+        category: 'communication',
+      },
     });
     expect(moderation).toMatchObject({
       path: '/workspace/plugins/uruc.social/moderation',
       aliases: ['/admin/social'],
       shell: 'app',
       guard: 'admin',
+      venue: {
+        titleKey: 'socialAdmin:nav.label',
+        descriptionKey: 'socialAdmin:page.hero.body',
+        category: 'private space',
+      },
     });
     expect(registry.locationPages).toEqual([]);
   });
@@ -161,6 +171,10 @@ describe('frontend plugin registry v2', () => {
             pathSegment: 'home',
             shell: 'app',
             guard: 'auth',
+            venue: {
+              titleKey: 'runtime:venue.title',
+              descriptionKey: 'runtime:venue.body',
+            },
             load: async () => ({ default: () => null }),
           },
         }],
@@ -170,7 +184,13 @@ describe('frontend plugin registry v2', () => {
     const registry = await loadFrontendPluginRegistry();
 
     expect(registry.plugins.map((plugin) => plugin.pluginId).sort()).toEqual(['acme.runtime', 'uruc.social']);
-    expect(registry.pageRoutes.some((route) => route.pluginId === 'acme.runtime' && route.path === '/workspace/plugins/acme.runtime/home')).toBe(true);
+    expect(registry.pageRoutes.find((route) => route.pluginId === 'acme.runtime' && route.path === '/workspace/plugins/acme.runtime/home')).toMatchObject({
+      venue: {
+        titleKey: 'runtime:venue.title',
+        descriptionKey: 'runtime:venue.body',
+        category: 'else',
+      },
+    });
     expect(appended).toEqual(expect.arrayContaining([
       expect.objectContaining({ tagName: 'LINK', href: '/api/plugin-assets/acme.runtime/rev-runtime/frontend-dist/plugin.css' }),
       expect.objectContaining({ tagName: 'SCRIPT', src: '/api/plugin-assets/acme.runtime/rev-runtime/frontend-dist/plugin.js' }),

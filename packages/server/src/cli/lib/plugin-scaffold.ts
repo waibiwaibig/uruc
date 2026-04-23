@@ -133,6 +133,12 @@ export default defineFrontendPlugin({
         pathSegment: '${parsed.routeId}',
         shell: 'app',
         guard: 'auth',
+        venue: {
+          titleKey: 'generated:venue.title',
+          descriptionKey: 'generated:venue.description',
+          icon: 'landmark',
+          category: 'else',
+        },
         load: async () => ({ default: (await import('./PluginPage')).PluginPage }),
       },
     },
@@ -146,6 +152,7 @@ export default defineFrontendPlugin({
         descriptionKey: 'generated:venue.description',
         icon: 'landmark',
         accent: 'var(--city-node-future)',
+        venueCategory: 'else',
       },
     },
     {

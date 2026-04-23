@@ -143,7 +143,7 @@ export function HomePage() {
 
             <div className="flex items-center gap-4">
               <motion.button
-                onClick={() => (continueDestination ? openDestination(continueDestination) : navigateToSection('library'))}
+                onClick={() => (continueDestination ? void openDestination(continueDestination) : navigateToSection('library'))}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className="flex size-14 items-center justify-center rounded-full bg-zinc-900 text-white shadow-xl transition-colors hover:bg-zinc-800 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200 md:size-16"
@@ -152,7 +152,7 @@ export function HomePage() {
               </motion.button>
 
               <button
-                onClick={() => (continueDestination ? openDestination(continueDestination, 'new-tab') : navigateToSection('library'))}
+                onClick={() => (continueDestination ? void openDestination(continueDestination, 'new-tab') : navigateToSection('library'))}
                 className="flex size-12 items-center justify-center rounded-full border border-zinc-900/20 bg-white/40 text-zinc-900 backdrop-blur-md transition-colors hover:bg-white/60 dark:border-white/20 dark:bg-black/40 dark:text-white dark:hover:bg-black/60 md:size-14"
               >
                 <Sparkles className="size-4 md:size-5" />

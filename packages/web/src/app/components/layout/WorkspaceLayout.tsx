@@ -10,23 +10,30 @@ import { resolvePluginIcon } from '../../../plugins/icons';
 import { useTranslation } from 'react-i18next';
 import {
   STORAGE_KEYS,
+  getRememberedLaunchMode,
   getSavedAppShellExpanded,
+  getSavedLinkedVenueIds,
   getSavedStringList,
+  rememberLaunchMode,
   setSavedAppShellExpanded,
   setSavedStringList,
+  setSavedLinkedVenueIds,
+  type SavedLaunchMode,
 } from '../../../lib/storage';
 import { TokenTable } from '../dashboard/TokenTable';
 import { CommandCenterDialog } from '../workspace/CommandCenterDialog';
+import { DestinationLaunchDialog } from '../workspace/DestinationLaunchDialog';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { WorkspaceSurfaceProvider } from '../../context/WorkspaceSurfaceContext';
 import {
   buildDefaultCityPulse,
   buildDefaultPreferences,
+  dedupeDestinations,
   inferAgentStatus,
   makeAgentInitials,
+  normalizeDestinationKind,
   toDestinationIcon,
-  toDestinationKind,
   type ActivityItem,
   type AgentProfile,
   type CityPulse,
@@ -38,6 +45,15 @@ import {
 
 import cityBg from '../../../assets/city-bg.png';
 import cityLightBg from '../../../assets/city-light-bg.png';
+
+const LAUNCH_CANCELLED_ERROR = 'Launch cancelled';
+
+type PendingLaunchRequest = {
+  destination: Destination;
+  rememberChoice: boolean;
+  resolve: (mode: SavedLaunchMode) => void;
+  reject: (error: Error) => void;
+};
 
 function normalizePluginPath(path: string): string {
   if (path.startsWith('/workspace/')) return path;
@@ -94,17 +110,19 @@ export function WorkspaceLayout({
   const [isTokenTableOpen, setIsTokenTableOpen] = useState(false);
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [manualActivities, setManualActivities] = useState<ActivityItem[]>([]);
-  const [pinnedDestinationIds, setPinnedDestinationIds] = useState<string[]>(() => getSavedStringList(STORAGE_KEYS.pinnedDestinations));
+  const [linkedDestinationIds, setLinkedDestinationIds] = useState<string[]>(getSavedLinkedVenueIds);
   const [recentDestinationIds, setRecentDestinationIds] = useState<string[]>(() => getSavedStringList(STORAGE_KEYS.recentDestinations));
   const [preferences, setPreferences] = useState<WorkspacePreferences>(readSavedPreferences);
+  const [launchError, setLaunchError] = useState('');
+  const [pendingLaunchRequest, setPendingLaunchRequest] = useState<PendingLaunchRequest | null>(null);
 
   useEffect(() => {
     setSavedAppShellExpanded(isDesktopSidebarOpen);
   }, [isDesktopSidebarOpen]);
 
   useEffect(() => {
-    setSavedStringList(STORAGE_KEYS.pinnedDestinations, pinnedDestinationIds);
-  }, [pinnedDestinationIds]);
+    setSavedLinkedVenueIds(linkedDestinationIds);
+  }, [linkedDestinationIds]);
 
   useEffect(() => {
     setSavedStringList(STORAGE_KEYS.recentDestinations, recentDestinationIds);
@@ -115,28 +133,43 @@ export function WorkspaceLayout({
     localStorage.setItem(STORAGE_KEYS.preferences, JSON.stringify(preferences));
   }, [preferences]);
 
-  const visibleNavEntries = useMemo(
-    () => pluginHost.enabledNavEntries.filter((entry) => !entry.requiresRole || user?.role === entry.requiresRole),
-    [pluginHost.enabledNavEntries, user?.role],
+  const visiblePageRoutes = useMemo(
+    () => pluginHost.allPageRoutes.filter((route) => {
+      if (!pluginHost.isPluginEnabled(route.pluginId)) return false;
+      if (route.guard === 'admin') return user?.role === 'admin';
+      if (route.guard === 'auth') return Boolean(user);
+      return true;
+    }),
+    [pluginHost, user, user?.role],
+  );
+
+  const routeByPluginAndId = useMemo(
+    () => new Map(visiblePageRoutes.map((route) => [`${route.pluginId}:${route.id}`, route] as const)),
+    [visiblePageRoutes],
+  );
+
+  const visibleVenueRoutes = useMemo(
+    () => visiblePageRoutes.filter((route) => route.venue),
+    [visiblePageRoutes],
   );
 
   const routeDestinations = useMemo<Destination[]>(() => {
-    return visibleNavEntries.map((entry, index) => ({
-      id: `nav:${entry.pluginId}:${entry.id}`,
-      name: t(entry.labelKey),
-      description: `Open ${t(entry.labelKey)} in the workspace.`,
-      pluginName: entry.pluginId,
-      kind: toDestinationKind(entry.pluginId),
-      status: normalizePluginPath(entry.to) === location.pathname ? 'active' : 'ready',
-      shell: 'app',
-      path: normalizePluginPath(entry.to),
-      icon: resolvePluginIcon(entry.icon),
-      isPinned: false,
+    return visibleVenueRoutes.map((route, index) => ({
+      id: `route:${route.pluginId}:${route.id}`,
+      name: t(route.venue?.shortLabelKey ?? route.venue!.titleKey),
+      description: t(route.venue!.descriptionKey),
+      pluginName: route.pluginId,
+      kind: normalizeDestinationKind(route.venue?.category),
+      status: normalizePluginPath(route.path) === location.pathname ? 'active' : 'ready',
+      shell: route.shell === 'standalone' ? 'standalone' : 'app',
+      path: normalizePluginPath(route.path),
+      icon: resolvePluginIcon(route.venue?.icon),
+      isLinked: false,
       isRecent: false,
       lastUsedLabel: buildTimeLabel(index),
-      statusNote: entry.requiresRole ? `${entry.requiresRole} route` : 'Page route',
+      statusNote: route.guard === 'admin' ? 'Admin venue route' : route.guard === 'auth' ? 'Authenticated venue route' : 'Public venue route',
     }));
-  }, [location.pathname, t, visibleNavEntries]);
+  }, [location.pathname, t, visibleVenueRoutes]);
 
   const locationDestinations = useMemo<Destination[]>(() => {
     const discoveredById = new Map(runtime.discoveredLocations.map((location) => [location.id, location]));
@@ -147,6 +180,7 @@ export function WorkspaceLayout({
 
     return Array.from(ids).map((locationId, index) => {
       const page = pluginHost.enabledLocationPages.find((item) => item.locationId === locationId);
+      const route = page ? routeByPluginAndId.get(`${page.pluginId}:${page.routeId}`) : null;
       const runtimeLocation = discoveredById.get(locationId);
       const name = runtimeLocation?.name ?? (page ? t(page.titleKey) : locationId);
       const description = runtimeLocation?.description
@@ -159,12 +193,12 @@ export function WorkspaceLayout({
         name,
         description,
         pluginName: page?.pluginId ?? runtimeLocation?.pluginName ?? locationId,
-        kind: toDestinationKind(page?.pluginId ?? runtimeLocation?.pluginName ?? locationId),
+        kind: normalizeDestinationKind(page?.venueCategory),
         status: isActive ? 'active' : runtimeLocation ? 'ready' : runtime.inCity ? 'attention' : 'syncing',
-        shell: 'app',
+        shell: route?.shell === 'standalone' ? 'standalone' : 'app',
         path,
-        icon: page ? resolvePluginIcon(page.icon) : toDestinationIcon(runtimeLocation?.pluginName ?? locationId),
-        isPinned: false,
+        icon: page ? resolvePluginIcon(page.icon) : toDestinationIcon(),
+        isLinked: false,
         isRecent: false,
         lastUsedLabel: buildTimeLabel(index),
         statusNote: runtimeLocation ? 'Runtime-discovered venue' : 'Registered location route',
@@ -177,15 +211,15 @@ export function WorkspaceLayout({
     runtime.currentLocation,
     runtime.discoveredLocations,
     runtime.inCity,
+    routeByPluginAndId,
     t,
   ]);
 
   const mergedDestinations = useMemo(() => {
-    const all = [...routeDestinations, ...locationDestinations];
-    const effectivePinnedIds = pinnedDestinationIds.length > 0 ? pinnedDestinationIds : all.slice(0, 3).map((destination) => destination.id);
+    const all = dedupeDestinations([...routeDestinations, ...locationDestinations]);
     return all.map((destination) => ({
       ...destination,
-      isPinned: effectivePinnedIds.includes(destination.id),
+      isLinked: linkedDestinationIds.includes(destination.id),
       isRecent: recentDestinationIds.includes(destination.id),
       lastUsedLabel: recentDestinationIds.includes(destination.id)
         ? recentDestinationIds.indexOf(destination.id) === 0
@@ -193,7 +227,19 @@ export function WorkspaceLayout({
           : `${recentDestinationIds.indexOf(destination.id) + 1} launches ago`
         : destination.lastUsedLabel,
     }));
-  }, [locationDestinations, pinnedDestinationIds, recentDestinationIds, routeDestinations]);
+  }, [linkedDestinationIds, locationDestinations, recentDestinationIds, routeDestinations]);
+
+  useEffect(() => {
+    const destinationIds = new Set(mergedDestinations.map((destination) => destination.id));
+    setLinkedDestinationIds((current) => {
+      const next = current.filter((id) => destinationIds.has(id));
+      return next.length === current.length ? current : next;
+    });
+    setRecentDestinationIds((current) => {
+      const next = current.filter((id) => destinationIds.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [mergedDestinations]);
 
   const agentProfiles = useMemo<AgentProfile[]>(() => {
     return agentsApi.agents.map((agent) => ({
@@ -260,6 +306,17 @@ export function WorkspaceLayout({
     ].slice(0, 20));
   };
 
+  const ensureRuntimeReady = async () => {
+    if (!agentsApi.shadowAgent) {
+      throw new Error('No shadow agent is configured yet.');
+    }
+    if (!runtime.isConnected) {
+      await runtime.connect();
+    }
+    await runtime.refreshSessionState();
+    await runtime.refreshLocations();
+  };
+
   const navigateToSection = (section: WorkspaceSection) => {
     setIsMobileMenuOpen(false);
     switch (section) {
@@ -278,33 +335,96 @@ export function WorkspaceLayout({
     }
   };
 
-  const openDestination = (destination: Destination, mode: LaunchMode = 'default') => {
+  const openDestination = async (destination: Destination, mode: LaunchMode = 'default') => {
+    setLaunchError('');
     const target = mode === 'default'
       ? (destination.shell === 'standalone' ? 'new-tab' : 'same-tab')
       : mode;
     const nextPath = destination.locationId
-      ? `/workspace/venues?focus=${encodeURIComponent(destination.locationId)}`
+      ? (destination.path.startsWith('/workspace/plugins/')
+        ? destination.path
+        : `/workspace/venues?focus=${encodeURIComponent(destination.locationId)}`)
       : destination.path;
 
-    setRecentDestinationIds((current) => [destination.id, ...current.filter((value) => value !== destination.id)].slice(0, 8));
-    recordActivity({
-      category: 'launch',
-      title: `${destination.name} opened`,
-      summary: target === 'new-tab' ? 'Opened in a new tab under the unified workspace host.' : 'Opened inside the current workspace surface.',
-      tone: 'neutral',
-      destinationId: destination.id,
-    });
+    try {
+      if (destination.locationId) {
+        await ensureRuntimeReady();
+        if (!runtime.isController) {
+          await runtime.claimControl();
+        }
+        if (!runtime.inCity) {
+          await runtime.enterCity();
+        }
+        if (runtime.currentLocation !== destination.locationId) {
+          await runtime.enterLocation(destination.locationId);
+        }
+        await runtime.refreshLocations();
 
-    if (target === 'new-tab') {
-      window.open(nextPath, '_blank', 'noopener,noreferrer');
+        recordActivity({
+          category: 'launch',
+          title: `${destination.name} entered`,
+          summary: 'The workspace runtime moved into the selected venue.',
+          tone: 'success',
+          destinationId: destination.id,
+        });
+      }
+
+      setRecentDestinationIds((current) => [destination.id, ...current.filter((value) => value !== destination.id)].slice(0, 8));
+      recordActivity({
+        category: 'launch',
+        title: `${destination.name} opened`,
+        summary: target === 'new-tab' ? 'Opened in a new tab under the unified workspace host.' : 'Opened inside the current workspace surface.',
+        tone: 'neutral',
+        destinationId: destination.id,
+      });
+
+      if (target === 'new-tab') {
+        window.open(nextPath, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      navigate(nextPath);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : `Unable to open ${destination.name}.`;
+      setLaunchError(message);
+      recordActivity({
+        category: 'launch',
+        title: `${destination.name} failed to open`,
+        summary: message,
+        tone: 'error',
+        destinationId: destination.id,
+      });
+      throw error instanceof Error ? error : new Error(message);
+    }
+  };
+
+  const requestDestinationLaunch = async (destination: Destination) => {
+    const rememberedMode = getRememberedLaunchMode(destination.id);
+    if (rememberedMode) {
+      await openDestination(destination, rememberedMode);
       return;
     }
 
-    navigate(nextPath);
+    try {
+      const mode = await new Promise<SavedLaunchMode>((resolve, reject) => {
+        setPendingLaunchRequest({
+          destination,
+          rememberChoice: false,
+          resolve,
+          reject,
+        });
+      });
+      await openDestination(destination, mode);
+    } catch (error) {
+      if (error instanceof Error && error.message === LAUNCH_CANCELLED_ERROR) {
+        return;
+      }
+      throw error;
+    }
   };
 
-  const togglePinnedDestination = (destinationId: string) => {
-    setPinnedDestinationIds((current) =>
+  const toggleLinkedDestination = (destinationId: string) => {
+    setLinkedDestinationIds((current) =>
       current.includes(destinationId)
         ? current.filter((value) => value !== destinationId)
         : [...current, destinationId],
@@ -327,7 +447,7 @@ export function WorkspaceLayout({
         : 'home';
 
   const alertCount = activities.filter((activity) => activity.tone === 'warning' || activity.tone === 'error').length;
-  const pinnedDestinations = mergedDestinations.filter((destination) => destination.isPinned);
+  const linkedDestinations = mergedDestinations.filter((destination) => destination.isLinked);
 
   return (
     <WorkspaceSurfaceProvider
@@ -337,9 +457,12 @@ export function WorkspaceLayout({
         activities,
         cityPulse,
         preferences,
+        launchError,
         navigateToSection,
         openDestination,
-        togglePinnedDestination,
+        requestDestinationLaunch,
+        toggleLinkedDestination,
+        clearLaunchError: () => setLaunchError(''),
         updatePreference,
         recordActivity,
       }}
@@ -367,10 +490,44 @@ export function WorkspaceLayout({
           onOpenAgent={(agentId) => navigate(`/workspace/agents?agent=${encodeURIComponent(agentId)}`)}
           onLaunchDestination={openDestination}
         />
+        <DestinationLaunchDialog
+          destination={pendingLaunchRequest?.destination ?? null}
+          open={Boolean(pendingLaunchRequest)}
+          rememberChoice={pendingLaunchRequest?.rememberChoice ?? false}
+          onRememberChoiceChange={(rememberChoice) => {
+            if (!pendingLaunchRequest) return;
+            setPendingLaunchRequest({
+              ...pendingLaunchRequest,
+              rememberChoice,
+            });
+          }}
+          onOpenHere={(destination) => {
+            if (!pendingLaunchRequest) return;
+            if (pendingLaunchRequest.rememberChoice) {
+              rememberLaunchMode(destination.id, 'same-tab');
+            }
+            pendingLaunchRequest.resolve('same-tab');
+            setPendingLaunchRequest(null);
+          }}
+          onOpenInNewTab={(destination) => {
+            if (!pendingLaunchRequest) return;
+            if (pendingLaunchRequest.rememberChoice) {
+              rememberLaunchMode(destination.id, 'new-tab');
+            }
+            pendingLaunchRequest.resolve('new-tab');
+            setPendingLaunchRequest(null);
+          }}
+          onOpenChange={(open) => {
+            if (open) return;
+            if (!pendingLaunchRequest) return;
+            pendingLaunchRequest.reject(new Error(LAUNCH_CANCELLED_ERROR));
+            setPendingLaunchRequest(null);
+          }}
+        />
 
         <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
           <div
-            className="absolute inset-0 opacity-10 transition-all duration-500 dark:opacity-20 dark:mix-blend-luminosity"
+            className="absolute inset-0 opacity-10 mix-blend-multiply transition-all duration-500 dark:opacity-20 dark:mix-blend-luminosity"
             style={{ backgroundImage: `url(${isDark ? cityBg : cityLightBg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
           />
           <div
@@ -390,8 +547,10 @@ export function WorkspaceLayout({
                 onNavigate={navigateToSection}
                 cityPulse={cityPulse}
                 alertCount={alertCount}
-                pinnedDestinations={pinnedDestinations}
-                onLaunchDestination={openDestination}
+                linkedDestinations={linkedDestinations}
+                availableDestinations={mergedDestinations}
+                onRequestLaunchDestination={requestDestinationLaunch}
+                onToggleLinkedDestination={toggleLinkedDestination}
                 onClose={() => setIsDesktopSidebarOpen(false)}
               />
             </div>
@@ -420,8 +579,10 @@ export function WorkspaceLayout({
                   onNavigate={navigateToSection}
                   cityPulse={cityPulse}
                   alertCount={alertCount}
-                  pinnedDestinations={pinnedDestinations}
-                  onLaunchDestination={openDestination}
+                  linkedDestinations={linkedDestinations}
+                  availableDestinations={mergedDestinations}
+                  onRequestLaunchDestination={requestDestinationLaunch}
+                  onToggleLinkedDestination={toggleLinkedDestination}
                   onClose={() => setIsMobileMenuOpen(false)}
                 />
               </div>

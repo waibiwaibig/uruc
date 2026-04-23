@@ -1,21 +1,25 @@
-import { ExternalLink, PlugZap, X } from "lucide-react";
+import { ExternalLink, MonitorUp, PlugZap, X } from "lucide-react";
 
 import type { Destination } from "../../workspace-data";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
+import { Checkbox } from "../ui/checkbox";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
+import { Label } from "../ui/label";
 
 type DestinationLaunchDialogProps = {
   destination: Destination | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  rememberChoice: boolean;
+  onRememberChoiceChange: (rememberChoice: boolean) => void;
+  onOpenHere: (destination: Destination) => void;
   onOpenInNewTab: (destination: Destination) => void;
 };
 
@@ -23,6 +27,9 @@ export function DestinationLaunchDialog({
   destination,
   open,
   onOpenChange,
+  rememberChoice,
+  onRememberChoiceChange,
+  onOpenHere,
   onOpenInNewTab,
 }: DestinationLaunchDialogProps) {
   if (!destination) {
@@ -50,7 +57,7 @@ export function DestinationLaunchDialog({
             </div>
           </DialogTitle>
           <DialogDescription className="pt-2">
-            {destination.description}
+            Choose how this venue should open before leaving the current surface.
           </DialogDescription>
         </DialogHeader>
 
@@ -79,21 +86,46 @@ export function DestinationLaunchDialog({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:justify-between">
+        <div className="flex items-start gap-3 rounded-xl border border-zinc-200/70 bg-zinc-50/70 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/60">
+          <Checkbox
+            id="remember-launch-choice"
+            checked={rememberChoice}
+            onCheckedChange={(checked) => onRememberChoiceChange(Boolean(checked))}
+          />
+          <div className="grid gap-1">
+            <Label htmlFor="remember-launch-choice" className="cursor-pointer text-sm font-medium text-zinc-900 dark:text-zinc-100">
+              Today only
+            </Label>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Remember this venue&apos;s launch choice until the local day resets.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenHere(destination)}
+            className="sm:col-span-1"
+          >
+            <MonitorUp />
+            Open here
+          </Button>
           <Button
             type="button"
             variant="outline"
             onClick={() => onOpenInNewTab(destination)}
-            className="order-2 sm:order-1"
+            className="sm:col-span-1"
           >
             <ExternalLink />
-            Open in new tab
+            New tab
           </Button>
-          <Button type="button" onClick={() => onOpenChange(false)} className="order-1 sm:order-2">
+          <Button type="button" onClick={() => onOpenChange(false)} className="sm:col-span-1">
             <X />
-            Close preview
+            Cancel
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

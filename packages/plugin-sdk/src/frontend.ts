@@ -16,6 +16,7 @@ export type ExtensionTarget =
 export type PluginShell = 'public' | 'app' | 'standalone';
 export type PluginGuard = 'public' | 'auth' | 'admin';
 export type PluginRole = 'user' | 'admin';
+export type VenueCategory = 'communication' | 'public space' | 'private space' | 'else';
 export type FrontendApiVersion = 1;
 
 export type PluginPageModule = { default: unknown };
@@ -162,8 +163,17 @@ const functionSchema = z.custom<(...args: any[]) => unknown>((value) => typeof v
 export const pluginShellSchema = z.enum(['public', 'app', 'standalone']);
 export const pluginGuardSchema = z.enum(['public', 'auth', 'admin']);
 export const pluginRoleSchema = z.enum(['user', 'admin']);
+export const venueCategorySchema = z.enum(['communication', 'public space', 'private space', 'else']);
 const namespacedIdSchema = z.string().min(1).refine((value) => value.includes('.'), {
   message: 'Expected a namespaced id',
+});
+
+export const venueMetadataSchema = z.object({
+  titleKey: z.string().min(1),
+  descriptionKey: z.string().min(1),
+  shortLabelKey: z.string().min(1).optional(),
+  icon: z.string().min(1).optional(),
+  category: venueCategorySchema.optional(),
 });
 
 export const pageRouteSchema = z.object({
@@ -173,6 +183,7 @@ export const pageRouteSchema = z.object({
   shell: pluginShellSchema,
   guard: pluginGuardSchema,
   order: z.number().optional(),
+  venue: venueMetadataSchema.optional(),
   load: functionSchema,
 });
 
@@ -187,6 +198,7 @@ export const locationPageSchema = z.object({
   order: z.number().optional(),
   x: z.number().optional(),
   y: z.number().optional(),
+  venueCategory: venueCategorySchema.optional(),
 });
 
 export const navEntrySchema = z.object({
@@ -240,6 +252,7 @@ export type LocationPagePayload = z.infer<typeof locationPageSchema>;
 export type NavEntryPayload = z.infer<typeof navEntrySchema>;
 export type IntroCardPayload = z.infer<typeof introCardSchema>;
 export type RuntimeSlicePayload = z.infer<typeof runtimeSliceSchema> & { mount: RuntimeSliceMount };
+export type VenueMetadataPayload = z.infer<typeof venueMetadataSchema>;
 export type FrontendPlugin = z.infer<typeof frontendPluginSchema> & {
   contributes: Array<{
     target: ExtensionTarget;

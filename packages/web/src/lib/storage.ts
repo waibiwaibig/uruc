@@ -3,8 +3,9 @@ export const STORAGE_KEYS = {
   locale: 'uruc_web_locale',
   appShellExpanded: 'uruc_web_app_shell_expanded',
   appShellAnchor: 'uruc_web_app_shell_anchor',
-  pinnedDestinations: 'uruc_web_pinned_destinations',
+  linkedVenues: 'uruc_web_linked_venues',
   recentDestinations: 'uruc_web_recent_destinations',
+  destinationLaunchMemory: 'uruc_web_destination_launch_memory',
   preferences: 'uruc_web_preferences',
   theme: 'uruc_web_theme',
 } as const;
@@ -14,6 +15,7 @@ const LEGACY_STORAGE_KEYS = {
   locale: 'uruc_human_locale',
   appShellExpanded: 'uruc_human_app_shell_expanded',
   appShellAnchor: 'uruc_human_app_shell_anchor',
+  linkedVenues: 'uruc_web_pinned_destinations',
   theme: 'uruc-human-web-design-theme',
 } as const;
 
@@ -141,8 +143,8 @@ export function setSavedAppShellAnchor(anchor: AppShellAnchor | null): void {
   storage.setItem(STORAGE_KEYS.appShellAnchor, JSON.stringify(anchor));
 }
 
-export function getSavedStringList(key: string): string[] {
-  const raw = getStorage()?.getItem(key);
+export function getSavedStringList(key: string, legacyKey?: string): string[] {
+  const raw = readString(key, legacyKey);
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -154,4 +156,95 @@ export function getSavedStringList(key: string): string[] {
 
 export function setSavedStringList(key: string, values: string[]): void {
   getStorage()?.setItem(key, JSON.stringify(values));
+}
+
+export type SavedLaunchMode = 'same-tab' | 'new-tab';
+
+type DestinationLaunchMemoryRecord = {
+  mode: SavedLaunchMode;
+  date: string;
+};
+
+type DestinationLaunchMemoryState = Record<string, DestinationLaunchMemoryRecord>;
+
+function localDateKey(now: Date): string {
+  const year = now.getFullYear();
+  const month = `${now.getMonth() + 1}`.padStart(2, '0');
+  const day = `${now.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function readDestinationLaunchMemory(): DestinationLaunchMemoryState {
+  const raw = readString(STORAGE_KEYS.destinationLaunchMemory);
+  if (!raw) return {};
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, Partial<DestinationLaunchMemoryRecord>>;
+    return Object.fromEntries(
+      Object.entries(parsed).flatMap(([destinationId, value]) => (
+        typeof value?.mode === 'string' &&
+        (value.mode === 'same-tab' || value.mode === 'new-tab') &&
+        typeof value.date === 'string' &&
+        value.date
+          ? [[destinationId, { mode: value.mode, date: value.date } satisfies DestinationLaunchMemoryRecord]]
+          : []
+      )),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function writeDestinationLaunchMemory(value: DestinationLaunchMemoryState): void {
+  getStorage()?.setItem(STORAGE_KEYS.destinationLaunchMemory, JSON.stringify(value));
+}
+
+function pruneDestinationLaunchMemory(
+  value: DestinationLaunchMemoryState,
+  now: Date,
+): DestinationLaunchMemoryState {
+  const today = localDateKey(now);
+  return Object.fromEntries(
+    Object.entries(value).filter(([, record]) => record.date === today),
+  );
+}
+
+export function getSavedLinkedVenueIds(): string[] {
+  return getSavedStringList(STORAGE_KEYS.linkedVenues, LEGACY_STORAGE_KEYS.linkedVenues);
+}
+
+export function setSavedLinkedVenueIds(values: string[]): void {
+  setSavedStringList(STORAGE_KEYS.linkedVenues, values);
+}
+
+export function getRememberedLaunchMode(
+  destinationId: string,
+  now: Date = new Date(),
+): SavedLaunchMode | null {
+  const value = pruneDestinationLaunchMemory(readDestinationLaunchMemory(), now);
+  const record = value[destinationId];
+  if (!record) return null;
+  return record.mode;
+}
+
+export function rememberLaunchMode(
+  destinationId: string,
+  mode: SavedLaunchMode,
+  now: Date = new Date(),
+): void {
+  const next = pruneDestinationLaunchMemory(readDestinationLaunchMemory(), now);
+  next[destinationId] = {
+    mode,
+    date: localDateKey(now),
+  };
+  writeDestinationLaunchMemory(next);
+}
+
+export function clearRememberedLaunchMode(
+  destinationId: string,
+  now: Date = new Date(),
+): void {
+  const next = pruneDestinationLaunchMemory(readDestinationLaunchMemory(), now);
+  delete next[destinationId];
+  writeDestinationLaunchMemory(next);
 }

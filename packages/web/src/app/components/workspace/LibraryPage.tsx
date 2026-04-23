@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useAgents } from '../../../context/AgentsContext';
 import { useAgentRuntime } from '../../../context/AgentRuntimeContext';
 import { useWorkspaceSurface } from '../../context/WorkspaceSurfaceContext';
-import type { Destination } from '../../workspace-data';
+import { DESTINATION_KIND_ORDER, dedupeDestinations, type Destination } from '../../workspace-data';
 import { Input } from '../ui/input';
 
 import cityBg from '../../../assets/city-bg.png';
@@ -44,27 +44,19 @@ const CAROUSEL_SLIDES = [
   },
 ];
 
-function dedupeDestinations(destinations: Destination[]) {
-  const map = new Map<string, Destination>();
-
-  destinations.forEach((destination) => {
-    const key = destination.locationId ?? destination.path;
-    const current = map.get(key);
-    if (!current || (!current.locationId && destination.locationId)) {
-      map.set(key, destination);
-    }
-  });
-
-  return Array.from(map.values());
-}
-
 export function LibraryPage() {
   const [search, setSearch] = useState('');
   const [activeSlide, setActiveSlide] = useState(0);
-  const [errorText, setErrorText] = useState('');
+  const [localErrorText, setLocalErrorText] = useState('');
   const { shadowAgent } = useAgents();
   const runtime = useAgentRuntime();
-  const { destinations, openDestination, recordActivity } = useWorkspaceSurface();
+  const {
+    destinations,
+    launchError,
+    requestDestinationLaunch,
+    clearLaunchError,
+    recordActivity,
+  } = useWorkspaceSurface();
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -103,12 +95,10 @@ export function LibraryPage() {
       }
       groups[destination.kind].push(destination);
     });
-    return groups;
+    return DESTINATION_KIND_ORDER
+      .filter((kind) => groups[kind]?.length)
+      .map((kind) => [kind, [...groups[kind]].sort((left, right) => left.name.localeCompare(right.name))] as const);
   }, [filteredDestinations]);
-
-  const openVenuePath = (destination: Destination) => {
-    openDestination({ ...destination, locationId: undefined });
-  };
 
   const ensureConnected = async () => {
     if (!shadowAgent) {
@@ -122,37 +112,15 @@ export function LibraryPage() {
   };
 
   const launchDestination = async (destination: Destination) => {
-    setErrorText('');
-
-    if (!destination.locationId) {
-      openDestination(destination);
-      return;
-    }
-
     try {
-      await ensureConnected();
-      if (!runtime.isController) {
-        await runtime.claimControl();
-      }
-      if (!runtime.inCity) {
-        await runtime.enterCity();
-      }
-      await runtime.enterLocation(destination.locationId);
-      await runtime.refreshLocations();
-
-      recordActivity({
-        category: 'launch',
-        title: `${destination.name} entered`,
-        summary: 'The workspace runtime moved into the selected venue.',
-        tone: 'success',
-        destinationId: destination.id,
-      });
-
-      if (destination.path.startsWith('/workspace/plugins/')) {
-        openVenuePath(destination);
-      }
+      setLocalErrorText('');
+      clearLaunchError();
+      await requestDestinationLaunch(destination);
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : `Unable to open ${destination.name}.`);
+      if (error instanceof Error && error.message === 'Launch cancelled') {
+        return;
+      }
+      setLocalErrorText(error instanceof Error ? error.message : `Unable to open ${destination.name}.`);
     }
   };
 
@@ -161,7 +129,7 @@ export function LibraryPage() {
       return;
     }
 
-    setErrorText('');
+    setLocalErrorText('');
 
     try {
       await runtime.leaveLocation();
@@ -174,14 +142,15 @@ export function LibraryPage() {
         destinationId: destination.id,
       });
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : `Unable to close ${destination.name}.`);
+      setLocalErrorText(error instanceof Error ? error.message : `Unable to close ${destination.name}.`);
     }
   };
 
   const slideAction = async () => {
     if (CAROUSEL_SLIDES[activeSlide].id === 'brand') {
       try {
-        setErrorText('');
+        setLocalErrorText('');
+        clearLaunchError();
         await ensureConnected();
         if (!runtime.isController) {
           await runtime.claimControl();
@@ -197,7 +166,7 @@ export function LibraryPage() {
           tone: 'success',
         });
       } catch (error) {
-        setErrorText(error instanceof Error ? error.message : 'Unable to enter the city.');
+        setLocalErrorText(error instanceof Error ? error.message : 'Unable to enter the city.');
       }
       return;
     }
@@ -291,14 +260,14 @@ export function LibraryPage() {
           </AnimatePresence>
         </div>
 
-        {errorText || runtime.error ? (
+        {localErrorText || launchError || runtime.error ? (
           <div className="w-full rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-            {errorText || runtime.error}
+            {localErrorText || launchError || runtime.error}
           </div>
         ) : null}
 
         <div className="z-10 flex w-full flex-col gap-12 pb-16">
-          {Object.entries(grouped).map(([kind, items]) => (
+          {grouped.map(([kind, items]) => (
             <div key={kind} className="flex flex-col gap-6">
               <h2 className="text-xl font-medium capitalize tracking-tight text-zinc-900 dark:text-zinc-100">
                 {kind}

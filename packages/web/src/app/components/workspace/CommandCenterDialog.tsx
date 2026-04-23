@@ -105,7 +105,7 @@ export function CommandCenterDialog({
             <CommandItem
               key={destination.id}
               onSelect={() => {
-                onLaunchDestination(destination);
+                void onLaunchDestination(destination);
                 onOpenChange(false);
               }}
             >

@@ -5,7 +5,6 @@ import type {
   AgentProfile,
   CityPulse,
   Destination,
-  LaunchMode,
   WorkspacePreferences,
   WorkspaceSection,
 } from '../workspace-data';
@@ -16,9 +15,12 @@ interface WorkspaceSurfaceContextValue {
   activities: ActivityItem[];
   cityPulse: CityPulse;
   preferences: WorkspacePreferences;
+  launchError: string;
   navigateToSection: (section: WorkspaceSection) => void;
-  openDestination: (destination: Destination, mode?: LaunchMode) => void;
-  togglePinnedDestination: (destinationId: string) => void;
+  openDestination: (destination: Destination, mode?: 'default' | 'same-tab' | 'new-tab') => Promise<void>;
+  requestDestinationLaunch: (destination: Destination) => Promise<void>;
+  toggleLinkedDestination: (destinationId: string) => void;
+  clearLaunchError: () => void;
   updatePreference: <K extends keyof WorkspacePreferences>(key: K, value: WorkspacePreferences[K]) => void;
   recordActivity: (item: Omit<ActivityItem, 'id' | 'timeLabel'> & { timeLabel?: string }) => void;
 }

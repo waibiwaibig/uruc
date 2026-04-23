@@ -1,9 +1,13 @@
-import { Terminal, PanelLeftClose } from "lucide-react";
+import { useMemo, useState } from "react";
+import { PanelLeftClose, Plus, Terminal } from "lucide-react";
 
 import type { CityPulse, WorkspaceSection, Destination } from "../../workspace-data";
 import { workspaceSections } from "../../workspace-data";
-import { Badge } from "../ui/Badge";
 import { cn } from "../../utils/cn";
+import { Button } from "../ui/Button";
+import { Checkbox } from "../ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { ScrollArea } from "../ui/scroll-area";
 
 type SidebarProps = {
   className?: string;
@@ -12,8 +16,10 @@ type SidebarProps = {
   onNavigate: (section: WorkspaceSection) => void;
   cityPulse: CityPulse;
   alertCount: number;
-  pinnedDestinations?: Destination[];
-  onLaunchDestination?: (destination: Destination) => void;
+  linkedDestinations?: Destination[];
+  availableDestinations?: Destination[];
+  onRequestLaunchDestination?: (destination: Destination) => Promise<void> | void;
+  onToggleLinkedDestination?: (destinationId: string) => void;
   onClose?: () => void;
 };
 
@@ -23,10 +29,22 @@ export function Sidebar({
   onNavigate,
   cityPulse,
   alertCount,
-  pinnedDestinations,
-  onLaunchDestination,
+  linkedDestinations,
+  availableDestinations,
+  onRequestLaunchDestination,
+  onToggleLinkedDestination,
   onClose,
 }: SidebarProps) {
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const linkedDestinationIds = useMemo(
+    () => new Set((linkedDestinations ?? []).map((destination) => destination.id)),
+    [linkedDestinations],
+  );
+  const selectableDestinations = useMemo(
+    () => [...(availableDestinations ?? [])].sort((left, right) => left.name.localeCompare(right.name)),
+    [availableDestinations],
+  );
+
   return (
     <div
       className={cn(
@@ -68,40 +86,89 @@ export function Sidebar({
             >
               <Icon size={16} />
               <span className="flex-1 text-left">{item.label}</span>
-              {item.id === "home" && alertCount > 0 ? (
-                <Badge variant="warning" className="px-2 py-0 text-[10px]">
-                  {alertCount}
-                </Badge>
-              ) : null}
             </button>
           );
         })}
 
-        {pinnedDestinations && pinnedDestinations.length > 0 && (
-          <>
-            <div className="mx-3 my-3 border-t border-zinc-200/50 dark:border-white/10" />
-            <div className="px-3 mb-1">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
-                Linked Venues
-              </span>
-            </div>
-            {pinnedDestinations.map((dest) => {
+        <>
+          <div className="mx-3 my-3 border-t border-zinc-200/50 dark:border-white/10" />
+          <div className="mb-1 flex items-center justify-between px-3">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+              Linked Venues
+            </span>
+            {onToggleLinkedDestination ? (
+              <Popover open={isPickerOpen} onOpenChange={setIsPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-6 rounded-full text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+                    aria-label="Manage linked venues"
+                  >
+                    <Plus size={14} />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  side="right"
+                  className="w-[280px] rounded-2xl border-zinc-200 bg-white/95 p-0 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/95"
+                >
+                  <div className="border-b border-zinc-200/70 px-4 py-3 dark:border-white/10">
+                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Linked Venues</p>
+                    <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Choose which venue shortcuts stay in the sidebar.</p>
+                  </div>
+                  <ScrollArea className="max-h-72">
+                    <div className="grid gap-1 p-2">
+                      {selectableDestinations.map((destination) => (
+                        <button
+                          key={destination.id}
+                          type="button"
+                          onClick={() => onToggleLinkedDestination(destination.id)}
+                          className="flex items-start gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-zinc-100/80 dark:hover:bg-white/5"
+                        >
+                          <Checkbox
+                            checked={linkedDestinationIds.has(destination.id)}
+                            className="mt-0.5"
+                            aria-label={destination.name}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{destination.name}</p>
+                            <p className="line-clamp-2 text-xs text-zinc-500 dark:text-zinc-400">{destination.description}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
+            ) : null}
+          </div>
+
+          {linkedDestinations && linkedDestinations.length > 0 ? (
+            linkedDestinations.map((dest) => {
               const Icon = dest.icon;
               return (
                 <button
                   key={dest.id}
                   type="button"
-                  onClick={() => onLaunchDestination?.(dest)}
-                  className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors text-zinc-600 hover:bg-white/50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-zinc-200"
+                  onClick={() => {
+                    void onRequestLaunchDestination?.(dest);
+                  }}
+                  className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-white/50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-zinc-200"
                   title={dest.pluginName}
                 >
                   <Icon size={16} />
-                  <span className="flex-1 text-left truncate">{dest.name}</span>
+                  <span className="flex-1 truncate text-left">{dest.name}</span>
                 </button>
               );
-            })}
-          </>
-        )}
+            })
+          ) : (
+            <div className="px-3 py-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+              Add the venues you want as persistent shortcuts here.
+            </div>
+          )}
+        </>
       </div>
 
       <div className="border-t border-zinc-200/50 p-4 dark:border-white/10 mt-auto shrink-0">

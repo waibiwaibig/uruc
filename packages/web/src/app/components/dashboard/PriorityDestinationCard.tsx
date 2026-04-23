@@ -16,14 +16,14 @@ type PriorityDestinationCardProps = {
   destination: Destination;
   onOpen: (destination: Destination) => void;
   onOpenInNewTab: (destination: Destination) => void;
-  onTogglePinned: (destinationId: string) => void;
+  onToggleLinked: (destinationId: string) => void;
 };
 
 export function PriorityDestinationCard({
   destination,
   onOpen,
   onOpenInNewTab,
-  onTogglePinned,
+  onToggleLinked,
 }: PriorityDestinationCardProps) {
   return (
     <article className="relative flex flex-col rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition-[border-color,box-shadow] hover:border-zinc-400 hover:shadow-md focus-within:border-zinc-400 focus-within:shadow-md dark:border-zinc-800 dark:bg-zinc-900/50 dark:hover:border-zinc-600 dark:focus-within:border-zinc-600">
@@ -52,9 +52,9 @@ export function PriorityDestinationCard({
                 Open in new tab
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => onTogglePinned(destination.id)}>
-                {destination.isPinned ? <PinOff /> : <Pin />}
-                {destination.isPinned ? "Unpin from Home" : "Pin to Home"}
+              <DropdownMenuItem onSelect={() => onToggleLinked(destination.id)}>
+                {destination.isLinked ? <PinOff /> : <Pin />}
+                {destination.isLinked ? "Remove from Linked Venues" : "Add to Linked Venues"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

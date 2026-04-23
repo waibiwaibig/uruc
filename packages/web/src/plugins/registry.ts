@@ -182,6 +182,17 @@ function packageNameFromSource(source: string): string {
   return source.split('/').slice(-2, -1)[0] ?? source;
 }
 
+function preferredPluginDirectoryName(pluginId: string): string {
+  const segments = pluginId.split('.');
+  return segments[segments.length - 1] ?? pluginId;
+}
+
+function discoveredPackageSortRank(record: DiscoveredPackageRecord): [number, string] {
+  const packageDir = packageNameFromSource(record.packageSource);
+  const preferredDir = preferredPluginDirectoryName(record.pluginId);
+  return [packageDir === preferredDir ? 0 : 1, record.packageSource];
+}
+
 function ensureUniqueBy<T extends { pluginId: string; source: string }>(
   items: T[],
   keyFn: (item: T) => string,
@@ -294,7 +305,11 @@ function discoverFrontendPackages(): {
   }
 
   return {
-    packages: discoveredPackages,
+    packages: [...discoveredPackages].sort((left, right) => {
+      const [leftRank, leftSource] = discoveredPackageSortRank(left);
+      const [rightRank, rightSource] = discoveredPackageSortRank(right);
+      return leftRank - rightRank || leftSource.localeCompare(rightSource);
+    }),
     diagnostics,
   };
 }
@@ -304,8 +319,20 @@ async function loadDiscoveredFrontendPackages(
   diagnostics: FrontendPluginDiagnostic[],
 ): Promise<LoadedPluginRecord[]> {
   const loadedPlugins: LoadedPluginRecord[] = [];
+  const seenPluginIds = new Set<string>();
 
   for (const record of packages) {
+    if (seenPluginIds.has(record.pluginId)) {
+      diagnostics.push({
+        pluginId: record.pluginId,
+        state: 'duplicate_plugin',
+        source: record.packageSource,
+        message: `Frontend plugin '${record.pluginId}' is shadowed by a higher-priority source package`,
+      });
+      continue;
+    }
+    seenPluginIds.add(record.pluginId);
+
     if (!record.loadEntry) {
       diagnostics.push({
         pluginId: record.pluginId,
@@ -430,6 +457,7 @@ function buildRegistryFromLoadedPlugins(
   loadedPlugins: LoadedPluginRecord[],
   diagnostics: FrontendPluginDiagnostic[],
 ): FrontendPluginRegistry {
+  const seenPluginIds = new Set<string>();
   const plugins: FrontendPlugin[] = [];
   const pageRoutes: RegisteredPageRoute[] = [];
   const navEntries: RegisteredNavEntry[] = [];
@@ -438,6 +466,17 @@ function buildRegistryFromLoadedPlugins(
   const rawLocationPages: Array<RegisteredContributionBase & LocationPagePayload> = [];
 
   for (const { plugin, source } of loadedPlugins) {
+    if (seenPluginIds.has(plugin.pluginId)) {
+      diagnostics.push({
+        pluginId: plugin.pluginId,
+        state: 'duplicate_plugin',
+        source,
+        message: `Frontend plugin '${plugin.pluginId}' was loaded more than once`,
+      });
+      continue;
+    }
+    seenPluginIds.add(plugin.pluginId);
+
     plugins.push(plugin);
     diagnostics.push({
       pluginId: plugin.pluginId,
@@ -479,14 +518,22 @@ function buildRegistryFromLoadedPlugins(
 
       switch (contribution.target) {
         case PAGE_ROUTE_TARGET:
+          {
+            const payload = parsedPayload.data as PageRoutePayload;
           pageRoutes.push({
             ...base,
-            ...(parsedPayload.data as PageRoutePayload),
-            path: canonicalPluginRoute(plugin.pluginId, parsedPayload.data as PageRoutePayload),
+            ...payload,
+            venue: payload.venue ? { ...payload.venue, category: payload.venue.category ?? 'else' } : undefined,
+            path: canonicalPluginRoute(plugin.pluginId, payload),
           });
+          }
           break;
         case LOCATION_PAGE_TARGET:
-          rawLocationPages.push({ ...base, ...(parsedPayload.data as LocationPagePayload) });
+          rawLocationPages.push({
+            ...base,
+            ...(parsedPayload.data as LocationPagePayload),
+            venueCategory: (parsedPayload.data as LocationPagePayload).venueCategory ?? 'else',
+          });
           break;
         case NAV_ENTRY_TARGET:
           navEntries.push({
