@@ -1,100 +1,75 @@
 import { Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import { Activity, ChevronRight } from 'lucide-react';
 
-import { resolvePluginIcon } from '../../../plugins/icons';
+import cityBg from '../../../assets/city-bg.png';
+import cityLightBg from '../../../assets/city-light-bg.png';
 import { usePluginHost } from '../../../plugins/context';
 import { Button } from '../ui/Button';
-import { PublicPageShell } from './PublicPageShell';
+import { cn } from '../ui/utils';
 
 export function IntroPage() {
-  const { t } = useTranslation();
-  const { enabledIntroCards, health } = usePluginHost();
-  const pluginMap = new Map((health?.plugins ?? []).map((plugin) => [plugin.name, plugin]));
+  const { health } = usePluginHost();
 
   return (
-    <PublicPageShell
-      eyebrow="Uruc Public Gateway"
-      title="A new workspace shell for the city runtime"
-      description="The new web host keeps the visual direction from your redesign while taking over authentication, agent control, venues, and runtime-mounted plugin pages."
-    >
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-        <section className="rounded-[32px] border border-zinc-200 bg-white/85 p-8 shadow-2xl backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/85">
-          <div className="flex flex-wrap gap-3">
-            <Button asChild className="rounded-full px-6">
-              <Link to="/auth/login">Sign in</Link>
-            </Button>
-            <Button asChild variant="outline" className="rounded-full px-6">
-              <Link to="/auth/register">Create account</Link>
-            </Button>
-          </div>
-          <div className="mt-8 grid gap-4 md:grid-cols-2">
-            <article className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-900/60">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
-                Host state
-              </h2>
-              <p className="mt-3 text-2xl font-semibold">
-                {health ? 'Online' : 'Waiting for server'}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-                The intro page is already using the live plugin registry and backend health endpoint.
-              </p>
-            </article>
-            <article className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-900/60">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
-                Runtime plugins
-              </h2>
-              <p className="mt-3 text-2xl font-semibold">
-                {enabledIntroCards.length}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-                Intro cards below are sourced from the live frontend plugin host instead of mock data.
-              </p>
-            </article>
-          </div>
-        </section>
-
-        <section className="rounded-[32px] border border-zinc-200 bg-white/85 p-6 shadow-2xl backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/85">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
-            City highlights
-          </h2>
-          <div className="mt-5 grid gap-3">
-            {enabledIntroCards.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/70 p-5 text-sm leading-6 text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
-                No plugin intro cards are active yet.
-              </div>
-            ) : (
-              enabledIntroCards.map((card) => {
-                const Icon = resolvePluginIcon(card.icon);
-                const plugin = pluginMap.get(card.pluginId);
-                return (
-                  <article
-                    key={`${card.pluginId}:${card.id}`}
-                    className="flex items-start gap-4 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/60"
-                  >
-                    <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-                      <Icon className="size-5 text-zinc-700 dark:text-zinc-200" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-medium">{t(card.titleKey)}</h3>
-                        <span className="rounded-full border border-zinc-200 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-                          {plugin?.started ? 'Open' : 'Idle'}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-                        {t(card.bodyKey)}
-                      </p>
-                      <p className="mt-2 text-xs font-mono text-zinc-500 dark:text-zinc-400">
-                        {card.pluginId}
-                      </p>
-                    </div>
-                  </article>
-                );
-              })
-            )}
-          </div>
-        </section>
+    <div className="relative min-h-screen overflow-hidden bg-white text-zinc-950 dark:bg-[#09090B] dark:text-zinc-50 selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-zinc-900">
+      {/* Backgrounds */}
+      <div className="pointer-events-none absolute inset-0">
+        <div
+          className="absolute inset-0 opacity-15 mix-blend-multiply dark:opacity-20 dark:mix-blend-luminosity"
+          style={{ backgroundImage: `url(${cityLightBg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+        />
+        <div
+          className="absolute inset-0 hidden opacity-20 dark:block dark:mix-blend-luminosity"
+          style={{ backgroundImage: `url(${cityBg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+        />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.8),transparent_70%)] dark:bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.03),transparent_70%)]" />
       </div>
-    </PublicPageShell>
+
+      {/* Top Navigation / Status */}
+      <nav className="relative z-20 flex w-full items-center justify-between p-6 md:p-8">
+        <div className="flex items-center gap-2 font-mono text-xs font-medium uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+          <Activity className={cn("size-4", health ? "text-emerald-500" : "text-amber-500")} />
+          {health ? 'City Runtime Online' : 'Connecting to Core...'}
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className="relative z-10 mx-auto flex min-h-[calc(100vh-100px)] w-full max-w-7xl flex-col items-center justify-center px-4 pb-20 pt-10 md:px-8">
+        <div className="flex flex-col items-center text-center">
+          {/* Eyebrow */}
+          <div className="mb-6 inline-flex items-center rounded-full border border-zinc-200 bg-white/50 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-600 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-300">
+            <span className="relative mr-2 flex size-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-zinc-500 opacity-75 dark:bg-zinc-400"></span>
+              <span className="relative inline-flex size-2 rounded-full bg-zinc-600 dark:bg-zinc-500"></span>
+            </span>
+            Welcome to the Future
+          </div>
+
+          {/* Huge Brand Typography */}
+          <h1 className="bg-gradient-to-br from-zinc-900 to-zinc-500 bg-clip-text text-7xl font-bold leading-none tracking-tighter text-transparent sm:text-8xl md:text-9xl lg:text-[12rem] dark:from-white dark:to-zinc-500">
+            URUC
+          </h1>
+
+          {/* Slogan */}
+          <p className="mt-8 max-w-2xl text-lg font-medium text-zinc-600 sm:text-xl md:text-2xl dark:text-zinc-400">
+            An AI Virtual City where humans and autonomous agents coexist, collaborate, and evolve.
+          </p>
+
+          {/* CTA Buttons */}
+          <div className="mt-12 flex flex-col gap-4 sm:flex-row sm:items-center">
+            <Button asChild size="lg" className="group h-14 rounded-full px-8 text-base transition-all hover:scale-105 hover:shadow-xl dark:hover:shadow-zinc-900/50">
+              <Link to="/auth/login">
+                Enter City
+                <ChevronRight className="ml-2 size-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="h-14 rounded-full border-zinc-300 bg-white/50 px-8 text-base backdrop-blur-md transition-all hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900/50 dark:hover:bg-zinc-800">
+              <Link to="/auth/register">Register Citizenship</Link>
+            </Button>
+          </div>
+        </div>
+
+      </main>
+    </div>
   );
 }
