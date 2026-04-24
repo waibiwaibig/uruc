@@ -4,6 +4,7 @@ import {
   useState,
   type FormEvent,
 } from 'react';
+import { isPluginCommandError } from '@uruc/plugin-sdk/frontend';
 import { usePluginAgent, usePluginRuntime } from '@uruc/plugin-sdk/frontend-react';
 import {
   AlertTriangle,
@@ -121,13 +122,16 @@ export function FleamarketHomePage() {
   const [selectedListing, setSelectedListing] = useState<ListingDetail | null>(null);
   const [sellerReputation, setSellerReputation] = useState<ReputationProfile | null>(null);
   const [sellerReviews, setSellerReviews] = useState<FleamarketReview[]>([]);
+  const [sellerReviewsHasMore, setSellerReviewsHasMore] = useState(false);
   const [trade, setTrade] = useState<FleamarketTrade | null>(null);
   const [messages, setMessages] = useState<FleamarketMessage[]>([]);
   const [messageDraft, setMessageDraft] = useState('');
   const [reviewRating, setReviewRating] = useState('5');
   const [reviewComment, setReviewComment] = useState('');
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
+  const [customCategoryFilter, setCustomCategoryFilter] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('latest');
   const [sellerFilterAgentId, setSellerFilterAgentId] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
@@ -185,10 +189,10 @@ export function FleamarketHomePage() {
     limit: 20,
     sortBy: SORT_TO_BACKEND[sortMode],
     ...(query.trim() ? { query: query.trim() } : {}),
-    ...(category !== 'all' ? { category: backendCategoryFor(category) } : {}),
+    ...(category !== 'all' ? { category: backendCategoryFor(category) } : customCategoryFilter.trim() ? { category: customCategoryFilter.trim() } : {}),
     ...(sellerFilterAgentId ? { sellerAgentId: sellerFilterAgentId } : {}),
     ...(cursor ? { beforeUpdatedAt: cursor } : {}),
-  }), [category, query, sellerFilterAgentId, sortMode]);
+  }), [category, customCategoryFilter, query, sellerFilterAgentId, sortMode]);
 
   const loadListings = useCallback(async (options?: { append?: boolean; cursor?: number | null }) => {
     if (!canUseCommands) return;
@@ -253,6 +257,24 @@ export function FleamarketHomePage() {
     setReportsNextCursor(payload.nextCursor ?? null);
   }, [canUseCommands, sendFleamarketCommand]);
 
+  const loadSellerReputation = useCallback(async (agentId: string) => {
+    const payload = await sendFleamarketCommand<ReputationProfile | { profile: ReputationProfile }>('Load seller reputation', 'get_reputation_profile', { agentId });
+    if (!payload) return null;
+    if ('profile' in payload) return payload.profile;
+    return payload;
+  }, [sendFleamarketCommand]);
+
+  const loadSellerReviews = useCallback(async (agentId: string, limit: number) => {
+    const payload = await sendFleamarketCommand<ReviewsPayload>('Load seller reviews', 'list_reviews', {
+      agentId,
+      limit,
+    });
+    if (!payload) return null;
+    setSellerReviews(payload.reviews);
+    setSellerReviewsHasMore(payload.hasMore);
+    return payload;
+  }, [sendFleamarketCommand]);
+
   const loadTradeMessages = useCallback(async (tradeId: string, options?: { prepend?: boolean; beforeCreatedAt?: number | null }) => {
     const payload = await sendFleamarketCommand<TradeMessagesPayload>('Load trade messages', 'get_trade_messages', {
       tradeId,
@@ -266,15 +288,30 @@ export function FleamarketHomePage() {
   }, [sendFleamarketCommand]);
 
   const loadTrade = useCallback(async (tradeId: string) => {
+    const isSameTrade = trade?.tradeId === tradeId;
     const payload = await sendFleamarketCommand<{ trade: FleamarketTrade }>('Load trade', 'get_trade', { tradeId });
     if (!payload) return;
     setTrade(payload.trade);
+    if (!isSameTrade) {
+      setReviewSubmitted(false);
+    }
     setReviewRating('5');
     setReviewComment('');
     setShowUserMenu(false);
     setView('trade');
+    setSelectedListing(null);
+    setSellerReputation(null);
+    setSellerReviews([]);
+    setSellerReviewsHasMore(false);
+    try {
+      const listingPayload = await runtime.sendCommand<ListingDetailPayload>(FLEAMARKET_COMMAND('get_listing'), { listingId: payload.trade.listingId });
+      setSelectedListing(listingPayload.listing);
+      setSellerReputation(listingPayload.sellerReputation);
+    } catch {
+      // Keep the trade open even if the listing snapshot cannot be refreshed.
+    }
     await loadTradeMessages(tradeId);
-  }, [loadTradeMessages, sendFleamarketCommand]);
+  }, [loadTradeMessages, runtime, sendFleamarketCommand]);
 
   useEffect(() => {
     if (view === 'home') void loadListings();
@@ -330,17 +367,29 @@ export function FleamarketHomePage() {
     const payload = await sendFleamarketCommand<ListingDetailPayload>('Load listing', 'get_listing', { listingId });
     if (!payload) return;
     setSelectedListing(payload.listing);
-    setSellerReputation(payload.sellerReputation);
+    const reputation = await loadSellerReputation(payload.listing.sellerAgentId);
+    setSellerReputation(reputation ?? payload.sellerReputation);
     setTradeQuantity('1');
     setOpeningMessage('');
-    const reviewsPayload = await sendFleamarketCommand<ReviewsPayload>('Load seller reviews', 'list_reviews', {
-      agentId: payload.listing.sellerAgentId,
-      limit: 5,
-    });
-    setSellerReviews(reviewsPayload?.reviews ?? []);
+    await loadSellerReviews(payload.listing.sellerAgentId, 5);
     setShowUserMenu(false);
+    setReviewSubmitted(false);
     setView('detail');
-  }, [sendFleamarketCommand]);
+  }, [loadSellerReputation, loadSellerReviews, sendFleamarketCommand]);
+
+  const refreshSellerProfile = useCallback(async () => {
+    if (!selectedListing) return;
+    const reputation = await loadSellerReputation(selectedListing.sellerAgentId);
+    if (reputation) {
+      setSellerReputation(reputation);
+    }
+    await loadSellerReviews(selectedListing.sellerAgentId, Math.max(sellerReviews.length || 5, 5));
+  }, [loadSellerReputation, loadSellerReviews, selectedListing, sellerReviews.length]);
+
+  const loadMoreSellerReviews = useCallback(async () => {
+    if (!selectedListing || !sellerReviewsHasMore) return;
+    await loadSellerReviews(selectedListing.sellerAgentId, Math.min(Math.max(sellerReviews.length + 10, 20), 50));
+  }, [loadSellerReviews, selectedListing, sellerReviews.length, sellerReviewsHasMore]);
 
   const openTrade = useCallback(async () => {
     if (!selectedListing) return;
@@ -360,6 +409,7 @@ export function FleamarketHomePage() {
     });
     if (!payload) return;
     setTrade(payload.trade);
+    setReviewSubmitted(false);
     setView('trade');
     await loadTradeMessages(payload.trade.tradeId);
   }, [canWrite, loadTradeMessages, openingMessage, selectedListing, sendFleamarketCommand, tradeQuantity]);
@@ -390,16 +440,26 @@ export function FleamarketHomePage() {
   const submitReview = useCallback(async () => {
     if (!trade) return;
     const rating = Number(reviewRating);
-    const payload = await sendFleamarketCommand<{ ok: true }>('Submit review', 'create_review', {
-      tradeId: trade.tradeId,
-      rating,
-      comment: reviewComment.trim(),
-    });
-    if (payload) {
-      setSuccessText('Review submitted.');
-      setReviewComment('');
+    try {
+      const payload = await runtime.sendCommand<{ ok: true }>(FLEAMARKET_COMMAND('create_review'), {
+        tradeId: trade.tradeId,
+        rating,
+        comment: reviewComment.trim(),
+      });
+      if (payload) {
+        setReviewSubmitted(true);
+        setSuccessText('Review submitted.');
+        setReviewComment('');
+      }
+    } catch (error) {
+      if (isPluginCommandError(error) && error.code === 'REVIEW_ALREADY_EXISTS') {
+        setReviewSubmitted(true);
+        setSuccessText('Review already submitted.');
+        return;
+      }
+      setErrorText(getErrorText(error, 'Submit review failed.'));
     }
-  }, [reviewComment, reviewRating, sendFleamarketCommand, trade]);
+  }, [reviewComment, reviewRating, runtime, trade]);
 
   const updateForm = useCallback((name: keyof ListingFormState, value: string) => {
     setForm((current) => ({ ...current, [name]: value }));
@@ -411,6 +471,7 @@ export function FleamarketHomePage() {
     setForm(EMPTY_FORM);
     setSelectedFiles([]);
     setRetainedImageAssetIds([]);
+    setReviewSubmitted(false);
     setPreviousView(view);
     setShowUserMenu(false);
     setView('compose');
@@ -424,6 +485,7 @@ export function FleamarketHomePage() {
     setForm(formFromListing(payload.listing));
     setSelectedFiles([]);
     setRetainedImageAssetIds(payload.listing.imageAssetIds ?? []);
+    setReviewSubmitted(false);
     setPreviousView('listings');
     setView('compose');
   }, [sendFleamarketCommand]);
@@ -452,7 +514,7 @@ export function FleamarketHomePage() {
     setRetainedImageAssetIds((current) => current.filter((id) => id !== assetId));
   }, []);
 
-  const submitListing = useCallback(async () => {
+  const submitListing = useCallback(async (publish: boolean) => {
     if (!activeAgentId) {
       setErrorText('Connect an agent before posting a listing.');
       return;
@@ -461,7 +523,7 @@ export function FleamarketHomePage() {
       setErrorText('Claim controller ownership before changing a listing.');
       return;
     }
-    setBusyAction(formMode === 'edit' ? 'Update listing' : 'Create listing');
+    setBusyAction(formMode === 'edit' ? 'Update listing' : publish ? 'Create listing' : 'Save draft');
     setErrorText('');
     setSuccessText('');
     try {
@@ -485,18 +547,25 @@ export function FleamarketHomePage() {
         return;
       }
       const created = await runtime.sendCommand<{ ok: true; listing: ListingDetail }>(FLEAMARKET_COMMAND('create_listing'), payload);
-      const published = await runtime.sendCommand<{ ok: true; listing: ListingDetail }>(FLEAMARKET_COMMAND('publish_listing'), {
-        listingId: created.listing.listingId,
-      });
-      setSelectedListing(published.listing);
+      setSelectedListing(created.listing);
       setSellerReputation(null);
       setSellerReviews([]);
-      setView('detail');
-      setSuccessText('Listing created and published.');
-      void loadListings();
+      setSellerReviewsHasMore(false);
+      if (publish) {
+        const published = await runtime.sendCommand<{ ok: true; listing: ListingDetail }>(FLEAMARKET_COMMAND('publish_listing'), {
+          listingId: created.listing.listingId,
+        });
+        setSelectedListing(published.listing);
+        setView('detail');
+        setSuccessText('Listing created and published.');
+        void loadListings();
+      } else {
+        setView('listings');
+        setSuccessText('Listing saved as draft.');
+      }
       void loadMyListings();
     } catch (error) {
-      setErrorText(getErrorText(error, formMode === 'edit' ? 'Update listing failed.' : 'Create listing failed.'));
+      setErrorText(getErrorText(error, formMode === 'edit' ? 'Update listing failed.' : publish ? 'Create listing failed.' : 'Save draft failed.'));
     } finally {
       setBusyAction('');
       setForm(EMPTY_FORM);
@@ -553,6 +622,7 @@ export function FleamarketHomePage() {
 
   const selectCategory = useCallback((next: string) => {
     setCategory(next);
+    setCustomCategoryFilter('');
     setSellerFilterAgentId(null);
     setView('home');
   }, []);
@@ -614,7 +684,9 @@ export function FleamarketHomePage() {
           onFormChange={updateForm}
           onFilesChange={handleFilesChange}
           onRemoveImage={removeRetainedImage}
-          onSubmit={submitListing}
+          onSaveDraft={() => void submitListing(false)}
+          onPublishNow={() => void submitListing(true)}
+          onSaveListing={() => void submitListing(true)}
         />
       );
     }
@@ -635,6 +707,9 @@ export function FleamarketHomePage() {
           onOpenTrade={openTrade}
           onReport={setReportTarget}
           onViewSellerListings={viewSellerListings}
+          sellerReviewsHasMore={sellerReviewsHasMore}
+          onRefreshSellerProfile={() => void refreshSellerProfile()}
+          onLoadMoreReviews={() => void loadMoreSellerReviews()}
         />
       );
     }
@@ -666,6 +741,7 @@ export function FleamarketHomePage() {
           messagesHasMore={messagesHasMore}
           reviewRating={reviewRating}
           reviewComment={reviewComment}
+          reviewSubmitted={reviewSubmitted}
           busy={busy}
           onBack={() => setView('trades')}
           onMessageDraftChange={setMessageDraft}
@@ -717,11 +793,13 @@ export function FleamarketHomePage() {
         categories={MARKET_CATEGORIES}
         items={listings.map(marketItemFromListing)}
         activeCategory={category}
+        customCategoryFilter={customCategoryFilter}
         sortMode={sortMode}
         busy={busy}
         hasMore={hasMore}
         canWrite={canWrite}
         onCategoryChange={selectCategory}
+        onCustomCategoryFilterChange={setCustomCategoryFilter}
         onSortChange={setSortMode}
         onOpenItem={openListing}
         onPostItem={openCreateListing}

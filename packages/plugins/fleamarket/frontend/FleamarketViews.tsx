@@ -1,5 +1,5 @@
 import { ArrowLeft, ImagePlus, LoaderCircle, PackagePlus, X } from 'lucide-react';
-import type { ChangeEvent } from 'react';
+import { type ChangeEvent, useEffect, useState } from 'react';
 import type {
   FleamarketImage,
   FleamarketReport,
@@ -11,6 +11,14 @@ import type {
 import { MARKET_CATEGORIES, heroImage } from './ui';
 
 export type ListingFormMode = 'create' | 'edit';
+
+const REPORT_REASON_OPTIONS = [
+  { value: 'safety_review', label: 'Safety review' },
+  { value: 'no_show', label: 'No show' },
+  { value: 'misleading_listing', label: 'Misleading listing' },
+  { value: 'abusive_message', label: 'Abusive message' },
+  { value: 'other', label: 'Other' },
+] as const;
 
 function panelButtonClass(kind: 'primary' | 'secondary' | 'danger' = 'secondary') {
   if (kind === 'primary') return 'bg-slate-900 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2';
@@ -99,7 +107,9 @@ export function ComposeView({
   onFormChange,
   onFilesChange,
   onRemoveImage,
-  onSubmit,
+  onSaveDraft,
+  onPublishNow,
+  onSaveListing,
 }: {
   form: ListingFormState;
   selectedFiles: File[];
@@ -111,14 +121,30 @@ export function ComposeView({
   onFormChange: (name: keyof ListingFormState, value: string) => void;
   onFilesChange: (files: File[]) => void;
   onRemoveImage: (assetId: string) => void;
-  onSubmit: () => void;
+  onSaveDraft: () => void;
+  onPublishNow: () => void;
+  onSaveListing: () => void;
 }) {
+  const [selectedPreviews, setSelectedPreviews] = useState<string[]>([]);
   const categoryPreset = MARKET_CATEGORIES.some((category) => category.id !== 'all' && category.id === form.category)
     ? form.category
     : 'custom';
   const retainedImages = existingImages.filter((image) => retainedImageAssetIds.includes(image.assetId));
   const inputClass = 'w-full bg-slate-100 border border-transparent focus:bg-white focus:border-slate-300 focus:ring-2 focus:ring-slate-200 rounded-xl px-4 py-3 text-sm transition-all outline-none';
   const labelClass = 'block text-sm text-slate-500 font-medium mb-1';
+
+  useEffect(() => {
+    if (typeof URL.createObjectURL !== 'function') {
+      setSelectedPreviews([]);
+      return;
+    }
+    const urls = selectedFiles.map((file) => URL.createObjectURL(file));
+    setSelectedPreviews(urls);
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [selectedFiles]);
+
   const input = (name: keyof ListingFormState, label: string, placeholder?: string) => (
     <label className="block">
       <span className={labelClass}>{label}</span>
@@ -217,11 +243,40 @@ export function ComposeView({
               onChange={(event: ChangeEvent<HTMLInputElement>) => onFilesChange(Array.from(event.target.files ?? []).slice(0, 6))}
             />
           </label>
+          {selectedFiles.length > 0 && selectedPreviews.length > 0 ? (
+            <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-3 gap-3">
+              {selectedFiles.map((file, index) => (
+                <figure key={`${file.name}:${file.lastModified}:${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden">
+                  <div className="aspect-[4/3] bg-slate-100">
+                    <img src={selectedPreviews[index] ?? ''} alt={file.name} className="w-full h-full object-cover" />
+                  </div>
+                  <figcaption className="p-3 text-xs text-slate-500 truncate">{file.name}</figcaption>
+                </figure>
+              ))}
+            </div>
+          ) : selectedFiles.length > 0 ? (
+            <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+              Image preview is not available in this browser.
+            </div>
+          ) : null}
         </div>
-        <button type="button" className={`${panelButtonClass('primary')} mt-8`} disabled={busy} onClick={onSubmit}>
-          {busy ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <PackagePlus className="w-4 h-4" />}
-          {mode === 'edit' ? 'Save listing' : 'Create and publish'}
-        </button>
+        {mode === 'edit' ? (
+          <button type="button" className={`${panelButtonClass('primary')} mt-8`} disabled={busy} onClick={onSaveListing}>
+            {busy ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <PackagePlus className="w-4 h-4" />}
+            Save listing
+          </button>
+        ) : (
+          <div className="mt-8 flex flex-col sm:flex-row gap-3">
+            <button type="button" className={panelButtonClass('secondary')} disabled={busy} onClick={onSaveDraft}>
+              {busy ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <PackagePlus className="w-4 h-4" />}
+              Save draft
+            </button>
+            <button type="button" className={`${panelButtonClass('primary')} sm:flex-1`} disabled={busy} onClick={onPublishNow}>
+              {busy ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <PackagePlus className="w-4 h-4" />}
+              Create and publish
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -325,6 +380,12 @@ export function ReportsView({
   onRefresh: () => void;
   onLoadMore: () => void;
 }) {
+  const statusClasses: Record<string, string> = {
+    open: 'bg-amber-50 text-amber-700 border-amber-100',
+    investigating: 'bg-blue-50 text-blue-700 border-blue-100',
+    resolved: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    closed: 'bg-slate-100 text-slate-600 border-slate-200',
+  };
   return (
     <section className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -336,8 +397,11 @@ export function ReportsView({
         <div className="space-y-3">
           {reports.map((report) => (
             <article key={report.reportId} className="bg-slate-50 rounded-2xl border border-slate-100 p-4">
-              <strong className="block text-slate-900">{report.reportId}</strong>
-              <span className="text-sm text-slate-500 block">{report.targetType}:{report.targetId} · {report.reasonCode} · {report.status}</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <strong className="block text-slate-900">{report.reportId}</strong>
+                <span className={`text-[11px] uppercase tracking-wide border rounded-full px-2 py-1 ${statusClasses[report.status] ?? statusClasses.open}`}>{report.status}</span>
+              </div>
+              <span className="text-sm text-slate-500 block mt-1">{report.targetType}:{report.targetId} · {report.reasonCode}</span>
               {report.detail ? <span className="text-sm text-slate-500 block mt-2">{report.detail}</span> : null}
             </article>
           ))}
@@ -380,7 +444,11 @@ export function ReportModal({
         <p className="text-sm text-slate-500 mt-2 mb-6">{target.label}</p>
         <label className="block mb-4">
           <span className="text-sm text-slate-500 font-medium block mb-1">Reason code</span>
-          <input aria-label="Report reason code" value={reasonCode} onChange={(event) => onReasonCodeChange(event.target.value)} className="w-full bg-slate-100 border border-transparent focus:bg-white focus:border-slate-300 focus:ring-2 focus:ring-slate-200 rounded-xl px-4 py-3 text-sm transition-all outline-none" />
+          <select aria-label="Report reason code" value={reasonCode} onChange={(event) => onReasonCodeChange(event.target.value)} className="w-full bg-slate-100 border border-transparent focus:bg-white focus:border-slate-300 focus:ring-2 focus:ring-slate-200 rounded-xl px-4 py-3 text-sm transition-all outline-none">
+            {REPORT_REASON_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
         </label>
         <label className="block mb-6">
           <span className="text-sm text-slate-500 font-medium block mb-1">Detail</span>

@@ -312,6 +312,39 @@ describe('FleamarketHomePage', () => {
             },
           };
         case 'uruc.fleamarket.list_reviews@v1':
+          if ((payload as { limit?: number })?.limit && (payload as { limit?: number }).limit > 5) {
+            return {
+              agentId: 'seller-a',
+              count: 2,
+              reviews: [
+                {
+                  reviewId: 'review-existing',
+                  tradeId: 'trade-old',
+                  listingId: 'listing-old',
+                  reviewerAgentId: 'buyer-old',
+                  reviewerAgentName: 'Buyer Old',
+                  revieweeAgentId: 'seller-a',
+                  rating: 5,
+                  comment: 'Clear route and quick handoff.',
+                  createdAt: 1_700_000_050_000,
+                  updatedAt: 1_700_000_050_000,
+                },
+                {
+                  reviewId: 'review-older',
+                  tradeId: 'trade-older',
+                  listingId: 'listing-older',
+                  reviewerAgentId: 'buyer-older',
+                  reviewerAgentName: 'Buyer Older',
+                  revieweeAgentId: 'seller-a',
+                  rating: 4,
+                  comment: 'Easy coordination.',
+                  createdAt: 1_700_000_040_000,
+                  updatedAt: 1_700_000_040_000,
+                },
+              ],
+              hasMore: false,
+            };
+          }
           return {
             agentId: 'seller-a',
             count: 1,
@@ -327,7 +360,16 @@ describe('FleamarketHomePage', () => {
               createdAt: 1_700_000_050_000,
               updatedAt: 1_700_000_050_000,
             }],
-            hasMore: false,
+            hasMore: true,
+          };
+        case 'uruc.fleamarket.get_reputation_profile@v1':
+          return {
+            agentId: 'seller-a',
+            completedTrades: 7,
+            activeListings: 3,
+            reviewCount: 4,
+            averageRating: 4.75,
+            reportCount: 0,
           };
         case 'uruc.fleamarket.open_trade@v1':
           expect(payload).toMatchObject({
@@ -431,6 +473,13 @@ describe('FleamarketHomePage', () => {
             },
           };
         case 'uruc.fleamarket.create_listing@v1':
+          if ((payload as { title?: string })?.title === 'Draft Dataset') {
+            expect(payload).toMatchObject({
+              title: 'Draft Dataset',
+              tradeRoute: 'Coordinate later.',
+            });
+            return { ok: true, listing: { ...listingDetail, listingId: 'listing-draft-created', title: 'Draft Dataset', status: 'draft' } };
+          }
           expect(payload).toMatchObject({
             title: 'Fresh Dataset',
             category: 'data-coop',
@@ -514,12 +563,18 @@ describe('FleamarketHomePage', () => {
     await clickElement(mounted.container.querySelector('[data-testid="fleamarket-open-listing-1"]') as Element);
 
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.get_listing@v1', { listingId: 'listing-1' });
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.get_reputation_profile@v1', { agentId: 'seller-a' });
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.list_reviews@v1', { agentId: 'seller-a', limit: 5 });
     expect(mounted.container.textContent).toContain('Coordinate USDC payment and SSH handoff');
     expect(mounted.container.textContent).toContain('4.75');
     expect(mounted.container.textContent).toContain('Clear route and quick handoff.');
     expect(mounted.container.querySelector('img[src="/api/plugins/uruc.fleamarket/v1/assets/asset-1"]')).toBeTruthy();
+    expect(findButtonByText(mounted.container, 'Refresh profile')).toBeTruthy();
 
+    await clickElement(findButtonByText(mounted.container, 'Refresh profile') as Element);
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.get_reputation_profile@v1', { agentId: 'seller-a' });
+    await clickElement(findButtonByText(mounted.container, 'View more reviews') as Element);
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.list_reviews@v1', { agentId: 'seller-a', limit: 20 });
     await clickElement(findButtonByText(mounted.container, 'View seller listings') as Element);
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.search_listings@v1', {
       limit: 20,
@@ -564,6 +619,7 @@ describe('FleamarketHomePage', () => {
       quantity: 2,
       openingMessage: 'Can start with two hours?',
     });
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.get_listing@v1', { listingId: 'listing-1' });
     expect(mounted.container.textContent).toContain('Still available.');
     expect(mounted.container.textContent).toContain('Both-side confirmation');
     expect(mounted.container.textContent).not.toContain('Payment Sent');
@@ -615,6 +671,27 @@ describe('FleamarketHomePage', () => {
     await mounted.unmount();
   });
 
+  it('saves a draft listing without publishing it immediately', async () => {
+    const { runtime } = createRuntime({ sendCommand: sendCommandMock });
+    const mounted = await mountPluginPageDom(createPageData(runtime), <FleamarketHomePage />);
+
+    await clickElement(findButtonByText(mounted.container, 'Post an Item') as Element);
+    await inputText(mounted.container.querySelector('input[name="title"]') as HTMLInputElement, 'Draft Dataset');
+    await inputText(mounted.container.querySelector('textarea[name="description"]') as HTMLTextAreaElement, 'Still in progress.');
+    await inputText(mounted.container.querySelector('textarea[name="tradeRoute"]') as HTMLTextAreaElement, 'Coordinate later.');
+    await clickElement(findButtonByText(mounted.container, 'Save draft') as Element);
+
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.create_listing@v1', expect.objectContaining({
+      title: 'Draft Dataset',
+      tradeRoute: 'Coordinate later.',
+    }));
+    expect(sendCommandMock.mock.calls.some(([commandId]) => commandId === 'uruc.fleamarket.publish_listing@v1')).toBe(false);
+    expect(mounted.container.textContent).toContain('My listings');
+    expect(mounted.container.textContent).toContain('Draft Dataset');
+
+    await mounted.unmount();
+  });
+
   it('loads My trades and lets a participant open, accept, cancel, and confirm trades', async () => {
     const { runtime } = createRuntime({ agentId: 'seller-a', agentName: 'Seller A', sendCommand: sendCommandMock });
     const mounted = await mountPluginPageDom(createPageData(runtime, { id: 'seller-a', name: 'Seller A' }), <FleamarketHomePage />);
@@ -661,6 +738,7 @@ describe('FleamarketHomePage', () => {
       rating: 5,
       comment: 'Clean handoff.',
     });
+    expect(mounted.container.textContent).toContain('Review submitted.');
 
     await mounted.unmount();
   });
@@ -751,7 +829,7 @@ describe('FleamarketHomePage', () => {
 
     await clickElement(mounted.container.querySelector('[data-testid="fleamarket-open-listing-1"]') as Element);
     await clickElement(findButtonByText(mounted.container, 'Report Listing') as Element);
-    await inputText(mounted.container.querySelector('input[aria-label="Report reason code"]') as HTMLInputElement, 'safety_review');
+    await selectValue(mounted.container.querySelector('select[aria-label="Report reason code"]') as HTMLSelectElement, 'safety_review');
     await inputText(mounted.container.querySelector('textarea[aria-label="Report detail"]') as HTMLTextAreaElement, 'Needs review.');
     await clickElement(findButtonByText(mounted.container, 'Submit report') as Element);
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.create_report@v1', expect.objectContaining({
@@ -766,14 +844,14 @@ describe('FleamarketHomePage', () => {
     await clickElement(findButtonByText(mounted.container, 'My trades') as Element);
     await clickElement(mounted.container.querySelector('[data-testid="fleamarket-open-trade-1"]') as Element);
     await clickElement(findButtonByText(mounted.container, 'File a Report') as Element);
-    await inputText(mounted.container.querySelector('input[aria-label="Report reason code"]') as HTMLInputElement, 'buyer_no_show');
+    await selectValue(mounted.container.querySelector('select[aria-label="Report reason code"]') as HTMLSelectElement, 'no_show');
     await inputText(mounted.container.querySelector('textarea[aria-label="Report detail"]') as HTMLTextAreaElement, 'Counterparty missed the route.');
     await clickElement(findButtonByText(mounted.container, 'Submit report') as Element);
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.create_report@v1', expect.objectContaining({
       targetType: 'trade',
       targetId: 'trade-1',
       targetAgentId: 'seller-a',
-      reasonCode: 'buyer_no_show',
+      reasonCode: 'no_show',
       detail: 'Counterparty missed the route.',
     }));
 

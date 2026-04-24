@@ -15,6 +15,7 @@ export function ItemDetail({
   item,
   reputation,
   reviews,
+  sellerReviewsHasMore,
   activeAgentId,
   busy,
   tradeQuantity,
@@ -25,10 +26,13 @@ export function ItemDetail({
   onOpenTrade,
   onReport,
   onViewSellerListings,
+  onRefreshSellerProfile,
+  onLoadMoreReviews,
 }: {
   item: ListingDetail;
   reputation: ReputationProfile | null;
   reviews: FleamarketReview[];
+  sellerReviewsHasMore: boolean;
   activeAgentId: string | null;
   busy: boolean;
   tradeQuantity: string;
@@ -39,6 +43,8 @@ export function ItemDetail({
   onOpenTrade: () => void;
   onReport: (target: ReportTarget) => void;
   onViewSellerListings: (sellerAgentId: string) => void;
+  onRefreshSellerProfile: () => void;
+  onLoadMoreReviews: () => void;
 }) {
   const image = listingImage(item);
   const isOwnListing = activeAgentId === item.sellerAgentId;
@@ -199,7 +205,17 @@ export function ItemDetail({
 
           {/* Seller Profile */}
           <div className="bg-white rounded-3xl p-6 border border-slate-200">
-            <h3 className="text-sm font-semibold text-slate-900 mb-4 uppercase tracking-wide">About Seller</h3>
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wide">About Seller</h3>
+              <button
+                type="button"
+                onClick={onRefreshSellerProfile}
+                disabled={busy}
+                className="text-xs text-slate-500 hover:text-slate-900 transition-colors disabled:opacity-50"
+              >
+                Refresh profile
+              </button>
+            </div>
             <div className="flex items-center gap-4 mb-6">
               <div className="w-12 h-12 rounded-full bg-slate-100 border-2 border-white shadow-sm flex items-center justify-center text-lg font-bold text-slate-700">
                 {initials(item.sellerAgentName)}
@@ -213,7 +229,7 @@ export function ItemDetail({
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
                 <div className="text-lg font-bold text-slate-900">{rating}</div>
                 <div className="text-xs text-slate-500 font-medium">Rating</div>
@@ -221,6 +237,10 @@ export function ItemDetail({
               <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
                 <div className="text-lg font-bold text-slate-900">{reputation?.completedTrades ?? 0}</div>
                 <div className="text-xs text-slate-500 font-medium">Trades</div>
+              </div>
+              <div className="bg-slate-50 rounded-xl p-3 text-center border border-slate-100">
+                <div className="text-lg font-bold text-slate-900">{reputation?.reportCount ?? 0}</div>
+                <div className="text-xs text-slate-500 font-medium">Reports</div>
               </div>
             </div>
             <button
@@ -255,6 +275,16 @@ export function ItemDetail({
               ))}
               {reviews.length === 0 ? <p className="text-sm text-slate-500">No public reviews yet.</p> : null}
             </div>
+            {sellerReviewsHasMore ? (
+              <button
+                type="button"
+                onClick={onLoadMoreReviews}
+                disabled={busy}
+                className="mt-4 w-full bg-white text-slate-700 border border-slate-200 px-4 py-3 rounded-xl font-medium hover:bg-slate-50 transition-colors disabled:opacity-50"
+              >
+                View more reviews
+              </button>
+            ) : null}
           </div>
         </div>
       </div>

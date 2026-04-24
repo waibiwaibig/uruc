@@ -8,11 +8,13 @@ export function Home({
   categories,
   items,
   activeCategory,
+  customCategoryFilter,
   sortMode,
   busy,
   hasMore,
   canWrite,
   onCategoryChange,
+  onCustomCategoryFilterChange,
   onSortChange,
   onOpenItem,
   onPostItem,
@@ -22,11 +24,13 @@ export function Home({
   categories: MarketCategory[];
   items: MarketItem[];
   activeCategory: string;
+  customCategoryFilter: string;
   sortMode: SortMode;
   busy: boolean;
   hasMore: boolean;
   canWrite: boolean;
   onCategoryChange: (categoryId: string) => void;
+  onCustomCategoryFilterChange: (value: string) => void;
   onSortChange: (sortMode: SortMode) => void;
   onOpenItem: (listingId: string) => void;
   onPostItem: () => void;
@@ -94,6 +98,13 @@ export function Home({
           
           {/* Filter / Sort */}
           <div className="hidden md:flex items-center gap-2">
+            <input
+              value={customCategoryFilter}
+              onChange={(event) => onCustomCategoryFilterChange(event.target.value)}
+              aria-label="Custom category filter"
+              placeholder="Custom category"
+              className="bg-white border border-slate-200 text-sm rounded-xl px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-40"
+            />
             <select
               value={sortMode}
               onChange={(event) => onSortChange(event.target.value as SortMode)}

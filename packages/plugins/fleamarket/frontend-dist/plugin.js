@@ -181,6 +181,7 @@
     messagesHasMore,
     reviewRating,
     reviewComment,
+    reviewSubmitted,
     busy,
     onBack,
     onMessageDraftChange,
@@ -199,6 +200,7 @@
     const canConfirm = role !== null && ["accepted", "buyer_confirmed", "seller_confirmed"].includes(trade.status);
     const canCancel = role !== null && isWritableStatus(trade);
     const showReview = role !== null && trade.status === "completed";
+    const reportCount = trade.reportCount ?? 0;
     const handleSend = (event) => {
       event.preventDefault();
       onSendMessage();
@@ -213,7 +215,11 @@
             /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "text-xs text-slate-500 flex items-center gap-1", children: [
               /* @__PURE__ */ jsxRuntime.jsx("span", { className: "w-1.5 h-1.5 rounded-full bg-emerald-500" }),
               " ",
-              trade.status
+              trade.status,
+              reportCount > 0 ? /* @__PURE__ */ jsxRuntime.jsxs("span", { className: "ml-2 text-[11px] uppercase tracking-wide px-2 py-0.5 rounded-full border border-amber-100 bg-amber-50 text-amber-700", children: [
+                reportCount,
+                " reports"
+              ] }) : null
             ] })
           ] })
         ] }) }),
@@ -325,28 +331,30 @@
             ] }),
             showReview ? /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "pt-4 border-t border-slate-100 space-y-3", children: [
               /* @__PURE__ */ jsxRuntime.jsx("h4", { className: "text-sm font-semibold text-slate-900", children: "Review counterparty" }),
-              /* @__PURE__ */ jsxRuntime.jsx("div", { className: "flex gap-2", role: "group", "aria-label": "Review rating", children: [1, 2, 3, 4, 5].map((rating) => /* @__PURE__ */ jsxRuntime.jsx(
-                "button",
-                {
-                  type: "button",
-                  "aria-label": `Rate ${rating}`,
-                  onClick: () => onReviewRatingChange(String(rating)),
-                  className: `w-9 h-9 rounded-xl border text-sm font-medium transition-colors ${String(rating) === reviewRating ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`,
-                  children: rating
-                },
-                rating
-              )) }),
-              /* @__PURE__ */ jsxRuntime.jsx(
-                "textarea",
-                {
-                  "aria-label": "Review comment",
-                  value: reviewComment,
-                  onChange: (event) => onReviewCommentChange(event.target.value),
-                  placeholder: "Short review comment",
-                  className: "w-full min-h-20 bg-slate-100 border border-transparent focus:bg-white focus:border-slate-300 focus:ring-2 focus:ring-slate-200 rounded-xl px-4 py-3 text-sm transition-all outline-none resize-none"
-                }
-              ),
-              /* @__PURE__ */ jsxRuntime.jsx("button", { type: "button", disabled: busy, onClick: onSubmitReview, className: "w-full bg-slate-900 text-white py-3 rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50", children: "Submit review" })
+              reviewSubmitted ? /* @__PURE__ */ jsxRuntime.jsx("div", { className: "rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700", children: "Review submitted. Each side can submit one review after completion." }) : /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
+                /* @__PURE__ */ jsxRuntime.jsx("div", { className: "flex gap-2", role: "group", "aria-label": "Review rating", children: [1, 2, 3, 4, 5].map((rating) => /* @__PURE__ */ jsxRuntime.jsx(
+                  "button",
+                  {
+                    type: "button",
+                    "aria-label": `Rate ${rating}`,
+                    onClick: () => onReviewRatingChange(String(rating)),
+                    className: `w-9 h-9 rounded-xl border text-sm font-medium transition-colors ${String(rating) === reviewRating ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`,
+                    children: rating
+                  },
+                  rating
+                )) }),
+                /* @__PURE__ */ jsxRuntime.jsx(
+                  "textarea",
+                  {
+                    "aria-label": "Review comment",
+                    value: reviewComment,
+                    onChange: (event) => onReviewCommentChange(event.target.value),
+                    placeholder: "Short review comment",
+                    className: "w-full min-h-20 bg-slate-100 border border-transparent focus:bg-white focus:border-slate-300 focus:ring-2 focus:ring-slate-200 rounded-xl px-4 py-3 text-sm transition-all outline-none resize-none"
+                  }
+                ),
+                /* @__PURE__ */ jsxRuntime.jsx("button", { type: "button", disabled: busy, onClick: onSubmitReview, className: "w-full bg-slate-900 text-white py-3 rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50", children: "Submit review" })
+              ] })
             ] }) : null,
             /* @__PURE__ */ jsxRuntime.jsx("div", { className: "pt-2 text-center", children: /* @__PURE__ */ jsxRuntime.jsxs(
               "button",
@@ -371,6 +379,13 @@
       ] })
     ] });
   }
+  const REPORT_REASON_OPTIONS = [
+    { value: "safety_review", label: "Safety review" },
+    { value: "no_show", label: "No show" },
+    { value: "misleading_listing", label: "Misleading listing" },
+    { value: "abusive_message", label: "Abusive message" },
+    { value: "other", label: "Other" }
+  ];
   function panelButtonClass(kind = "secondary") {
     if (kind === "primary") return "bg-slate-900 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2";
     if (kind === "danger") return "text-sm text-slate-400 hover:text-rose-500 transition-colors disabled:opacity-50";
@@ -449,12 +464,26 @@
     onFormChange,
     onFilesChange,
     onRemoveImage,
-    onSubmit
+    onSaveDraft,
+    onPublishNow,
+    onSaveListing
   }) {
+    const [selectedPreviews, setSelectedPreviews] = react.useState([]);
     const categoryPreset = MARKET_CATEGORIES.some((category) => category.id !== "all" && category.id === form.category) ? form.category : "custom";
     const retainedImages = existingImages.filter((image) => retainedImageAssetIds.includes(image.assetId));
     const inputClass = "w-full bg-slate-100 border border-transparent focus:bg-white focus:border-slate-300 focus:ring-2 focus:ring-slate-200 rounded-xl px-4 py-3 text-sm transition-all outline-none";
     const labelClass = "block text-sm text-slate-500 font-medium mb-1";
+    react.useEffect(() => {
+      if (typeof URL.createObjectURL !== "function") {
+        setSelectedPreviews([]);
+        return;
+      }
+      const urls = selectedFiles.map((file) => URL.createObjectURL(file));
+      setSelectedPreviews(urls);
+      return () => {
+        urls.forEach((url) => URL.revokeObjectURL(url));
+      };
+    }, [selectedFiles]);
     const input = (name, label, placeholder) => /* @__PURE__ */ jsxRuntime.jsxs("label", { className: "block", children: [
       /* @__PURE__ */ jsxRuntime.jsx("span", { className: labelClass, children: label }),
       /* @__PURE__ */ jsxRuntime.jsx(
@@ -556,11 +585,24 @@
                 onChange: (event) => onFilesChange(Array.from(event.target.files ?? []).slice(0, 6))
               }
             )
-          ] })
+          ] }),
+          selectedFiles.length > 0 && selectedPreviews.length > 0 ? /* @__PURE__ */ jsxRuntime.jsx("div", { className: "md:col-span-2 grid grid-cols-2 md:grid-cols-3 gap-3", children: selectedFiles.map((file, index) => /* @__PURE__ */ jsxRuntime.jsxs("figure", { className: "rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden", children: [
+            /* @__PURE__ */ jsxRuntime.jsx("div", { className: "aspect-[4/3] bg-slate-100", children: /* @__PURE__ */ jsxRuntime.jsx("img", { src: selectedPreviews[index] ?? "", alt: file.name, className: "w-full h-full object-cover" }) }),
+            /* @__PURE__ */ jsxRuntime.jsx("figcaption", { className: "p-3 text-xs text-slate-500 truncate", children: file.name })
+          ] }, `${file.name}:${file.lastModified}:${index}`)) }) : selectedFiles.length > 0 ? /* @__PURE__ */ jsxRuntime.jsx("div", { className: "md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500", children: "Image preview is not available in this browser." }) : null
         ] }),
-        /* @__PURE__ */ jsxRuntime.jsxs("button", { type: "button", className: `${panelButtonClass("primary")} mt-8`, disabled: busy, onClick: onSubmit, children: [
+        mode === "edit" ? /* @__PURE__ */ jsxRuntime.jsxs("button", { type: "button", className: `${panelButtonClass("primary")} mt-8`, disabled: busy, onClick: onSaveListing, children: [
           busy ? /* @__PURE__ */ jsxRuntime.jsx(lucideReact.LoaderCircle, { className: "w-4 h-4 animate-spin" }) : /* @__PURE__ */ jsxRuntime.jsx(lucideReact.PackagePlus, { className: "w-4 h-4" }),
-          mode === "edit" ? "Save listing" : "Create and publish"
+          "Save listing"
+        ] }) : /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "mt-8 flex flex-col sm:flex-row gap-3", children: [
+          /* @__PURE__ */ jsxRuntime.jsxs("button", { type: "button", className: panelButtonClass("secondary"), disabled: busy, onClick: onSaveDraft, children: [
+            busy ? /* @__PURE__ */ jsxRuntime.jsx(lucideReact.LoaderCircle, { className: "w-4 h-4 animate-spin" }) : /* @__PURE__ */ jsxRuntime.jsx(lucideReact.PackagePlus, { className: "w-4 h-4" }),
+            "Save draft"
+          ] }),
+          /* @__PURE__ */ jsxRuntime.jsxs("button", { type: "button", className: `${panelButtonClass("primary")} sm:flex-1`, disabled: busy, onClick: onPublishNow, children: [
+            busy ? /* @__PURE__ */ jsxRuntime.jsx(lucideReact.LoaderCircle, { className: "w-4 h-4 animate-spin" }) : /* @__PURE__ */ jsxRuntime.jsx(lucideReact.PackagePlus, { className: "w-4 h-4" }),
+            "Create and publish"
+          ] })
         ] })
       ] })
     ] });
@@ -637,6 +679,12 @@
     onRefresh,
     onLoadMore
   }) {
+    const statusClasses = {
+      open: "bg-amber-50 text-amber-700 border-amber-100",
+      investigating: "bg-blue-50 text-blue-700 border-blue-100",
+      resolved: "bg-emerald-50 text-emerald-700 border-emerald-100",
+      closed: "bg-slate-100 text-slate-600 border-slate-200"
+    };
     return /* @__PURE__ */ jsxRuntime.jsxs("section", { className: "max-w-5xl mx-auto space-y-6", children: [
       /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "flex items-center justify-between", children: [
         /* @__PURE__ */ jsxRuntime.jsxs("button", { type: "button", className: "inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 transition-colors", onClick: onBack, children: [
@@ -649,15 +697,16 @@
         /* @__PURE__ */ jsxRuntime.jsx("h1", { className: "text-2xl font-semibold text-slate-900 mb-6 border-b border-slate-100 pb-4", children: "My reports" }),
         /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "space-y-3", children: [
           reports.map((report) => /* @__PURE__ */ jsxRuntime.jsxs("article", { className: "bg-slate-50 rounded-2xl border border-slate-100 p-4", children: [
-            /* @__PURE__ */ jsxRuntime.jsx("strong", { className: "block text-slate-900", children: report.reportId }),
-            /* @__PURE__ */ jsxRuntime.jsxs("span", { className: "text-sm text-slate-500 block", children: [
+            /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "flex flex-wrap items-center gap-2", children: [
+              /* @__PURE__ */ jsxRuntime.jsx("strong", { className: "block text-slate-900", children: report.reportId }),
+              /* @__PURE__ */ jsxRuntime.jsx("span", { className: `text-[11px] uppercase tracking-wide border rounded-full px-2 py-1 ${statusClasses[report.status] ?? statusClasses.open}`, children: report.status })
+            ] }),
+            /* @__PURE__ */ jsxRuntime.jsxs("span", { className: "text-sm text-slate-500 block mt-1", children: [
               report.targetType,
               ":",
               report.targetId,
               " · ",
-              report.reasonCode,
-              " · ",
-              report.status
+              report.reasonCode
             ] }),
             report.detail ? /* @__PURE__ */ jsxRuntime.jsx("span", { className: "text-sm text-slate-500 block mt-2", children: report.detail }) : null
           ] }, report.reportId)),
@@ -686,7 +735,7 @@
       /* @__PURE__ */ jsxRuntime.jsx("p", { className: "text-sm text-slate-500 mt-2 mb-6", children: target.label }),
       /* @__PURE__ */ jsxRuntime.jsxs("label", { className: "block mb-4", children: [
         /* @__PURE__ */ jsxRuntime.jsx("span", { className: "text-sm text-slate-500 font-medium block mb-1", children: "Reason code" }),
-        /* @__PURE__ */ jsxRuntime.jsx("input", { "aria-label": "Report reason code", value: reasonCode, onChange: (event) => onReasonCodeChange(event.target.value), className: "w-full bg-slate-100 border border-transparent focus:bg-white focus:border-slate-300 focus:ring-2 focus:ring-slate-200 rounded-xl px-4 py-3 text-sm transition-all outline-none" })
+        /* @__PURE__ */ jsxRuntime.jsx("select", { "aria-label": "Report reason code", value: reasonCode, onChange: (event) => onReasonCodeChange(event.target.value), className: "w-full bg-slate-100 border border-transparent focus:bg-white focus:border-slate-300 focus:ring-2 focus:ring-slate-200 rounded-xl px-4 py-3 text-sm transition-all outline-none", children: REPORT_REASON_OPTIONS.map((option) => /* @__PURE__ */ jsxRuntime.jsx("option", { value: option.value, children: option.label }, option.value)) })
       ] }),
       /* @__PURE__ */ jsxRuntime.jsxs("label", { className: "block mb-6", children: [
         /* @__PURE__ */ jsxRuntime.jsx("span", { className: "text-sm text-slate-500 font-medium block mb-1", children: "Detail" }),
@@ -734,11 +783,13 @@
     categories,
     items,
     activeCategory,
+    customCategoryFilter,
     sortMode,
     busy,
     hasMore,
     canWrite,
     onCategoryChange,
+    onCustomCategoryFilterChange,
     onSortChange,
     onOpenItem,
     onPostItem,
@@ -796,21 +847,33 @@
               cat.id
             );
           }) }),
-          /* @__PURE__ */ jsxRuntime.jsx("div", { className: "hidden md:flex items-center gap-2", children: /* @__PURE__ */ jsxRuntime.jsxs(
-            "select",
-            {
-              value: sortMode,
-              onChange: (event) => onSortChange(event.target.value),
-              "aria-label": "Sort listings",
-              className: "bg-white border border-slate-200 text-sm rounded-xl px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20",
-              children: [
-                /* @__PURE__ */ jsxRuntime.jsx("option", { value: "latest", children: "Latest" }),
-                /* @__PURE__ */ jsxRuntime.jsx("option", { value: "priceLow", children: "Price: Low to High" }),
-                /* @__PURE__ */ jsxRuntime.jsx("option", { value: "priceHigh", children: "Price: High to Low" }),
-                /* @__PURE__ */ jsxRuntime.jsx("option", { value: "title", children: "Title" })
-              ]
-            }
-          ) })
+          /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "hidden md:flex items-center gap-2", children: [
+            /* @__PURE__ */ jsxRuntime.jsx(
+              "input",
+              {
+                value: customCategoryFilter,
+                onChange: (event) => onCustomCategoryFilterChange(event.target.value),
+                "aria-label": "Custom category filter",
+                placeholder: "Custom category",
+                className: "bg-white border border-slate-200 text-sm rounded-xl px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-40"
+              }
+            ),
+            /* @__PURE__ */ jsxRuntime.jsxs(
+              "select",
+              {
+                value: sortMode,
+                onChange: (event) => onSortChange(event.target.value),
+                "aria-label": "Sort listings",
+                className: "bg-white border border-slate-200 text-sm rounded-xl px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20",
+                children: [
+                  /* @__PURE__ */ jsxRuntime.jsx("option", { value: "latest", children: "Latest" }),
+                  /* @__PURE__ */ jsxRuntime.jsx("option", { value: "priceLow", children: "Price: Low to High" }),
+                  /* @__PURE__ */ jsxRuntime.jsx("option", { value: "priceHigh", children: "Price: High to Low" }),
+                  /* @__PURE__ */ jsxRuntime.jsx("option", { value: "title", children: "Title" })
+                ]
+              }
+            )
+          ] })
         ] }),
         /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6", "data-testid": "fleamarket-listing-grid", children: [
           items.map((item) => /* @__PURE__ */ jsxRuntime.jsx(ItemCard, { item, onOpen: onOpenItem }, item.id)),
@@ -839,6 +902,7 @@
     item,
     reputation,
     reviews,
+    sellerReviewsHasMore,
     activeAgentId,
     busy,
     tradeQuantity,
@@ -848,7 +912,9 @@
     onOpeningMessageChange,
     onOpenTrade,
     onReport,
-    onViewSellerListings
+    onViewSellerListings,
+    onRefreshSellerProfile,
+    onLoadMoreReviews
   }) {
     const image = listingImage(item);
     const isOwnListing = activeAgentId === item.sellerAgentId;
@@ -981,7 +1047,19 @@
             ) })
           ] }),
           /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "bg-white rounded-3xl p-6 border border-slate-200", children: [
-            /* @__PURE__ */ jsxRuntime.jsx("h3", { className: "text-sm font-semibold text-slate-900 mb-4 uppercase tracking-wide", children: "About Seller" }),
+            /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "flex items-center justify-between gap-4 mb-4", children: [
+              /* @__PURE__ */ jsxRuntime.jsx("h3", { className: "text-sm font-semibold text-slate-900 uppercase tracking-wide", children: "About Seller" }),
+              /* @__PURE__ */ jsxRuntime.jsx(
+                "button",
+                {
+                  type: "button",
+                  onClick: onRefreshSellerProfile,
+                  disabled: busy,
+                  className: "text-xs text-slate-500 hover:text-slate-900 transition-colors disabled:opacity-50",
+                  children: "Refresh profile"
+                }
+              )
+            ] }),
             /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "flex items-center gap-4 mb-6", children: [
               /* @__PURE__ */ jsxRuntime.jsx("div", { className: "w-12 h-12 rounded-full bg-slate-100 border-2 border-white shadow-sm flex items-center justify-center text-lg font-bold text-slate-700", children: initials(item.sellerAgentName) }),
               /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "min-w-0", children: [
@@ -992,7 +1070,7 @@
                 /* @__PURE__ */ jsxRuntime.jsx("div", { className: "text-sm text-slate-500 truncate", children: item.sellerAgentId })
               ] })
             ] }),
-            /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "grid grid-cols-2 gap-4", children: [
+            /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "grid grid-cols-3 gap-4", children: [
               /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "bg-slate-50 rounded-xl p-3 text-center border border-slate-100", children: [
                 /* @__PURE__ */ jsxRuntime.jsx("div", { className: "text-lg font-bold text-slate-900", children: rating }),
                 /* @__PURE__ */ jsxRuntime.jsx("div", { className: "text-xs text-slate-500 font-medium", children: "Rating" })
@@ -1000,6 +1078,10 @@
               /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "bg-slate-50 rounded-xl p-3 text-center border border-slate-100", children: [
                 /* @__PURE__ */ jsxRuntime.jsx("div", { className: "text-lg font-bold text-slate-900", children: reputation?.completedTrades ?? 0 }),
                 /* @__PURE__ */ jsxRuntime.jsx("div", { className: "text-xs text-slate-500 font-medium", children: "Trades" })
+              ] }),
+              /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "bg-slate-50 rounded-xl p-3 text-center border border-slate-100", children: [
+                /* @__PURE__ */ jsxRuntime.jsx("div", { className: "text-lg font-bold text-slate-900", children: reputation?.reportCount ?? 0 }),
+                /* @__PURE__ */ jsxRuntime.jsx("div", { className: "text-xs text-slate-500 font-medium", children: "Reports" })
               ] })
             ] }),
             /* @__PURE__ */ jsxRuntime.jsx(
@@ -1041,7 +1123,17 @@
                 /* @__PURE__ */ jsxRuntime.jsx("p", { className: "text-sm text-slate-500 mt-1", children: review.comment || "No comment." })
               ] }, review.reviewId)),
               reviews.length === 0 ? /* @__PURE__ */ jsxRuntime.jsx("p", { className: "text-sm text-slate-500", children: "No public reviews yet." }) : null
-            ] })
+            ] }),
+            sellerReviewsHasMore ? /* @__PURE__ */ jsxRuntime.jsx(
+              "button",
+              {
+                type: "button",
+                onClick: onLoadMoreReviews,
+                disabled: busy,
+                className: "mt-4 w-full bg-white text-slate-700 border border-slate-200 px-4 py-3 rounded-xl font-medium hover:bg-slate-50 transition-colors disabled:opacity-50",
+                children: "View more reviews"
+              }
+            ) : null
           ] })
         ] })
       ] })
@@ -1223,13 +1315,16 @@
     const [selectedListing, setSelectedListing] = react.useState(null);
     const [sellerReputation, setSellerReputation] = react.useState(null);
     const [sellerReviews, setSellerReviews] = react.useState([]);
+    const [sellerReviewsHasMore, setSellerReviewsHasMore] = react.useState(false);
     const [trade, setTrade] = react.useState(null);
     const [messages, setMessages] = react.useState([]);
     const [messageDraft, setMessageDraft] = react.useState("");
     const [reviewRating, setReviewRating] = react.useState("5");
     const [reviewComment, setReviewComment] = react.useState("");
+    const [reviewSubmitted, setReviewSubmitted] = react.useState(false);
     const [query, setQuery] = react.useState("");
     const [category, setCategory] = react.useState("all");
+    const [customCategoryFilter, setCustomCategoryFilter] = react.useState("");
     const [sortMode, setSortMode] = react.useState("latest");
     const [sellerFilterAgentId, setSellerFilterAgentId] = react.useState(null);
     const [nextCursor, setNextCursor] = react.useState(null);
@@ -1283,10 +1378,10 @@
       limit: 20,
       sortBy: SORT_TO_BACKEND[sortMode],
       ...query.trim() ? { query: query.trim() } : {},
-      ...category !== "all" ? { category: backendCategoryFor(category) } : {},
+      ...category !== "all" ? { category: backendCategoryFor(category) } : customCategoryFilter.trim() ? { category: customCategoryFilter.trim() } : {},
       ...sellerFilterAgentId ? { sellerAgentId: sellerFilterAgentId } : {},
       ...cursor ? { beforeUpdatedAt: cursor } : {}
-    }), [category, query, sellerFilterAgentId, sortMode]);
+    }), [category, customCategoryFilter, query, sellerFilterAgentId, sortMode]);
     const loadListings = react.useCallback(async (options) => {
       if (!canUseCommands) return;
       const payload = await sendFleamarketCommand(
@@ -1346,6 +1441,22 @@
       setReportsHasMore(payload.hasMore);
       setReportsNextCursor(payload.nextCursor ?? null);
     }, [canUseCommands, sendFleamarketCommand]);
+    const loadSellerReputation = react.useCallback(async (agentId) => {
+      const payload = await sendFleamarketCommand("Load seller reputation", "get_reputation_profile", { agentId });
+      if (!payload) return null;
+      if ("profile" in payload) return payload.profile;
+      return payload;
+    }, [sendFleamarketCommand]);
+    const loadSellerReviews = react.useCallback(async (agentId, limit) => {
+      const payload = await sendFleamarketCommand("Load seller reviews", "list_reviews", {
+        agentId,
+        limit
+      });
+      if (!payload) return null;
+      setSellerReviews(payload.reviews);
+      setSellerReviewsHasMore(payload.hasMore);
+      return payload;
+    }, [sendFleamarketCommand]);
     const loadTradeMessages = react.useCallback(async (tradeId, options) => {
       const payload = await sendFleamarketCommand("Load trade messages", "get_trade_messages", {
         tradeId,
@@ -1358,15 +1469,29 @@
       setMessagesHasMore(payload.hasMore);
     }, [sendFleamarketCommand]);
     const loadTrade = react.useCallback(async (tradeId) => {
+      const isSameTrade = trade?.tradeId === tradeId;
       const payload = await sendFleamarketCommand("Load trade", "get_trade", { tradeId });
       if (!payload) return;
       setTrade(payload.trade);
+      if (!isSameTrade) {
+        setReviewSubmitted(false);
+      }
       setReviewRating("5");
       setReviewComment("");
       setShowUserMenu(false);
       setView("trade");
+      setSelectedListing(null);
+      setSellerReputation(null);
+      setSellerReviews([]);
+      setSellerReviewsHasMore(false);
+      try {
+        const listingPayload = await runtime.sendCommand(FLEAMARKET_COMMAND("get_listing"), { listingId: payload.trade.listingId });
+        setSelectedListing(listingPayload.listing);
+        setSellerReputation(listingPayload.sellerReputation);
+      } catch {
+      }
       await loadTradeMessages(tradeId);
-    }, [loadTradeMessages, sendFleamarketCommand]);
+    }, [loadTradeMessages, runtime, sendFleamarketCommand]);
     react.useEffect(() => {
       if (view === "home") void loadListings();
     }, [loadListings, view]);
@@ -1416,17 +1541,27 @@
       const payload = await sendFleamarketCommand("Load listing", "get_listing", { listingId });
       if (!payload) return;
       setSelectedListing(payload.listing);
-      setSellerReputation(payload.sellerReputation);
+      const reputation = await loadSellerReputation(payload.listing.sellerAgentId);
+      setSellerReputation(reputation ?? payload.sellerReputation);
       setTradeQuantity("1");
       setOpeningMessage("");
-      const reviewsPayload = await sendFleamarketCommand("Load seller reviews", "list_reviews", {
-        agentId: payload.listing.sellerAgentId,
-        limit: 5
-      });
-      setSellerReviews(reviewsPayload?.reviews ?? []);
+      await loadSellerReviews(payload.listing.sellerAgentId, 5);
       setShowUserMenu(false);
+      setReviewSubmitted(false);
       setView("detail");
-    }, [sendFleamarketCommand]);
+    }, [loadSellerReputation, loadSellerReviews, sendFleamarketCommand]);
+    const refreshSellerProfile = react.useCallback(async () => {
+      if (!selectedListing) return;
+      const reputation = await loadSellerReputation(selectedListing.sellerAgentId);
+      if (reputation) {
+        setSellerReputation(reputation);
+      }
+      await loadSellerReviews(selectedListing.sellerAgentId, Math.max(sellerReviews.length || 5, 5));
+    }, [loadSellerReputation, loadSellerReviews, selectedListing, sellerReviews.length]);
+    const loadMoreSellerReviews = react.useCallback(async () => {
+      if (!selectedListing || !sellerReviewsHasMore) return;
+      await loadSellerReviews(selectedListing.sellerAgentId, Math.min(Math.max(sellerReviews.length + 10, 20), 50));
+    }, [loadSellerReviews, selectedListing, sellerReviews.length, sellerReviewsHasMore]);
     const openTrade = react.useCallback(async () => {
       if (!selectedListing) return;
       if (!canWrite) {
@@ -1445,6 +1580,7 @@
       });
       if (!payload) return;
       setTrade(payload.trade);
+      setReviewSubmitted(false);
       setView("trade");
       await loadTradeMessages(payload.trade.tradeId);
     }, [canWrite, loadTradeMessages, openingMessage, selectedListing, sendFleamarketCommand, tradeQuantity]);
@@ -1472,16 +1608,26 @@
     const submitReview = react.useCallback(async () => {
       if (!trade) return;
       const rating = Number(reviewRating);
-      const payload = await sendFleamarketCommand("Submit review", "create_review", {
-        tradeId: trade.tradeId,
-        rating,
-        comment: reviewComment.trim()
-      });
-      if (payload) {
-        setSuccessText("Review submitted.");
-        setReviewComment("");
+      try {
+        const payload = await runtime.sendCommand(FLEAMARKET_COMMAND("create_review"), {
+          tradeId: trade.tradeId,
+          rating,
+          comment: reviewComment.trim()
+        });
+        if (payload) {
+          setReviewSubmitted(true);
+          setSuccessText("Review submitted.");
+          setReviewComment("");
+        }
+      } catch (error) {
+        if (frontend.isPluginCommandError(error) && error.code === "REVIEW_ALREADY_EXISTS") {
+          setReviewSubmitted(true);
+          setSuccessText("Review already submitted.");
+          return;
+        }
+        setErrorText(getErrorText(error, "Submit review failed."));
       }
-    }, [reviewComment, reviewRating, sendFleamarketCommand, trade]);
+    }, [reviewComment, reviewRating, runtime, trade]);
     const updateForm = react.useCallback((name, value) => {
       setForm((current) => ({ ...current, [name]: value }));
     }, []);
@@ -1491,6 +1637,7 @@
       setForm(EMPTY_FORM);
       setSelectedFiles([]);
       setRetainedImageAssetIds([]);
+      setReviewSubmitted(false);
       setPreviousView(view);
       setShowUserMenu(false);
       setView("compose");
@@ -1503,6 +1650,7 @@
       setForm(formFromListing(payload.listing));
       setSelectedFiles([]);
       setRetainedImageAssetIds(payload.listing.imageAssetIds ?? []);
+      setReviewSubmitted(false);
       setPreviousView("listings");
       setView("compose");
     }, [sendFleamarketCommand]);
@@ -1528,7 +1676,7 @@
     const removeRetainedImage = react.useCallback((assetId) => {
       setRetainedImageAssetIds((current) => current.filter((id) => id !== assetId));
     }, []);
-    const submitListing = react.useCallback(async () => {
+    const submitListing = react.useCallback(async (publish) => {
       if (!activeAgentId) {
         setErrorText("Connect an agent before posting a listing.");
         return;
@@ -1537,7 +1685,7 @@
         setErrorText("Claim controller ownership before changing a listing.");
         return;
       }
-      setBusyAction(formMode === "edit" ? "Update listing" : "Create listing");
+      setBusyAction(formMode === "edit" ? "Update listing" : publish ? "Create listing" : "Save draft");
       setErrorText("");
       setSuccessText("");
       try {
@@ -1561,18 +1709,25 @@
           return;
         }
         const created = await runtime.sendCommand(FLEAMARKET_COMMAND("create_listing"), payload);
-        const published = await runtime.sendCommand(FLEAMARKET_COMMAND("publish_listing"), {
-          listingId: created.listing.listingId
-        });
-        setSelectedListing(published.listing);
+        setSelectedListing(created.listing);
         setSellerReputation(null);
         setSellerReviews([]);
-        setView("detail");
-        setSuccessText("Listing created and published.");
-        void loadListings();
+        setSellerReviewsHasMore(false);
+        if (publish) {
+          const published = await runtime.sendCommand(FLEAMARKET_COMMAND("publish_listing"), {
+            listingId: created.listing.listingId
+          });
+          setSelectedListing(published.listing);
+          setView("detail");
+          setSuccessText("Listing created and published.");
+          void loadListings();
+        } else {
+          setView("listings");
+          setSuccessText("Listing saved as draft.");
+        }
         void loadMyListings();
       } catch (error) {
-        setErrorText(getErrorText(error, formMode === "edit" ? "Update listing failed." : "Create listing failed."));
+        setErrorText(getErrorText(error, formMode === "edit" ? "Update listing failed." : publish ? "Create listing failed." : "Save draft failed."));
       } finally {
         setBusyAction("");
         setForm(EMPTY_FORM);
@@ -1624,6 +1779,7 @@
     }, []);
     const selectCategory = react.useCallback((next) => {
       setCategory(next);
+      setCustomCategoryFilter("");
       setSellerFilterAgentId(null);
       setView("home");
     }, []);
@@ -1673,7 +1829,9 @@
             onFormChange: updateForm,
             onFilesChange: handleFilesChange,
             onRemoveImage: removeRetainedImage,
-            onSubmit: submitListing
+            onSaveDraft: () => void submitListing(false),
+            onPublishNow: () => void submitListing(true),
+            onSaveListing: () => void submitListing(true)
           }
         );
       }
@@ -1693,7 +1851,10 @@
             onOpeningMessageChange: setOpeningMessage,
             onOpenTrade: openTrade,
             onReport: setReportTarget,
-            onViewSellerListings: viewSellerListings
+            onViewSellerListings: viewSellerListings,
+            sellerReviewsHasMore,
+            onRefreshSellerProfile: () => void refreshSellerProfile(),
+            onLoadMoreReviews: () => void loadMoreSellerReviews()
           }
         );
       }
@@ -1725,6 +1886,7 @@
             messagesHasMore,
             reviewRating,
             reviewComment,
+            reviewSubmitted,
             busy,
             onBack: () => setView("trades"),
             onMessageDraftChange: setMessageDraft,
@@ -1776,11 +1938,13 @@
           categories: MARKET_CATEGORIES,
           items: listings.map(marketItemFromListing),
           activeCategory: category,
+          customCategoryFilter,
           sortMode,
           busy,
           hasMore,
           canWrite,
           onCategoryChange: selectCategory,
+          onCustomCategoryFilterChange: setCustomCategoryFilter,
           onSortChange: setSortMode,
           onOpenItem: openListing,
           onPostItem: openCreateListing,

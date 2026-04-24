@@ -26,6 +26,7 @@ export function Chat({
   messagesHasMore,
   reviewRating,
   reviewComment,
+  reviewSubmitted,
   busy,
   onBack,
   onMessageDraftChange,
@@ -45,6 +46,7 @@ export function Chat({
   messagesHasMore: boolean;
   reviewRating: string;
   reviewComment: string;
+  reviewSubmitted: boolean;
   busy: boolean;
   onBack: () => void;
   onMessageDraftChange: (value: string) => void;
@@ -63,6 +65,7 @@ export function Chat({
   const canConfirm = role !== null && ['accepted', 'buyer_confirmed', 'seller_confirmed'].includes(trade.status);
   const canCancel = role !== null && isWritableStatus(trade);
   const showReview = role !== null && trade.status === 'completed';
+  const reportCount = trade.reportCount ?? 0;
 
   const handleSend = (event: FormEvent) => {
     event.preventDefault();
@@ -87,6 +90,7 @@ export function Chat({
               <div className="font-semibold text-slate-900 text-sm">{sellerName}</div>
               <div className="text-xs text-slate-500 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> {trade.status}
+                {reportCount > 0 ? <span className="ml-2 text-[11px] uppercase tracking-wide px-2 py-0.5 rounded-full border border-amber-100 bg-amber-50 text-amber-700">{reportCount} reports</span> : null}
               </div>
             </div>
           </div>
@@ -247,29 +251,37 @@ export function Chat({
             {showReview ? (
               <div className="pt-4 border-t border-slate-100 space-y-3">
                 <h4 className="text-sm font-semibold text-slate-900">Review counterparty</h4>
-                <div className="flex gap-2" role="group" aria-label="Review rating">
-                  {[1, 2, 3, 4, 5].map((rating) => (
-                    <button
-                      key={rating}
-                      type="button"
-                      aria-label={`Rate ${rating}`}
-                      onClick={() => onReviewRatingChange(String(rating))}
-                      className={`w-9 h-9 rounded-xl border text-sm font-medium transition-colors ${String(rating) === reviewRating ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
-                    >
-                      {rating}
+                {reviewSubmitted ? (
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    Review submitted. Each side can submit one review after completion.
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex gap-2" role="group" aria-label="Review rating">
+                      {[1, 2, 3, 4, 5].map((rating) => (
+                        <button
+                          key={rating}
+                          type="button"
+                          aria-label={`Rate ${rating}`}
+                          onClick={() => onReviewRatingChange(String(rating))}
+                          className={`w-9 h-9 rounded-xl border text-sm font-medium transition-colors ${String(rating) === reviewRating ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                        >
+                          {rating}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      aria-label="Review comment"
+                      value={reviewComment}
+                      onChange={(event) => onReviewCommentChange(event.target.value)}
+                      placeholder="Short review comment"
+                      className="w-full min-h-20 bg-slate-100 border border-transparent focus:bg-white focus:border-slate-300 focus:ring-2 focus:ring-slate-200 rounded-xl px-4 py-3 text-sm transition-all outline-none resize-none"
+                    />
+                    <button type="button" disabled={busy} onClick={onSubmitReview} className="w-full bg-slate-900 text-white py-3 rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50">
+                      Submit review
                     </button>
-                  ))}
-                </div>
-                <textarea
-                  aria-label="Review comment"
-                  value={reviewComment}
-                  onChange={(event) => onReviewCommentChange(event.target.value)}
-                  placeholder="Short review comment"
-                  className="w-full min-h-20 bg-slate-100 border border-transparent focus:bg-white focus:border-slate-300 focus:ring-2 focus:ring-slate-200 rounded-xl px-4 py-3 text-sm transition-all outline-none resize-none"
-                />
-                <button type="button" disabled={busy} onClick={onSubmitReview} className="w-full bg-slate-900 text-white py-3 rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50">
-                  Submit review
-                </button>
+                  </>
+                )}
               </div>
             ) : null}
 
