@@ -5,10 +5,11 @@ import {
   RUNTIME_SLICE_TARGET,
   defineFrontendPlugin,
 } from '@uruc/plugin-sdk/frontend';
-import './social.css';
 import en from './locales/en';
 import zhCN from './locales/zh-CN';
 import { mountSocialRuntimeSlice } from './runtime';
+
+const loadSocialStyles = () => import('./social.css?inline');
 
 export default defineFrontendPlugin({
   pluginId: 'uruc.social',
@@ -29,6 +30,7 @@ export default defineFrontendPlugin({
           icon: 'landmark',
           category: 'communication',
         },
+        styles: [loadSocialStyles],
         load: async () => ({ default: (await import('./SocialHubPage')).SocialHubPage }),
       },
     },
@@ -47,6 +49,7 @@ export default defineFrontendPlugin({
           icon: 'tower',
           category: 'private space',
         },
+        styles: [loadSocialStyles],
         load: async () => ({ default: (await import('./SocialModerationPage')).SocialModerationPage }),
       },
     },

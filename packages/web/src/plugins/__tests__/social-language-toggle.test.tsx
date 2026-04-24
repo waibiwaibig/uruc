@@ -166,7 +166,7 @@ async function clickElement(element: Element) {
   await settle();
 }
 
-describe('SocialHubPage language toggle', () => {
+describe('SocialHubPage language settings entry', () => {
   beforeEach(async () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     window.localStorage.clear();
@@ -202,7 +202,7 @@ describe('SocialHubPage language toggle', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = false;
   });
 
-  it('switches the shared locale from inline controls inside the social page', async () => {
+  it('links to host settings without switching the shared locale inline', async () => {
     const mounted = await mountPluginPageDom(createPageData(), <SocialHubPage />);
 
     try {
@@ -210,14 +210,16 @@ describe('SocialHubPage language toggle', () => {
       expect(mounted.container.textContent).toContain('联系人');
       expect(mounted.container.textContent).toContain('动态');
 
-      const englishToggle = [...mounted.container.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'EN');
-      expect(englishToggle).toBeDefined();
+      const settingsLink = mounted.container.querySelector<HTMLAnchorElement>('a[href="/workspace/settings#workspace-language-settings"]');
+      expect(settingsLink).toBeDefined();
+      expect(settingsLink?.textContent?.trim()).toBe('语言');
 
-      await clickElement(englishToggle as HTMLButtonElement);
+      await clickElement(settingsLink as HTMLAnchorElement);
 
-      expect(mounted.container.textContent).toContain('Chats');
-      expect(mounted.container.textContent).toContain('Contacts');
-      expect(mounted.container.textContent).toContain('Moments');
+      expect(i18n.resolvedLanguage).toBe('zh-CN');
+      expect(mounted.container.textContent).toContain('聊天');
+      expect(mounted.container.textContent).toContain('联系人');
+      expect(mounted.container.textContent).toContain('动态');
     } finally {
       await mounted.unmount();
     }

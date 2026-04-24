@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { Bell, LogOut, MoonStar, Shield, SunMedium } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Bell, Languages, LogOut, MoonStar, Shield, SunMedium } from 'lucide-react';
 
 import { useAuth } from '../../../context/AuthContext';
+import i18n, { getCurrentLocale, setLocale } from '../../../i18n';
+import type { AppLocale } from '../../../lib/storage';
 import { useWorkspaceSurface } from '../../context/WorkspaceSurfaceContext';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
@@ -22,6 +24,20 @@ export function SettingsPage({
   const { user, logout } = useAuth();
   const { preferences, updatePreference } = useWorkspaceSurface();
   const [isTokenTableOpen, setIsTokenTableOpen] = useState(false);
+  const [currentLocale, setCurrentLocale] = useState<AppLocale>(() => getCurrentLocale());
+
+  useEffect(() => {
+    const syncLocale = () => setCurrentLocale(getCurrentLocale());
+    i18n.on('languageChanged', syncLocale);
+    return () => {
+      i18n.off('languageChanged', syncLocale);
+    };
+  }, []);
+
+  const changeLocale = (nextLocale: AppLocale) => {
+    if (nextLocale === currentLocale) return;
+    void setLocale(nextLocale);
+  };
 
   const session = user
     ? {
@@ -105,6 +121,51 @@ export function SettingsPage({
                     Calm operator console for lower-light environments.
                   </p>
                 </button>
+              </div>
+
+              <Separator />
+
+              <div
+                id="workspace-language-settings"
+                className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/50 md:flex-row md:items-center md:justify-between"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 font-medium">
+                    <Languages className="size-4 text-zinc-500" />
+                    Language
+                  </div>
+                  <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+                    Controls host and plugin interface text across the workspace.
+                  </p>
+                </div>
+                <div
+                  className="inline-flex w-fit rounded-2xl border border-zinc-200 bg-white p-1 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+                  role="group"
+                  aria-label="Workspace language"
+                >
+                  <button
+                    type="button"
+                    onClick={() => changeLocale('en')}
+                    className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
+                      currentLocale === 'en'
+                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                        : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-50'
+                    }`}
+                  >
+                    English
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => changeLocale('zh-CN')}
+                    className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
+                      currentLocale === 'zh-CN'
+                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                        : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-50'
+                    }`}
+                  >
+                    中文
+                  </button>
+                </div>
               </div>
 
               <Separator />
