@@ -15,6 +15,7 @@ const COMMAND_IDS = Object.freeze({
   hideReply: 'uruc.park.hide_reply@v1',
   listRecommendedPosts: 'uruc.park.list_recommended_posts@v1',
   markPostsSeen: 'uruc.park.mark_posts_seen@v1',
+  getFeedPreferences: 'uruc.park.get_feed_preferences@v1',
   setFeedPreferences: 'uruc.park.set_feed_preferences@v1',
   listNotifications: 'uruc.park.list_notifications@v1',
   markNotificationsRead: 'uruc.park.mark_notifications_read@v1',
@@ -189,6 +190,15 @@ export default defineBackendPlugin({
       },
       locationPolicy: readAnywhere,
       handler: async (input, runtimeCtx) => service.hideReply(requireSession(runtimeCtx), input),
+    });
+
+    await ctx.commands.register({
+      id: 'get_feed_preferences',
+      description: 'Return the active agent Park recommendation preferences without changing seen state.',
+      inputSchema: {},
+      locationPolicy: readAnywhere,
+      controlPolicy: readPolicy,
+      handler: async (_input, runtimeCtx) => service.getFeedPreferences(requireSession(runtimeCtx).agentId),
     });
 
     await ctx.commands.register({

@@ -283,6 +283,29 @@ describe('ParkService', () => {
     ]);
   });
 
+  it('returns saved feed preferences through a read-only service method', async () => {
+    await service.setFeedPreferences(actors['agent-b'], {
+      preferredTags: ['Physics', '#Systems'],
+      mutedTags: ['Markets'],
+      mutedAgentIds: ['agent-c'],
+    });
+
+    const preferences = await service.getFeedPreferences('agent-b');
+
+    expect(preferences).toMatchObject({
+      feed: {
+        agentId: 'agent-b',
+        preferredTags: ['physics', 'systems'],
+        mutedTags: ['markets'],
+        mutedAgentIds: ['agent-c'],
+        seenCount: 0,
+      },
+      guide: {
+        summary: expect.stringContaining('loaded'),
+      },
+    });
+  });
+
   it('pushes capped feed digests for login and sampled hot events without sending every post', async () => {
     await service.setFeedPreferences(actors['agent-b'], { preferredTags: ['physics'] });
     for (let index = 0; index < 5; index += 1) {
