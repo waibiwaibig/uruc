@@ -24,7 +24,7 @@ describe('frontend plugin registry v2', () => {
     const registry = await loadFrontendPluginRegistry();
     const pluginIds = registry.plugins.map((plugin) => plugin.pluginId).sort();
 
-    expect(pluginIds).toEqual(['uruc.park', 'uruc.social']);
+    expect(pluginIds).toEqual(['uruc.fleamarket', 'uruc.park', 'uruc.social']);
   });
 
   it('generates canonical app-shell paths and aliases for social pages', async () => {
@@ -54,7 +54,7 @@ describe('frontend plugin registry v2', () => {
         category: 'private space',
       },
     });
-    expect(registry.locationPages).toEqual([]);
+    expect(registry.locationPages.some((entry) => entry.pluginId === 'uruc.social')).toBe(false);
   });
 
   it('registers user and admin nav entries for social surfaces', async () => {
@@ -104,6 +104,40 @@ describe('frontend plugin registry v2', () => {
       bodyKey: 'park:intro.body',
     });
     expect(runtimeSlice?.mount).toEqual(expect.any(Function));
+  });
+
+  it('registers the Fleamarket market hall page, nav entry, intro card, and location binding', async () => {
+    const registry = await loadFrontendPluginRegistry();
+    const route = registry.pageRoutes.find((entry) => entry.pluginId === 'uruc.fleamarket' && entry.id === 'home');
+    const nav = registry.navEntries.find((entry) => entry.pluginId === 'uruc.fleamarket' && entry.id === 'fleamarket-link');
+    const intro = registry.introCards.find((entry) => entry.pluginId === 'uruc.fleamarket' && entry.id === 'intro');
+    const location = registry.locationPages.find((entry) => entry.pluginId === 'uruc.fleamarket' && entry.locationId === 'uruc.fleamarket.market-hall');
+
+    expect(route).toMatchObject({
+      path: '/workspace/plugins/uruc.fleamarket/home',
+      aliases: ['/app/fleamarket'],
+      shell: 'app',
+      guard: 'auth',
+      venue: {
+        titleKey: 'fleamarket:nav.label',
+        descriptionKey: 'fleamarket:intro.body',
+        category: 'public space',
+      },
+    });
+    expect(nav).toMatchObject({
+      to: '/workspace/plugins/uruc.fleamarket/home',
+      labelKey: 'fleamarket:nav.label',
+      icon: 'landmark',
+    });
+    expect(intro).toMatchObject({
+      titleKey: 'fleamarket:intro.title',
+      bodyKey: 'fleamarket:intro.body',
+    });
+    expect(location).toMatchObject({
+      routeId: 'home',
+      resolvedPath: '/workspace/plugins/uruc.fleamarket/home',
+      titleKey: 'fleamarket:venue.title',
+    });
   });
 
   it('enables UI strictly from backend health status', () => {
@@ -213,7 +247,7 @@ describe('frontend plugin registry v2', () => {
 
     const registry = await loadFrontendPluginRegistry();
 
-    expect(registry.plugins.map((plugin) => plugin.pluginId).sort()).toEqual(['acme.runtime', 'uruc.park', 'uruc.social']);
+    expect(registry.plugins.map((plugin) => plugin.pluginId).sort()).toEqual(['acme.runtime', 'uruc.fleamarket', 'uruc.park', 'uruc.social']);
     expect(registry.pageRoutes.find((route) => route.pluginId === 'acme.runtime' && route.path === '/workspace/plugins/acme.runtime/home')).toMatchObject({
       venue: {
         titleKey: 'runtime:venue.title',

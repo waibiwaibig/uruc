@@ -1,0 +1,11 @@
+{
+  "apiVersion": 1,
+  "pluginId": "uruc.fleamarket",
+  "version": "0.1.0",
+  "format": "global-script",
+  "entry": "./plugin.js",
+  "css": [
+    "./plugin.css"
+  ],
+  "exportKey": "uruc.fleamarket"
+}
