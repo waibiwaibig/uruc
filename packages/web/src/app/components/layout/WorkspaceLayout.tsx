@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { PanelLeftOpen } from 'lucide-react';
 
@@ -56,6 +56,7 @@ const FLOATING_SHELL_TOGGLE_MARGIN = 16;
 const FLOATING_SHELL_TOGGLE_DEFAULT_LEFT = 24;
 const FLOATING_SHELL_TOGGLE_DEFAULT_BOTTOM = 24;
 const FLOATING_SHELL_TOGGLE_DRAG_THRESHOLD = 4;
+const DESKTOP_SHELL_MEDIA_QUERY = '(min-width: 1024px)';
 
 type ViewportSize = {
   width: number;
@@ -108,6 +109,28 @@ export function getTopBarFrameClassName(isDesktopSidebarOpen: boolean): string {
   return isDesktopSidebarOpen ? 'shrink-0' : 'shrink-0 lg:hidden';
 }
 
+export function getDesktopSidebarFrameClassName(): string {
+  return 'relative z-30 shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out';
+}
+
+export function getDesktopSidebarFrameStyle(isDesktopSidebarOpen: boolean, isDesktopViewport: boolean): CSSProperties {
+  return {
+    width: isDesktopSidebarOpen ? '16rem' : '0',
+    display: isDesktopViewport ? 'block' : 'none',
+  };
+}
+
+export function shouldRenderFloatingShellToggle(isDesktopSidebarOpen: boolean, isDesktopViewport: boolean): boolean {
+  return !isDesktopSidebarOpen && isDesktopViewport;
+}
+
+function getIsDesktopViewport(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return true;
+  }
+  return window.matchMedia(DESKTOP_SHELL_MEDIA_QUERY).matches;
+}
+
 function getViewportSize(): ViewportSize {
   if (typeof window === 'undefined') {
     return { width: 1280, height: 720 };
@@ -158,6 +181,7 @@ export function WorkspaceLayout({
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(getSavedAppShellExpanded);
+  const [isDesktopViewport, setIsDesktopViewport] = useState(getIsDesktopViewport);
   const [isTokenTableOpen, setIsTokenTableOpen] = useState(false);
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [manualActivities, setManualActivities] = useState<ActivityItem[]>([]);
@@ -198,7 +222,11 @@ export function WorkspaceLayout({
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    const mediaQuery = typeof window.matchMedia === 'function'
+      ? window.matchMedia(DESKTOP_SHELL_MEDIA_QUERY)
+      : null;
     const handleResize = () => {
+      setIsDesktopViewport(mediaQuery?.matches ?? getIsDesktopViewport());
       setFloatingShellAnchor((current) => {
         const next = clampAppShellAnchor(current);
         if (next.left !== current.left || next.top !== current.top) {
@@ -208,8 +236,13 @@ export function WorkspaceLayout({
       });
     };
 
+    setIsDesktopViewport(mediaQuery?.matches ?? getIsDesktopViewport());
+    mediaQuery?.addEventListener?.('change', handleResize);
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      mediaQuery?.removeEventListener?.('change', handleResize);
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   const visiblePageRoutes = useMemo(
@@ -677,8 +710,8 @@ export function WorkspaceLayout({
 
         <div className="relative z-10 flex flex-1 overflow-hidden">
           <div
-            className="relative z-30 hidden shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out lg:block"
-            style={{ width: isDesktopSidebarOpen ? '16rem' : '0' }}
+            className={getDesktopSidebarFrameClassName()}
+            style={getDesktopSidebarFrameStyle(isDesktopSidebarOpen, isDesktopViewport)}
           >
             <div className="h-full w-64">
               <Sidebar
@@ -695,7 +728,7 @@ export function WorkspaceLayout({
             </div>
           </div>
 
-          {!isDesktopSidebarOpen ? (
+          {shouldRenderFloatingShellToggle(isDesktopSidebarOpen, isDesktopViewport) ? (
             <button
               type="button"
               aria-label="Expand workspace shell"
@@ -704,7 +737,7 @@ export function WorkspaceLayout({
               onPointerMove={handleFloatingShellPointerMove}
               onPointerUp={finishFloatingShellDrag}
               onPointerCancel={finishFloatingShellDrag}
-              className="fixed z-40 hidden size-[52px] cursor-grab items-center justify-center rounded-full border border-white/55 bg-white/55 text-zinc-700 shadow-[0_18px_48px_rgba(15,23,42,0.16)] backdrop-blur-2xl backdrop-saturate-150 transition-[background-color,border-color,box-shadow,transform] hover:scale-105 hover:border-white/70 hover:bg-white/70 hover:text-zinc-950 active:cursor-grabbing dark:border-white/10 dark:bg-zinc-950/45 dark:text-zinc-300 dark:shadow-[0_18px_48px_rgba(0,0,0,0.32)] dark:hover:bg-white/10 dark:hover:text-white lg:flex"
+              className="fixed z-40 flex size-[52px] cursor-grab items-center justify-center rounded-full border border-white/55 bg-white/55 text-zinc-700 shadow-[0_18px_48px_rgba(15,23,42,0.16)] backdrop-blur-2xl backdrop-saturate-150 transition-[background-color,border-color,box-shadow,transform] hover:scale-105 hover:border-white/70 hover:bg-white/70 hover:text-zinc-950 active:cursor-grabbing dark:border-white/10 dark:bg-zinc-950/45 dark:text-zinc-300 dark:shadow-[0_18px_48px_rgba(0,0,0,0.32)] dark:hover:bg-white/10 dark:hover:text-white"
               style={{
                 left: floatingShellAnchor.left,
                 top: floatingShellAnchor.top,

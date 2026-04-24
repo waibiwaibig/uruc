@@ -10,8 +10,11 @@ import { Sidebar } from '../Sidebar';
 import { TopBar } from '../TopBar';
 import {
   clampAppShellAnchor,
+  getDesktopSidebarFrameClassName,
+  getDesktopSidebarFrameStyle,
   getDefaultAppShellAnchor,
   getTopBarFrameClassName,
+  shouldRenderFloatingShellToggle,
 } from '../WorkspaceLayout';
 
 const cityPulse: CityPulse = {
@@ -100,6 +103,21 @@ describe('workspace app shell glass surfaces', () => {
   it('hides the desktop top bar when the desktop sidebar is collapsed', () => {
     expect(getTopBarFrameClassName(false)).toContain('lg:hidden');
     expect(getTopBarFrameClassName(true)).not.toContain('lg:hidden');
+  });
+
+  it('keeps desktop shell visibility out of global Tailwind display utilities', () => {
+    const classTokens = getDesktopSidebarFrameClassName().split(/\s+/);
+    expect(classTokens).not.toContain('hidden');
+    expect(classTokens).not.toContain('lg:block');
+    expect(getDesktopSidebarFrameStyle(true, true)).toEqual({ width: '16rem', display: 'block' });
+    expect(getDesktopSidebarFrameStyle(false, true)).toEqual({ width: '0', display: 'block' });
+    expect(getDesktopSidebarFrameStyle(true, false)).toEqual({ width: '16rem', display: 'none' });
+  });
+
+  it('only renders the floating shell toggle when the desktop shell is collapsed on desktop', () => {
+    expect(shouldRenderFloatingShellToggle(false, true)).toBe(true);
+    expect(shouldRenderFloatingShellToggle(true, true)).toBe(false);
+    expect(shouldRenderFloatingShellToggle(false, false)).toBe(false);
   });
 
   it('defaults the collapsed shell toggle near the lower left viewport edge', () => {

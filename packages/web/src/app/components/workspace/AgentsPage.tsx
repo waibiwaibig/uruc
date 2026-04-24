@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Check, Copy, Hexagon, Plus, ShieldCheck, Upload } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -29,6 +29,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 
 type ActionLog = Awaited<ReturnType<typeof DashboardApi.listLogs>>['logs'][number];
+const IDENTITY_PROFILE_MEDIA_QUERY = '(min-width: 1280px)';
 
 const CyberAvatarSVG = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 100 100" fill="currentColor" xmlns="http://www.w3.org/2000/svg" className={className}>
@@ -85,6 +86,25 @@ function statusForAgent(options: {
   return 'offline' as const;
 }
 
+function getIsIdentityProfileWide(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return true;
+  }
+  return window.matchMedia(IDENTITY_PROFILE_MEDIA_QUERY).matches;
+}
+
+function getIdentityProfileGridStyle(isWide: boolean): CSSProperties {
+  return {
+    flexDirection: isWide ? 'row' : 'column',
+  };
+}
+
+function getIdentityLicensePaneStyle(isWide: boolean): CSSProperties {
+  return {
+    width: isWide ? '500px' : '100%',
+  };
+}
+
 export function AgentsPage() {
   const {
     loading,
@@ -113,7 +133,25 @@ export function AgentsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [messageTone, setMessageTone] = useState<'success' | 'error' | 'info'>('info');
+  const [isIdentityProfileWide, setIsIdentityProfileWide] = useState(getIsIdentityProfileWide);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const mediaQuery = typeof window.matchMedia === 'function'
+      ? window.matchMedia(IDENTITY_PROFILE_MEDIA_QUERY)
+      : null;
+    const updateProfileLayout = () => setIsIdentityProfileWide(mediaQuery?.matches ?? getIsIdentityProfileWide());
+
+    updateProfileLayout();
+    mediaQuery?.addEventListener?.('change', updateProfileLayout);
+    window.addEventListener('resize', updateProfileLayout);
+    return () => {
+      mediaQuery?.removeEventListener?.('change', updateProfileLayout);
+      window.removeEventListener('resize', updateProfileLayout);
+    };
+  }, []);
 
   const accessDestinations = useMemo(() => {
     const map = new Map<string, { id: string; name: string; pluginName: string; icon: (typeof destinations)[number]['icon'] }>();
@@ -499,8 +537,8 @@ export function AgentsPage() {
 
                   <TabsContent value="profile" className="flex min-h-0 flex-1 flex-col data-[state=active]:flex">
                     <ScrollArea className="min-w-0 flex-1 rounded-2xl border border-zinc-200 bg-zinc-50/70 dark:border-zinc-800 dark:bg-zinc-900/50">
-                      <div className="flex flex-col gap-8 p-5 xl:flex-row">
-                        <div className="w-full shrink-0 xl:w-[500px]">
+                      <div className="flex gap-8 p-5" style={getIdentityProfileGridStyle(isIdentityProfileWide)}>
+                        <div className="shrink-0" style={getIdentityLicensePaneStyle(isIdentityProfileWide)}>
                           <div className="relative aspect-[1.58/1] flex flex-col overflow-hidden rounded-xl border border-zinc-300/50 bg-zinc-50 shadow-[0px_10px_30px_-5px_rgba(0,0,0,0.1)] transition-all dark:border-zinc-700/50 dark:bg-zinc-950">
                             <div
                               className="pointer-events-none absolute top-0 left-0 h-32 w-full select-none text-zinc-900 opacity-[0.03] dark:text-white dark:opacity-[0.05]"
