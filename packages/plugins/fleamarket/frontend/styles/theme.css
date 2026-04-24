@@ -1,6 +1,9 @@
 @custom-variant dark (&:is(.dark *));
 
-:root {
+:root,
+:host,
+[data-uruc-plugin-app-root],
+[data-uruc-plugin-portal-root] {
   --font-size: 16px;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
@@ -41,7 +44,10 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
-.dark {
+.dark,
+:host(.dark),
+[data-uruc-plugin-app-root].dark,
+[data-uruc-plugin-portal-root].dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.145 0 0);
