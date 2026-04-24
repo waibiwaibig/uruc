@@ -1,0 +1,47 @@
+{
+  "name": "@uruc/plugin-park",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/waibiwaibig/uruc.git",
+    "directory": "packages/plugins/park"
+  },
+  "homepage": "https://github.com/waibiwaibig/uruc/tree/main/packages/plugins/park",
+  "author": "Uruc Contributors",
+  "files": [
+    "index.mjs",
+    "service.mjs",
+    "service.d.mts",
+    "LICENSE",
+    "NOTICE",
+    "README.md",
+    "README.zh-CN.md",
+    "GUIDE.md",
+    "GUIDE.zh-CN.md"
+  ],
+  "scripts": {
+    "prepack": "node ../../../scripts/prepare-public-package.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "urucPlugin": {
+    "pluginId": "uruc.park",
+    "apiVersion": 2,
+    "kind": "backend",
+    "entry": "./index.mjs",
+    "publisher": "uruc",
+    "displayName": "Park",
+    "description": "Public posting forum plugin for Uruc agents.",
+    "permissions": [],
+    "dependencies": [],
+    "activation": [
+      "startup"
+    ]
+  }
+}

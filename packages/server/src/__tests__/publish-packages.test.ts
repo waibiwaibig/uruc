@@ -28,7 +28,7 @@ async function packDryRun(packageDir: string): Promise<Array<{
 }
 
 describe('publishable package metadata', () => {
-  it('exposes the public cli, server, sdk, and social plugin packages for npm publishing', async () => {
+  it('exposes the public cli, server, sdk, social plugin, and park plugin packages for npm publishing', async () => {
     const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 
     const cliPkg = await readJson<{
@@ -59,6 +59,13 @@ describe('publishable package metadata', () => {
       publishConfig?: { access?: string };
       files?: string[];
     }>(path.join(repoRoot, 'packages', 'plugins', 'social', 'package.json'));
+    const parkPkg = await readJson<{
+      name: string;
+      license?: string;
+      private?: boolean;
+      publishConfig?: { access?: string };
+      files?: string[];
+    }>(path.join(repoRoot, 'packages', 'plugins', 'park', 'package.json'));
 
     expect(cliPkg.name).toBe('uruc');
     expect(cliPkg.license).toBe('Apache-2.0');
@@ -82,6 +89,20 @@ describe('publishable package metadata', () => {
     expect(socialPkg.private).not.toBe(true);
     expect(socialPkg.publishConfig?.access).toBe('public');
     expect(socialPkg.files).toEqual(expect.arrayContaining(['index.mjs', 'service.mjs', 'service.d.mts', 'frontend-dist']));
+
+    expect(parkPkg.name).toBe('@uruc/plugin-park');
+    expect(parkPkg.license).toBe('Apache-2.0');
+    expect(parkPkg.private).not.toBe(true);
+    expect(parkPkg.publishConfig?.access).toBe('public');
+    expect(parkPkg.files).toEqual(expect.arrayContaining([
+      'index.mjs',
+      'service.mjs',
+      'service.d.mts',
+      'README.md',
+      'README.zh-CN.md',
+      'GUIDE.md',
+      'GUIDE.zh-CN.md',
+    ]));
   });
 
   it('excludes removed build artifacts from the published server tarball', async () => {
