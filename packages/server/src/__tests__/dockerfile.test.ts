@@ -21,6 +21,7 @@ describe('packages/server/Dockerfile', () => {
   it('installs workspace manifests needed by the monorepo build', () => {
     expect(dockerfile).toContain('COPY package-lock.json');
     expect(dockerfile).toContain('COPY packages/plugin-sdk/package.json packages/plugin-sdk/');
+    expect(dockerfile).toContain('COPY packages/plugins/fleamarket/package.json packages/plugins/fleamarket/');
     expect(dockerfile).toContain('COPY packages/plugins/park/package.json packages/plugins/park/');
     expect(dockerfile).toContain('COPY packages/plugins/social/package.json packages/plugins/social/');
   });

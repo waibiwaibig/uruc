@@ -70,16 +70,20 @@ async function prepareServerPackage() {
   await rm(path.join(packageRoot, 'public'), { recursive: true, force: true });
   await cp(publicSourceDir, path.join(packageRoot, 'public'), { recursive: true });
 
-  const bundledPluginSource = path.join(repoRoot, 'packages', 'plugins', 'social');
-  await buildPluginFrontend(bundledPluginSource);
-
   const bundledPluginsDir = path.join(packageRoot, 'bundled-plugins');
   await rm(bundledPluginsDir, { recursive: true, force: true });
   await mkdir(bundledPluginsDir, { recursive: true });
-  await cp(bundledPluginSource, path.join(bundledPluginsDir, 'social'), {
-    recursive: true,
-    filter: (sourcePath) => !sourcePath.includes(`${path.sep}node_modules${path.sep}`),
-  });
+
+  for (const pluginDir of ['fleamarket', 'social']) {
+    const bundledPluginSource = path.join(repoRoot, 'packages', 'plugins', pluginDir);
+    if (pluginDir === 'social') {
+      await buildPluginFrontend(bundledPluginSource);
+    }
+    await cp(bundledPluginSource, path.join(bundledPluginsDir, pluginDir), {
+      recursive: true,
+      filter: (sourcePath) => !sourcePath.includes(`${path.sep}node_modules${path.sep}`),
+    });
+  }
 }
 
 async function main() {

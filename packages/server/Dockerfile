@@ -7,6 +7,7 @@ COPY tsconfig.base.json ./tsconfig.base.json
 COPY packages/plugin-sdk/package.json packages/plugin-sdk/
 COPY packages/server/package.json packages/server/
 COPY packages/web/package.json packages/web/
+COPY packages/plugins/fleamarket/package.json packages/plugins/fleamarket/
 COPY packages/plugins/park/package.json packages/plugins/park/
 COPY packages/plugins/social/package.json packages/plugins/social/
 
@@ -15,6 +16,7 @@ RUN npm ci
 COPY packages/plugin-sdk packages/plugin-sdk
 COPY packages/server packages/server
 COPY packages/web packages/web
+COPY packages/plugins/fleamarket packages/plugins/fleamarket
 COPY packages/plugins/park packages/plugins/park
 COPY packages/plugins/social packages/plugins/social
 
