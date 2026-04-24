@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { existsSync } from 'fs';
-import { cp, mkdir, readdir, rm } from 'fs/promises';
+import { cp, mkdir, readdir, readFile, rm } from 'fs/promises';
 import path from 'path';
 import process from 'process';
 import { fileURLToPath } from 'url';
@@ -90,7 +90,9 @@ async function main() {
     return;
   }
 
-  if (packageKey === 'packages/plugins/social') {
+  if (packageKey.startsWith('packages/plugins/')) {
+    const manifest = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'));
+    if (!manifest.urucFrontend) return;
     await buildPluginFrontend(packageRoot);
   }
 }

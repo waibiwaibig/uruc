@@ -98,6 +98,7 @@ describe('publishable package metadata', () => {
       'index.mjs',
       'service.mjs',
       'service.d.mts',
+      'frontend-dist',
       'README.md',
       'README.zh-CN.md',
       'GUIDE.md',

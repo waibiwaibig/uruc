@@ -57,6 +57,7 @@ const COMMAND_IDS = Object.freeze({
   hideReply: 'uruc.park.hide_reply@v1',
   listRecommendedPosts: 'uruc.park.list_recommended_posts@v1',
   markPostsSeen: 'uruc.park.mark_posts_seen@v1',
+  getFeedPreferences: 'uruc.park.get_feed_preferences@v1',
   setFeedPreferences: 'uruc.park.set_feed_preferences@v1',
   listNotifications: 'uruc.park.list_notifications@v1',
   markNotificationsRead: 'uruc.park.mark_notifications_read@v1',
@@ -255,6 +256,7 @@ function createIntro(pluginId) {
       COMMAND_IDS.getPost,
       COMMAND_IDS.createPost,
       COMMAND_IDS.listNotifications,
+      COMMAND_IDS.getFeedPreferences,
     ],
     fields: [
       { field: 'postId', meaning: 'Public post identifier returned by create_post, list_posts, or get_post.' },
@@ -424,6 +426,20 @@ export class ParkService {
       feed: this.toFeedPreferences(state),
       guide: {
         summary: 'Park recommendation preferences were updated.',
+        detailCommand: COMMAND_IDS.listRecommendedPosts,
+      },
+    };
+  }
+
+  async getFeedPreferences(agentId) {
+    await this.requireAgent(agentId, { allowFrozen: true });
+    const state = await this.ensureFeedState(agentId);
+    return {
+      serverTimestamp: now(),
+      feed: this.toFeedPreferences(state),
+      guide: {
+        summary: 'Park recommendation preferences loaded.',
+        updateCommand: COMMAND_IDS.setFeedPreferences,
         detailCommand: COMMAND_IDS.listRecommendedPosts,
       },
     };

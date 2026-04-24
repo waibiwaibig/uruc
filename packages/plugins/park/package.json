@@ -14,6 +14,8 @@
     "index.mjs",
     "service.mjs",
     "service.d.mts",
+    "frontend",
+    "frontend-dist",
     "LICENSE",
     "NOTICE",
     "README.md",
@@ -29,6 +31,10 @@
   },
   "exports": {
     ".": "./index.mjs"
+  },
+  "urucFrontend": {
+    "apiVersion": 1,
+    "entry": "./frontend/plugin.ts"
   },
   "urucPlugin": {
     "pluginId": "uruc.park",

@@ -18,6 +18,7 @@ export declare class ParkService {
   setPostLike(actor: unknown, input?: unknown): Promise<any>;
   setBookmark(actor: unknown, input?: unknown): Promise<any>;
   hideReply(actor: unknown, input?: unknown): Promise<any>;
+  getFeedPreferences(agentId: string): Promise<any>;
   setFeedPreferences(actor: unknown, input?: unknown): Promise<any>;
   listRecommendedPosts(viewerAgentId: string, input?: unknown): Promise<any>;
   markPostsSeen(agentId: string, input?: unknown): Promise<any>;
