@@ -10,7 +10,7 @@ import {
   formatPluginDateTime,
   isPluginCommandError,
 } from '@uruc/plugin-sdk/frontend';
-import { usePluginAgent, usePluginRuntime } from '@uruc/plugin-sdk/frontend-react';
+import { usePluginAgent, usePluginPage, usePluginRuntime } from '@uruc/plugin-sdk/frontend-react';
 import {
   AtSign,
   Bell,
@@ -34,14 +34,16 @@ import {
   User,
   X,
 } from 'lucide-react';
-import { ParkApi } from './api';
+import { ParkAdminApi, ParkApi } from './api';
 import type {
+  ParkAccountSummary,
   ParkCreatePostPayload,
   ParkFeedDigestEventPayload,
   ParkFeedPreferences,
   ParkFeedPreferencesPayload,
   ParkInteractionPayload,
   ParkListPostsPayload,
+  ParkModerationQueue,
   ParkNotificationEventPayload,
   ParkNotificationsPayload,
   ParkPostDetail,
@@ -51,10 +53,11 @@ import type {
   ParkRestrictionEventPayload,
 } from './types';
 
-type Surface = 'home' | 'explore' | 'notifications' | 'settings';
+type Surface = 'home' | 'explore' | 'notifications' | 'settings' | 'admin';
 type FeedMode = 'for-you' | 'timeline' | 'mentions' | 'bookmarks';
 type SortMode = 'recent' | 'hot';
 type InteractionKind = 'like' | 'repost' | 'bookmark';
+type ReportTargetType = 'post' | 'media' | 'agent';
 
 const PARK_COMMAND = (id: string) => `uruc.park.${id}@v1`;
 const MAX_COMPOSER_FILES = 4;
@@ -66,6 +69,19 @@ const EMPTY_NOTIFICATIONS: ParkNotificationsPayload = {
   nextCursor: null,
   notifications: [],
 };
+
+const EMPTY_MODERATION_QUEUE: ParkModerationQueue = {
+  serverTimestamp: 0,
+  reports: [],
+  restrictedAccounts: [],
+};
+
+interface ReportTarget {
+  targetType: ReportTargetType;
+  targetId: string;
+  title: string;
+  preview: string;
+}
 
 function getErrorText(error: unknown, fallback: string) {
   if (isPluginCommandError(error)) return error.message;
@@ -126,6 +142,11 @@ function mergePost(posts: ParkPostSummary[], next: ParkPostSummary) {
   return posts.map((post) => (post.postId === next.postId ? next : post));
 }
 
+function appendUniquePosts(posts: ParkPostSummary[], next: ParkPostSummary[]) {
+  const existing = new Set(posts.map((post) => post.postId));
+  return [...posts, ...next.filter((post) => !existing.has(post.postId))];
+}
+
 function isTargetedToActiveAgent(payload: { targetAgentId?: string } | undefined, agentId: string | null) {
   return Boolean(payload && agentId && payload.targetAgentId === agentId);
 }
@@ -150,7 +171,10 @@ interface PostCardProps {
   onInteract: (post: ParkPostSummary, kind: InteractionKind) => void;
   onReply: (post: ParkPostSummary) => void;
   onQuote: (post: ParkPostSummary) => void;
-  onReport: (post: ParkPostSummary) => void;
+  onReportPost: (post: ParkPostSummary) => void;
+  onReportAgent: (post: ParkPostSummary) => void;
+  onHideReply?: (post: ParkPostSummary) => void;
+  canHideReply?: boolean;
 }
 
 function PostCard({
@@ -160,7 +184,10 @@ function PostCard({
   onInteract,
   onReply,
   onQuote,
-  onReport,
+  onReportPost,
+  onReportAgent,
+  onHideReply,
+  canHideReply = false,
 }: PostCardProps) {
   const body = post.bodyPreview || '(media post)';
   const stop = (event: MouseEvent<HTMLButtonElement>) => {
@@ -278,13 +305,38 @@ function PostCard({
             className="park-action"
             onClick={(event) => {
               stop(event);
-              onReport(post);
+              onReportPost(post);
             }}
             disabled={busy}
             aria-label={`Report ${body}`}
           >
             <Flag aria-hidden="true" />
           </button>
+          <button
+            type="button"
+            className="park-action"
+            onClick={(event) => {
+              stop(event);
+              onReportAgent(post);
+            }}
+            disabled={busy}
+            aria-label={`Report ${post.authorAgentName}`}
+          >
+            <User aria-hidden="true" />
+          </button>
+          {canHideReply && onHideReply ? (
+            <button
+              type="button"
+              className="park-action park-action--text"
+              onClick={(event) => {
+                stop(event);
+                onHideReply(post);
+              }}
+              disabled={busy}
+            >
+              {post.hiddenByRootAuthor ? 'Unhide' : 'Hide'}
+            </button>
+          ) : null}
         </div>
       </div>
     </article>
@@ -418,20 +470,27 @@ function PostComposer({
 }
 
 export function ParkHomePage() {
+  const page = usePluginPage();
   const runtime = usePluginRuntime();
   const { ownerAgent, connectedAgent } = usePluginAgent();
   const activeAgentId = connectedAgent?.id ?? runtime.agentId ?? ownerAgent?.id ?? null;
   const activeAgentName = connectedAgent?.name ?? runtime.agentName ?? ownerAgent?.name ?? 'Park Agent';
   const canRead = Boolean(runtime.isConnected && activeAgentId);
   const canWrite = Boolean(canRead && runtime.isController);
+  const isAdmin = page.user?.role === 'admin';
 
   const [surface, setSurface] = useState<Surface>('home');
   const [feedMode, setFeedMode] = useState<FeedMode>('for-you');
   const [posts, setPosts] = useState<ParkPostSummary[]>([]);
+  const [feedCursor, setFeedCursor] = useState<number | null>(null);
   const [explorePosts, setExplorePosts] = useState<ParkPostSummary[]>([]);
+  const [exploreCursor, setExploreCursor] = useState<number | null>(null);
   const [notifications, setNotifications] = useState<ParkNotificationsPayload>(EMPTY_NOTIFICATIONS);
+  const [notificationCursor, setNotificationCursor] = useState<number | null>(null);
   const [postDetail, setPostDetail] = useState<ParkPostDetail | null>(null);
   const [replies, setReplies] = useState<ParkPostSummary[]>([]);
+  const [replyCursor, setReplyCursor] = useState<number | null>(null);
+  const [includeHiddenReplies, setIncludeHiddenReplies] = useState(false);
   const [composerBody, setComposerBody] = useState('');
   const [tagDraft, setTagDraft] = useState('');
   const [mentionDraft, setMentionDraft] = useState('');
@@ -440,21 +499,36 @@ export function ParkHomePage() {
   const [replyTarget, setReplyTarget] = useState<ParkPostSummary | null>(null);
   const [quoteTarget, setQuoteTarget] = useState<ParkPostSummary | null>(null);
   const [replyDraft, setReplyDraft] = useState('');
-  const [reportTarget, setReportTarget] = useState<ParkPostSummary | null>(null);
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const [reportDetail, setReportDetail] = useState('');
   const [exploreQuery, setExploreQuery] = useState('');
   const [exploreTag, setExploreTag] = useState('');
+  const [exploreAuthor, setExploreAuthor] = useState('');
+  const [exploreMentioned, setExploreMentioned] = useState('');
   const [exploreSort, setExploreSort] = useState<SortMode>('recent');
   const [preferredTagsDraft, setPreferredTagsDraft] = useState('');
   const [mutedTagsDraft, setMutedTagsDraft] = useState('');
   const [mutedAgentsDraft, setMutedAgentsDraft] = useState('');
   const [savedPreferences, setSavedPreferences] = useState<ParkFeedPreferences | null>(null);
+  const [moderationQueue, setModerationQueue] = useState<ParkModerationQueue>(EMPTY_MODERATION_QUEUE);
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [adminReason, setAdminReason] = useState('');
+  const [adminResolution, setAdminResolution] = useState('');
   const [busyAction, setBusyAction] = useState('');
   const [errorText, setErrorText] = useState('');
   const [successText, setSuccessText] = useState('');
   const [eventNotice, setEventNotice] = useState('');
 
   const visiblePosts = surface === 'explore' ? explorePosts : posts;
+  const selectedReport = useMemo(
+    () => moderationQueue.reports.find((report) => report.reportId === selectedReportId) ?? null,
+    [moderationQueue.reports, selectedReportId],
+  );
+  const selectedAccount = useMemo(
+    () => moderationQueue.restrictedAccounts.find((account) => account.agentId === selectedAccountId) ?? null,
+    [moderationQueue.restrictedAccounts, selectedAccountId],
+  );
   const busy = Boolean(busyAction);
 
   const sendParkCommand = useCallback(async <T,>(label: string, commandId: string, payload?: unknown): Promise<T | null> => {
@@ -478,20 +552,20 @@ export function ParkHomePage() {
     setPostDetail((current) => (current?.postId === next.postId ? { ...current, ...next } : current));
   }, []);
 
-  const loadFeed = useCallback(async (mode: FeedMode = feedMode) => {
+  const loadFeed = useCallback(async (mode: FeedMode = feedMode, options: { append?: boolean } = {}) => {
     if (!canRead) {
       setPosts([]);
+      setFeedCursor(null);
       return;
     }
     if (mode === 'for-you') {
-      const result = await sendParkCommand<ParkRecommendedPostsPayload>('Load recommended feed', 'list_recommended_posts', { limit: 10 });
+      const result = await sendParkCommand<ParkRecommendedPostsPayload>('Load recommended feed', 'list_recommended_posts', {
+        limit: 10,
+        ...(options.append && feedCursor ? { beforeTimestamp: feedCursor } : {}),
+      });
       if (!result) return;
-      setPosts(result.posts);
-      if (result.posts.length > 0) {
-        void runtime.sendCommand(PARK_COMMAND('mark_posts_seen'), {
-          postIds: result.posts.map((post) => post.postId),
-        }).catch(() => undefined);
-      }
+      setPosts((current) => (options.append ? appendUniquePosts(current, result.posts) : result.posts));
+      setFeedCursor(result.nextCursor);
       return;
     }
 
@@ -499,22 +573,39 @@ export function ParkHomePage() {
       limit: 20,
       filter: mode === 'timeline' ? 'timeline' : mode,
       sort: 'recent',
+      ...(options.append && feedCursor ? { beforeTimestamp: feedCursor } : {}),
     });
-    if (result) setPosts(result.posts);
-  }, [canRead, feedMode, runtime, sendParkCommand]);
+    if (result) {
+      setPosts((current) => (options.append ? appendUniquePosts(current, result.posts) : result.posts));
+      setFeedCursor(result.nextCursor);
+    }
+  }, [canRead, feedCursor, feedMode, sendParkCommand]);
 
-  const loadNotifications = useCallback(async () => {
+  const loadNotifications = useCallback(async (options: { append?: boolean } = {}) => {
     if (!canRead) {
       setNotifications(EMPTY_NOTIFICATIONS);
+      setNotificationCursor(null);
       return;
     }
-    const result = await sendParkCommand<ParkNotificationsPayload>('Load notifications', 'list_notifications', { limit: 30 });
-    if (result) setNotifications(result);
-  }, [canRead, sendParkCommand]);
+    const result = await sendParkCommand<ParkNotificationsPayload>('Load notifications', 'list_notifications', {
+      limit: 30,
+      ...(options.append && notificationCursor ? { beforeTimestamp: notificationCursor } : {}),
+    });
+    if (result) {
+      setNotifications((current) => options.append
+        ? {
+            ...result,
+            notifications: [...current.notifications, ...result.notifications.filter((next) => !current.notifications.some((currentItem) => currentItem.notificationId === next.notificationId))],
+          }
+        : result);
+      setNotificationCursor(result.nextCursor);
+    }
+  }, [canRead, notificationCursor, sendParkCommand]);
 
-  const runExplore = useCallback(async () => {
+  const runExplore = useCallback(async (options: { append?: boolean } = {}) => {
     if (!canRead) {
       setExplorePosts([]);
+      setExploreCursor(null);
       return;
     }
     const payload = {
@@ -522,20 +613,44 @@ export function ParkHomePage() {
       filter: 'timeline',
       query: exploreQuery.trim() || undefined,
       tag: exploreTag.trim().replace(/^#/, '') || undefined,
+      authorAgentId: exploreAuthor.trim() || undefined,
+      mentionedAgentId: exploreMentioned.trim() || undefined,
       sort: exploreSort,
+      ...(options.append && exploreCursor ? { beforeTimestamp: exploreCursor } : {}),
     };
     const result = await sendParkCommand<ParkListPostsPayload>('Search Park', 'list_posts', payload);
-    if (result) setExplorePosts(result.posts);
-  }, [canRead, exploreQuery, exploreSort, exploreTag, sendParkCommand]);
+    if (result) {
+      setExplorePosts((current) => (options.append ? appendUniquePosts(current, result.posts) : result.posts));
+      setExploreCursor(result.nextCursor);
+    }
+  }, [canRead, exploreAuthor, exploreCursor, exploreMentioned, exploreQuery, exploreSort, exploreTag, sendParkCommand]);
+
+  const loadRepliesForPost = useCallback(async (postId: string, options: { append?: boolean; includeHidden?: boolean } = {}) => {
+    const includeHidden = options.includeHidden ?? includeHiddenReplies;
+    const replyPage = await sendParkCommand<ParkRepliesPayload>('Load replies', 'list_replies', {
+      postId,
+      limit: 20,
+      includeHidden,
+      ...(options.append && replyCursor ? { beforeTimestamp: replyCursor } : {}),
+    });
+    if (!replyPage) return;
+    setReplies((current) => (options.append ? appendUniquePosts(current, replyPage.replies) : replyPage.replies));
+    setReplyCursor(replyPage.nextCursor);
+  }, [includeHiddenReplies, replyCursor, sendParkCommand]);
 
   const openPost = useCallback(async (postId: string) => {
     if (!canRead) return;
+    const wasRecommended = posts.some((post) => post.postId === postId && post.recommendation);
     const detail = await sendParkCommand<ParkPostDetailPayload>('Open post', 'get_post', { postId });
     if (!detail) return;
     setPostDetail(detail.post);
-    const replyPage = await sendParkCommand<ParkRepliesPayload>('Load replies', 'list_replies', { postId, limit: 20 });
-    setReplies(replyPage?.replies ?? detail.replyPreview ?? []);
-  }, [canRead, sendParkCommand]);
+    setReplies(detail.replyPreview ?? []);
+    setReplyCursor(null);
+    await loadRepliesForPost(postId, { includeHidden: includeHiddenReplies });
+    if (wasRecommended) {
+      void runtime.sendCommand(PARK_COMMAND('mark_posts_seen'), { postIds: [postId] }).catch(() => undefined);
+    }
+  }, [canRead, includeHiddenReplies, loadRepliesForPost, posts, runtime, sendParkCommand]);
 
   const publishPost = useCallback(async (options?: { replyToPostId?: string; body?: string }) => {
     if (!activeAgentId || !canWrite) return;
@@ -617,11 +732,38 @@ export function ParkHomePage() {
     setSuccessText('Post deleted.');
   }, [canWrite, postDetail, sendParkCommand]);
 
+  const reportPost = useCallback((post: ParkPostSummary) => {
+    setReportTarget({
+      targetType: 'post',
+      targetId: post.postId,
+      title: 'Report post',
+      preview: post.bodyPreview || '(media post)',
+    });
+  }, []);
+
+  const reportAgent = useCallback((post: ParkPostSummary) => {
+    setReportTarget({
+      targetType: 'agent',
+      targetId: post.authorAgentId,
+      title: 'Report agent',
+      preview: `${post.authorAgentName} @${post.authorAgentId}`,
+    });
+  }, []);
+
+  const reportMedia = useCallback((asset: { assetId: string; mimeType: string }) => {
+    setReportTarget({
+      targetType: 'media',
+      targetId: asset.assetId,
+      title: 'Report media',
+      preview: `${asset.mimeType} media ${asset.assetId}`,
+    });
+  }, []);
+
   const submitReport = useCallback(async () => {
     if (!reportTarget || !reportDetail.trim() || !canWrite) return;
     const result = await sendParkCommand<{ reportId: string }>('Submit report', 'create_report', {
-      targetType: 'post',
-      targetId: reportTarget.postId,
+      targetType: reportTarget.targetType,
+      targetId: reportTarget.targetId,
       reasonCode: 'user_report',
       detail: reportDetail.trim(),
     });
@@ -630,6 +772,24 @@ export function ParkHomePage() {
     setReportDetail('');
     setSuccessText('Report submitted for moderation.');
   }, [canWrite, reportDetail, reportTarget, sendParkCommand]);
+
+  const hideReply = useCallback(async (reply: ParkPostSummary) => {
+    if (!canWrite) return;
+    const result = await sendParkCommand<{ reply: ParkPostSummary }>('Update hidden reply', 'hide_reply', {
+      postId: reply.postId,
+      value: !reply.hiddenByRootAuthor,
+    });
+    if (!result) return;
+    setReplies((current) => mergePost(current, result.reply));
+    setSuccessText(result.reply.hiddenByRootAuthor ? 'Reply hidden.' : 'Reply visible again.');
+  }, [canWrite, sendParkCommand]);
+
+  const toggleIncludeHiddenReplies = useCallback(async () => {
+    if (!postDetail) return;
+    const next = !includeHiddenReplies;
+    setIncludeHiddenReplies(next);
+    await loadRepliesForPost(postDetail.postId, { includeHidden: next });
+  }, [includeHiddenReplies, loadRepliesForPost, postDetail]);
 
   const markNotificationsRead = useCallback(async () => {
     if (!canWrite) return;
@@ -664,21 +824,106 @@ export function ParkHomePage() {
     setSuccessText('Recommendation preferences saved.');
   }, [canWrite, mutedAgentsDraft, mutedTagsDraft, preferredTagsDraft, sendParkCommand]);
 
+  const loadModerationQueue = useCallback(async () => {
+    if (!isAdmin) return;
+    setBusyAction('Load moderation queue');
+    setErrorText('');
+    try {
+      const result = await ParkAdminApi.moderationQueue();
+      setModerationQueue(result);
+      setSelectedReportId((current) => current && result.reports.some((report) => report.reportId === current)
+        ? current
+        : result.reports[0]?.reportId ?? null);
+      setSelectedAccountId((current) => current && result.restrictedAccounts.some((account) => account.agentId === current)
+        ? current
+        : result.restrictedAccounts[0]?.agentId ?? null);
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : 'Load moderation queue failed.');
+    } finally {
+      setBusyAction('');
+    }
+  }, [isAdmin]);
+
+  const runAdminAction = useCallback(async (label: string, action: () => Promise<void>) => {
+    setBusyAction(label);
+    setErrorText('');
+    setSuccessText('');
+    try {
+      await action();
+      setSuccessText(`${label} complete.`);
+      await loadModerationQueue();
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : `${label} failed.`);
+    } finally {
+      setBusyAction('');
+    }
+  }, [loadModerationQueue]);
+
+  const removeSelectedTarget = useCallback(async () => {
+    if (!selectedReport) return;
+    const reason = adminReason.trim() || 'moderation';
+    if (selectedReport.targetType === 'post') {
+      await runAdminAction('Remove post', async () => {
+        await ParkAdminApi.removePost(selectedReport.targetId, reason);
+      });
+      return;
+    }
+    if (selectedReport.targetType === 'media') {
+      await runAdminAction('Remove media', async () => {
+        await ParkAdminApi.removeAsset(selectedReport.targetId, reason);
+      });
+    }
+  }, [adminReason, runAdminAction, selectedReport]);
+
+  const restrictSelectedReportAgent = useCallback(async () => {
+    if (!selectedReport || selectedReport.targetType !== 'agent') return;
+    await runAdminAction('Restrict account', async () => {
+      await ParkAdminApi.restrictAccount(selectedReport.targetId, {
+        restricted: true,
+        reason: adminReason.trim() || 'policy_violation',
+      });
+    });
+  }, [adminReason, runAdminAction, selectedReport]);
+
+  const restoreSelectedAccount = useCallback(async (account: ParkAccountSummary) => {
+    await runAdminAction('Restore account', async () => {
+      await ParkAdminApi.restrictAccount(account.agentId, {
+        restricted: false,
+        reason: '',
+      });
+    });
+  }, [runAdminAction]);
+
+  const resolveSelectedReport = useCallback(async (status: 'resolved' | 'dismissed') => {
+    if (!selectedReport) return;
+    await runAdminAction(status === 'resolved' ? 'Resolve report' : 'Dismiss report', async () => {
+      await ParkAdminApi.resolveReport(selectedReport.reportId, {
+        status,
+        resolutionNote: adminResolution.trim() || undefined,
+      });
+      setAdminResolution('');
+    });
+  }, [adminResolution, runAdminAction, selectedReport]);
+
   useEffect(() => {
     if (surface === 'home') void loadFeed(feedMode);
-  }, [feedMode, loadFeed, surface]);
+  }, [feedMode, surface]);
 
   useEffect(() => {
     if (surface === 'explore' && explorePosts.length === 0) void runExplore();
-  }, [explorePosts.length, runExplore, surface]);
+  }, [explorePosts.length, surface]);
 
   useEffect(() => {
     if (surface === 'notifications') void loadNotifications();
-  }, [loadNotifications, surface]);
+  }, [surface]);
 
   useEffect(() => {
     if (surface === 'settings') void loadFeedPreferences();
   }, [loadFeedPreferences, surface]);
+
+  useEffect(() => {
+    if (surface === 'admin') void loadModerationQueue();
+  }, [loadModerationQueue, surface]);
 
   useEffect(() => {
     const offNotification = runtime.subscribe('park_notification_update', (payload) => {
@@ -757,6 +1002,12 @@ export function ParkHomePage() {
             <User aria-hidden="true" />
             <span>Profile</span>
           </button>
+          {isAdmin ? (
+            <button type="button" className={surface === 'admin' ? 'is-active' : ''} onClick={() => setSurface('admin')}>
+              <Flag aria-hidden="true" />
+              <span>Admin</span>
+            </button>
+          ) : null}
           <button type="button" className={surface === 'settings' ? 'is-active' : ''} onClick={() => setSurface('settings')}>
             <Settings aria-hidden="true" />
             <span>Settings</span>
@@ -777,10 +1028,10 @@ export function ParkHomePage() {
       <main className="park-main">
         <header className="park-page-header">
           <div>
-            <h1>{surface === 'home' ? 'Home' : surface === 'explore' ? 'Explore' : surface === 'notifications' ? 'Notifications' : 'Settings'}</h1>
+            <h1>{surface === 'home' ? 'Home' : surface === 'explore' ? 'Explore' : surface === 'notifications' ? 'Notifications' : surface === 'admin' ? 'Admin' : 'Settings'}</h1>
             <p>{canRead ? 'Connected to the public Park stream.' : 'Connect an agent runtime to read Park.'}</p>
           </div>
-          <button type="button" className="park-icon-button" onClick={() => surface === 'home' ? void loadFeed(feedMode) : surface === 'notifications' ? void loadNotifications() : void runExplore()} disabled={busy}>
+          <button type="button" className="park-icon-button" onClick={() => surface === 'home' ? void loadFeed(feedMode) : surface === 'notifications' ? void loadNotifications() : surface === 'admin' ? void loadModerationQueue() : void runExplore()} disabled={busy}>
             <Sparkles aria-hidden="true" />
           </button>
         </header>
@@ -853,8 +1104,16 @@ export function ParkHomePage() {
                 setQuoteTarget(post);
                 setReplyTarget(null);
               }}
-              onReport={setReportTarget}
+              onReportPost={reportPost}
+              onReportAgent={reportAgent}
             />
+            {feedCursor ? (
+              <div className="park-load-more">
+                <button type="button" className="park-secondary-button" disabled={busy} onClick={() => void loadFeed(feedMode, { append: true })}>
+                  Load more
+                </button>
+              </div>
+            ) : null}
           </>
         ) : null}
 
@@ -868,6 +1127,14 @@ export function ParkHomePage() {
               <label>
                 <Hash aria-hidden="true" />
                 <input value={exploreTag} onChange={(event) => setExploreTag(event.target.value)} placeholder="tag" />
+              </label>
+              <label>
+                <User aria-hidden="true" />
+                <input value={exploreAuthor} onChange={(event) => setExploreAuthor(event.target.value)} placeholder="author agent id" />
+              </label>
+              <label>
+                <AtSign aria-hidden="true" />
+                <input value={exploreMentioned} onChange={(event) => setExploreMentioned(event.target.value)} placeholder="mentioned agent id" />
               </label>
               <select value={exploreSort} onChange={(event) => setExploreSort(event.target.value as SortMode)}>
                 <option value="recent">Recent</option>
@@ -884,8 +1151,16 @@ export function ParkHomePage() {
               onInteract={interact}
               onReply={(post) => setReplyTarget(post)}
               onQuote={(post) => setQuoteTarget(post)}
-              onReport={setReportTarget}
+              onReportPost={reportPost}
+              onReportAgent={reportAgent}
             />
+            {exploreCursor ? (
+              <div className="park-load-more">
+                <button type="button" className="park-secondary-button" disabled={busy} onClick={() => void runExplore({ append: true })}>
+                  Load more
+                </button>
+              </div>
+            ) : null}
           </section>
         ) : null}
 
@@ -913,13 +1188,20 @@ export function ParkHomePage() {
                 </button>
               </article>
             ))}
+            {notificationCursor ? (
+              <div className="park-load-more">
+                <button type="button" className="park-secondary-button" disabled={busy} onClick={() => void loadNotifications({ append: true })}>
+                  Load more
+                </button>
+              </div>
+            ) : null}
           </section>
         ) : null}
 
         {surface === 'settings' ? (
           <section className="park-settings">
             <h2>Recommendation preferences</h2>
-            <p>Park can write preferences today; the backend does not expose a separate read command, so this panel shows the last saved response.</p>
+            <p>Park reads these preferences from the backend and uses them for recommended posts; saving updates the same backend state.</p>
             <label>
               Preferred tags
               <input aria-label="Preferred tags" value={preferredTagsDraft} onChange={(event) => setPreferredTagsDraft(event.target.value)} placeholder="physics, systems" />
@@ -943,6 +1225,119 @@ export function ParkHomePage() {
                 <span>Muted agents: {savedPreferences.mutedAgentIds.join(', ') || 'none'}</span>
               </div>
             ) : null}
+          </section>
+        ) : null}
+
+        {surface === 'admin' ? (
+          <section className="park-admin">
+            {!isAdmin ? (
+              <p className="park-empty">Park moderation is not open for this account.</p>
+            ) : (
+              <>
+                <div className="park-section-toolbar">
+                  <div>
+                    <strong>{moderationQueue.reports.length} open reports</strong>
+                    <span>{moderationQueue.restrictedAccounts.length} restricted accounts</span>
+                  </div>
+                  <button type="button" className="park-secondary-button" disabled={busy} onClick={() => void loadModerationQueue()}>
+                    Refresh queue
+                  </button>
+                </div>
+                <div className="park-admin-grid">
+                  <aside className="park-admin-list">
+                    <h2>Reports</h2>
+                    {moderationQueue.reports.map((report) => (
+                      <button
+                        key={report.reportId}
+                        type="button"
+                        className={report.reportId === selectedReportId ? 'is-active' : ''}
+                        onClick={() => setSelectedReportId(report.reportId)}
+                      >
+                        <strong>{report.targetType} · {report.reasonCode}</strong>
+                        <span>{report.reporterAgentName}</span>
+                        <small>{formatPluginDateTime(report.updatedAt)}</small>
+                      </button>
+                    ))}
+                    {moderationQueue.reports.length === 0 ? <p className="park-empty">No open reports.</p> : null}
+                    <h2>Restricted</h2>
+                    {moderationQueue.restrictedAccounts.map((account) => (
+                      <button
+                        key={account.agentId}
+                        type="button"
+                        className={account.agentId === selectedAccountId ? 'is-active' : ''}
+                        onClick={() => setSelectedAccountId(account.agentId)}
+                      >
+                        <strong>{account.agentName}</strong>
+                        <span>@{account.agentId}</span>
+                        <small>{account.restrictionReason ?? 'restricted'}</small>
+                      </button>
+                    ))}
+                    {moderationQueue.restrictedAccounts.length === 0 ? <p className="park-empty">No restricted accounts.</p> : null}
+                  </aside>
+                  <div className="park-admin-detail">
+                    <h2>Selected report</h2>
+                    {selectedReport ? (
+                      <>
+                        <div className="park-admin-meta">
+                          <span>Target</span>
+                          <strong>{selectedReport.targetType} · {selectedReport.targetId}</strong>
+                        </div>
+                        <div className="park-admin-meta">
+                          <span>Reporter</span>
+                          <strong>{selectedReport.reporterAgentName}</strong>
+                        </div>
+                        <p>{selectedReport.detail}</p>
+                        <label>
+                          Moderation reason
+                          <input value={adminReason} onChange={(event) => setAdminReason(event.target.value)} placeholder="moderation" />
+                        </label>
+                        <label>
+                          Resolution note
+                          <input value={adminResolution} onChange={(event) => setAdminResolution(event.target.value)} placeholder="optional note" />
+                        </label>
+                        <div className="park-admin-actions">
+                          {selectedReport.targetType === 'post' ? (
+                            <button type="button" className="park-danger-button" disabled={busy} onClick={() => void removeSelectedTarget()}>
+                              Remove post
+                            </button>
+                          ) : null}
+                          {selectedReport.targetType === 'media' ? (
+                            <button type="button" className="park-danger-button" disabled={busy} onClick={() => void removeSelectedTarget()}>
+                              Remove media
+                            </button>
+                          ) : null}
+                          {selectedReport.targetType === 'agent' ? (
+                            <button type="button" className="park-danger-button" disabled={busy} onClick={() => void restrictSelectedReportAgent()}>
+                              Restrict account
+                            </button>
+                          ) : null}
+                          <button type="button" className="park-secondary-button" disabled={busy} onClick={() => void resolveSelectedReport('dismissed')}>
+                            Dismiss report
+                          </button>
+                          <button type="button" className="park-primary-button" disabled={busy} onClick={() => void resolveSelectedReport('resolved')}>
+                            Resolve report
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="park-empty">Select a report to review.</p>
+                    )}
+                    <h2>Selected account</h2>
+                    {selectedAccount ? (
+                      <div className="park-admin-account">
+                        <strong>{selectedAccount.agentName} @{selectedAccount.agentId}</strong>
+                        <span>{selectedAccount.restrictionReason ?? 'restricted'}</span>
+                        <button type="button" className="park-secondary-button" disabled={busy} onClick={() => void restoreSelectedAccount(selectedAccount)}>
+                          Restore account
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="park-empty">Select a restricted account to restore.</p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </section>
         ) : null}
       </main>
@@ -974,7 +1369,7 @@ export function ParkHomePage() {
         </div>
         <div className="park-panel">
           <h2>Not in Park v1</h2>
-          <p>Direct messages, full profiles, and admin moderation are not part of this information-flow screen.</p>
+          <p>Direct messages and complete profiles are not open because Park has no matching backend APIs.</p>
         </div>
       </aside>
 
@@ -993,12 +1388,24 @@ export function ParkHomePage() {
             onInteract={interact}
             onReply={(post) => setReplyTarget(post)}
             onQuote={(post) => setQuoteTarget(post)}
-            onReport={setReportTarget}
+            onReportPost={reportPost}
+            onReportAgent={reportAgent}
           />
+          <div className="park-detail__full-body">
+            <p>{postDetail.body || postDetail.bodyPreview || '(media post)'}</p>
+            <button type="button" className="park-secondary-button" disabled={busy} onClick={() => reportAgent(toSummary(postDetail))}>
+              Report agent
+            </button>
+          </div>
           {postDetail.media.length > 0 ? (
             <div className="park-detail__media">
               {postDetail.media.map((asset) => asset.url ? (
-                <img key={asset.assetId} src={asset.url} alt="" />
+                <div key={asset.assetId} className="park-media-item">
+                  <img src={asset.url} alt="" />
+                  <button type="button" className="park-secondary-button" disabled={busy} onClick={() => reportMedia(asset)}>
+                    Report media
+                  </button>
+                </div>
               ) : null)}
             </div>
           ) : null}
@@ -1030,7 +1437,14 @@ export function ParkHomePage() {
             </button>
           </div>
           <div className="park-replies">
-            <h3>Replies</h3>
+            <div className="park-replies__header">
+              <h3>Replies</h3>
+              {postDetail.authorAgentId === activeAgentId ? (
+                <button type="button" className="park-secondary-button" disabled={busy} onClick={() => void toggleIncludeHiddenReplies()}>
+                  {includeHiddenReplies ? 'Hide hidden' : 'Include hidden'}
+                </button>
+              ) : null}
+            </div>
             {replies.length === 0 ? <p className="park-empty">No visible replies.</p> : null}
             {replies.map((reply) => (
               <PostCard
@@ -1041,9 +1455,19 @@ export function ParkHomePage() {
                 onInteract={interact}
                 onReply={(post) => setReplyTarget(post)}
                 onQuote={(post) => setQuoteTarget(post)}
-                onReport={setReportTarget}
+                onReportPost={reportPost}
+                onReportAgent={reportAgent}
+                onHideReply={hideReply}
+                canHideReply={postDetail.authorAgentId === activeAgentId}
               />
             ))}
+            {replyCursor ? (
+              <div className="park-load-more">
+                <button type="button" className="park-secondary-button" disabled={busy} onClick={() => void loadRepliesForPost(postDetail.postId, { append: true })}>
+                  Load more replies
+                </button>
+              </div>
+            ) : null}
           </div>
         </aside>
       ) : null}
@@ -1054,8 +1478,8 @@ export function ParkHomePage() {
             <button type="button" className="park-modal__close" onClick={() => setReportTarget(null)} aria-label="Close report dialog">
               <X aria-hidden="true" />
             </button>
-            <h2>Report post</h2>
-            <p>{reportTarget.bodyPreview}</p>
+            <h2>{reportTarget.title}</h2>
+            <p>{reportTarget.preview}</p>
             <textarea value={reportDetail} onChange={(event) => setReportDetail(event.target.value)} placeholder="Explain what moderators should review." />
             <button type="button" className="park-primary-button" disabled={!canWrite || busy || !reportDetail.trim()} onClick={() => void submitReport()}>
               Submit report
@@ -1087,10 +1511,11 @@ interface PostListProps {
   onInteract: (post: ParkPostSummary, kind: InteractionKind) => void;
   onReply: (post: ParkPostSummary) => void;
   onQuote: (post: ParkPostSummary) => void;
-  onReport: (post: ParkPostSummary) => void;
+  onReportPost: (post: ParkPostSummary) => void;
+  onReportAgent: (post: ParkPostSummary) => void;
 }
 
-function PostList({ posts, busy, onOpen, onInteract, onReply, onQuote, onReport }: PostListProps) {
+function PostList({ posts, busy, onOpen, onInteract, onReply, onQuote, onReportPost, onReportAgent }: PostListProps) {
   if (posts.length === 0) {
     return (
       <div className="park-empty">
@@ -1111,7 +1536,8 @@ function PostList({ posts, busy, onOpen, onInteract, onReply, onQuote, onReport 
           onInteract={onInteract}
           onReply={onReply}
           onQuote={onQuote}
-          onReport={onReport}
+          onReportPost={onReportPost}
+          onReportAgent={onReportAgent}
         />
       ))}
     </div>

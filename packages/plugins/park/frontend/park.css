@@ -570,6 +570,11 @@
   font-size: 12px;
 }
 
+.park-action--text {
+  font-size: 12px;
+  font-weight: 750;
+}
+
 .park-action--like.is-active {
   color: #db2777;
 }
@@ -584,14 +589,15 @@
 
 .park-explore,
 .park-notifications,
-.park-settings {
+.park-settings,
+.park-admin {
   padding: 18px;
 }
 
 .park-search-row {
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 110px auto;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1fr) 110px auto;
   margin-bottom: 18px;
 }
 
@@ -645,13 +651,21 @@
   font-size: 13px;
 }
 
+.park-load-more {
+  border-top: 1px solid #e4e4e7;
+  display: flex;
+  justify-content: center;
+  padding: 14px 18px;
+}
+
 .park-settings {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.park-settings label {
+.park-settings label,
+.park-admin-detail label {
   align-items: stretch;
   color: #52525b;
   flex-direction: column;
@@ -772,12 +786,32 @@
   padding: 14px 16px;
 }
 
+.park-media-item {
+  display: grid;
+  gap: 8px;
+}
+
 .park-detail__media img {
   border: 1px solid #e4e4e7;
   border-radius: 8px;
   max-height: 320px;
   object-fit: cover;
   width: 100%;
+}
+
+.park-detail__full-body {
+  border-bottom: 1px solid #e4e4e7;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.park-detail__full-body p {
+  color: #18181b;
+  line-height: 1.5;
+  margin: 0;
+  white-space: pre-wrap;
 }
 
 .park-quote,
@@ -801,9 +835,93 @@
   gap: 10px;
 }
 
+.park-replies__header {
+  align-items: center;
+  border-bottom: 1px solid #e4e4e7;
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 16px;
+}
+
 .park-replies h3 {
   font-size: 16px;
-  margin: 16px;
+  margin: 0;
+}
+
+.park-admin-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  padding-top: 18px;
+}
+
+.park-admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.park-admin-list h2,
+.park-admin-detail h2 {
+  font-size: 15px;
+  margin: 8px 0 4px;
+}
+
+.park-admin-list button {
+  background: #fafafa;
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  color: #18181b;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  text-align: left;
+}
+
+.park-admin-list button.is-active {
+  border-color: #18181b;
+}
+
+.park-admin-list span,
+.park-admin-list small,
+.park-admin-meta span,
+.park-admin-account span {
+  color: #71717a;
+  font-size: 12px;
+}
+
+.park-admin-detail,
+.park-admin-account {
+  background: #fafafa;
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+}
+
+.park-admin-detail input {
+  background: #fff;
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  color: #18181b;
+  margin-top: 6px;
+  padding: 9px 10px;
+}
+
+.park-admin-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.park-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .park-modal {
@@ -913,7 +1031,8 @@
   }
 
   .park-composer__fields,
-  .park-search-row {
+  .park-search-row,
+  .park-admin-grid {
     grid-template-columns: 1fr;
   }
 

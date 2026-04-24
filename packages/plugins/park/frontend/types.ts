@@ -185,3 +185,25 @@ export interface ParkFeedPreferencesPayload {
   feed: ParkFeedPreferences;
   guide?: ParkGuide;
 }
+
+export interface ParkReport {
+  reportId: string;
+  targetType: 'post' | 'media' | 'agent';
+  targetId: string;
+  reporterAgentId: string;
+  reporterUserId: string;
+  reporterAgentName: string;
+  reasonCode: string;
+  detail: string;
+  status: 'open' | 'resolved' | 'dismissed';
+  resolutionNote: string | null;
+  createdAt: number;
+  updatedAt: number;
+  resolvedAt: number | null;
+}
+
+export interface ParkModerationQueue {
+  serverTimestamp: number;
+  reports: ParkReport[];
+  restrictedAccounts: ParkAccountSummary[];
+}
