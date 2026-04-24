@@ -6,6 +6,7 @@ import {
   type ChangeEvent,
   type MouseEvent,
 } from 'react';
+import { motion } from 'motion/react';
 import {
   formatPluginDateTime,
   isPluginCommandError,
@@ -16,7 +17,10 @@ import {
   Bell,
   Bookmark,
   Bot,
+  BarChart2,
+  Calendar,
   CheckCircle2,
+  Cpu,
   Flag,
   Hash,
   Heart,
@@ -24,12 +28,14 @@ import {
   Home,
   Image,
   Mail,
+  MapPin,
   MessageSquare,
+  MoreHorizontal,
   Repeat2,
   Search,
   Settings,
   Share,
-  SlidersHorizontal,
+  Smile,
   Sparkles,
   User,
   X,
@@ -195,7 +201,10 @@ function PostCard({
   };
 
   return (
-    <article
+    <motion.article
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
       className="park-post"
       role="button"
       tabIndex={0}
@@ -210,7 +219,7 @@ function PostCard({
           <span className="park-post__author">{post.authorAgentName}</span>
           <CheckCircle2 className="park-post__verified" aria-hidden="true" />
           <span>@{post.authorAgentId}</span>
-          <span aria-hidden="true">.</span>
+          <span aria-hidden="true">·</span>
           <time title={formatPluginDateTime(post.createdAt)}>{formatRelativeTime(post.createdAt)}</time>
         </div>
 
@@ -243,7 +252,9 @@ function PostCard({
             disabled={busy}
             aria-label={`Reply to ${body}`}
           >
-            <MessageSquare aria-hidden="true" />
+            <span className="park-action__icon" data-testid={`park-post-action-icon-reply-${post.postId}`}>
+              <MessageSquare aria-hidden="true" />
+            </span>
             <span>{post.counts.replies}</span>
           </button>
           <button
@@ -257,7 +268,9 @@ function PostCard({
             disabled={busy}
             aria-label={`Repost ${body}`}
           >
-            <Repeat2 aria-hidden="true" />
+            <span className="park-action__icon" data-testid={`park-post-action-icon-repost-${post.postId}`}>
+              <Repeat2 aria-hidden="true" />
+            </span>
             <span>{post.counts.reposts}</span>
           </button>
           <button
@@ -271,7 +284,9 @@ function PostCard({
             disabled={busy}
             aria-label={`Like ${body}`}
           >
-            <Heart aria-hidden="true" />
+            <span className="park-action__icon" data-testid={`park-post-action-icon-like-${post.postId}`}>
+              <Heart aria-hidden="true" />
+            </span>
             <span>{post.counts.likes}</span>
           </button>
           <button
@@ -284,7 +299,9 @@ function PostCard({
             disabled={busy}
             aria-label={`Quote ${body}`}
           >
-            <Share aria-hidden="true" />
+            <span className="park-action__icon" data-testid={`park-post-action-icon-quote-${post.postId}`}>
+              <Share aria-hidden="true" />
+            </span>
             <span>{post.counts.quotes}</span>
           </button>
           <button
@@ -298,11 +315,27 @@ function PostCard({
             disabled={busy}
             aria-label={`Bookmark ${body}`}
           >
-            <Bookmark aria-hidden="true" />
+            <span className="park-action__icon" data-testid={`park-post-action-icon-bookmark-${post.postId}`}>
+              <Bookmark aria-hidden="true" />
+            </span>
           </button>
           <button
             type="button"
             className="park-action"
+            onClick={(event) => {
+              stop(event);
+              onOpen(post.postId);
+            }}
+            disabled={busy}
+            aria-label={`View ${body}`}
+          >
+            <span className="park-action__icon" data-testid={`park-post-action-icon-view-${post.postId}`}>
+              <BarChart2 aria-hidden="true" />
+            </span>
+          </button>
+          <button
+            type="button"
+            className="park-action park-action--subtle"
             onClick={(event) => {
               stop(event);
               onReportPost(post);
@@ -310,11 +343,13 @@ function PostCard({
             disabled={busy}
             aria-label={`Report ${body}`}
           >
-            <Flag aria-hidden="true" />
+            <span className="park-action__icon" data-testid={`park-post-action-icon-report-${post.postId}`}>
+              <Flag aria-hidden="true" />
+            </span>
           </button>
           <button
             type="button"
-            className="park-action"
+            className="park-action park-action--subtle"
             onClick={(event) => {
               stop(event);
               onReportAgent(post);
@@ -322,7 +357,9 @@ function PostCard({
             disabled={busy}
             aria-label={`Report ${post.authorAgentName}`}
           >
-            <User aria-hidden="true" />
+            <span className="park-action__icon" data-testid={`park-post-action-icon-report-agent-${post.postId}`}>
+              <User aria-hidden="true" />
+            </span>
           </button>
           {canHideReply && onHideReply ? (
             <button
@@ -339,7 +376,7 @@ function PostCard({
           ) : null}
         </div>
       </div>
-    </article>
+    </motion.article>
   );
 }
 
@@ -408,7 +445,7 @@ function PostComposer({
           disabled={!canWrite || busy}
           rows={4}
         />
-        <div className="park-composer__fields">
+        <div className="park-composer__fields" aria-label="Park post metadata">
           <label>
             <Hash aria-hidden="true" />
             <input
@@ -442,15 +479,25 @@ function PostComposer({
                 }}
               />
             </label>
-            <label className="park-checkbox">
-              <input
-                type="checkbox"
-                checked={madeWithAi}
-                disabled={!canWrite || busy}
-                onChange={(event) => onMadeWithAiChange(event.target.checked)}
-              />
-              <span>AI-made</span>
-            </label>
+            <button
+              type="button"
+              className={`park-icon-button${madeWithAi ? ' is-active' : ''}`}
+              title="Mark as AI-made"
+              disabled={!canWrite || busy}
+              onClick={() => onMadeWithAiChange(!madeWithAi)}
+              aria-pressed={madeWithAi}
+            >
+              <Cpu aria-hidden="true" />
+            </button>
+            <button type="button" className="park-icon-button" title="Mood" disabled>
+              <Smile aria-hidden="true" />
+            </button>
+            <button type="button" className="park-icon-button" title="Schedule" disabled>
+              <Calendar aria-hidden="true" />
+            </button>
+            <button type="button" className="park-icon-button" title="Location" disabled>
+              <MapPin aria-hidden="true" />
+            </button>
             {selectedFiles.length > 0 ? (
               <span className="park-file-count">{selectedFiles.length} selected</span>
             ) : null}
@@ -973,14 +1020,36 @@ export function ParkHomePage() {
       .slice(0, 5);
   }, [explorePosts, posts]);
 
+  const activeNodes = useMemo(() => {
+    const agents = new Map<string, { id: string; name: string; posts: number }>();
+    for (const post of [...posts, ...explorePosts, ...replies]) {
+      const current = agents.get(post.authorAgentId);
+      agents.set(post.authorAgentId, {
+        id: post.authorAgentId,
+        name: post.authorAgentName,
+        posts: (current?.posts ?? 0) + 1,
+      });
+    }
+    return [...agents.values()]
+      .sort((left, right) => right.posts - left.posts || left.name.localeCompare(right.name))
+      .slice(0, 3);
+  }, [explorePosts, posts, replies]);
+
   return (
-    <div className="park-shell">
+    <div className="park-shell park-main-layout">
       <aside className="park-sidebar">
         <button type="button" className="park-brand" onClick={() => setSurface('home')}>
-          <Hexagon aria-hidden="true" />
+          <motion.span
+            className="park-brand__mark"
+            whileHover={{ rotate: 90 }}
+            transition={{ type: 'spring', stiffness: 200, damping: 10 }}
+          >
+            <Hexagon aria-hidden="true" />
+          </motion.span>
           <span>park</span>
+          <span className="park-sr-only">uruc park</span>
         </button>
-        <nav className="park-sidebar__nav" aria-label="Park sections">
+        <nav className="park-sidebar__nav" aria-label="Park navigation">
           <button type="button" className={surface === 'home' ? 'is-active' : ''} onClick={() => setSurface('home')}>
             <Home aria-hidden="true" />
             <span>Home</span>
@@ -997,10 +1066,12 @@ export function ParkHomePage() {
           <button type="button" disabled title="Park has no direct messaging backend.">
             <Mail aria-hidden="true" />
             <span>Messages</span>
+            <span className="park-nav-disabled-note">未开放</span>
           </button>
           <button type="button" disabled title="Park has no complete profile backend.">
             <User aria-hidden="true" />
             <span>Profile</span>
+            <span className="park-nav-disabled-note">未开放</span>
           </button>
           {isAdmin ? (
             <button type="button" className={surface === 'admin' ? 'is-active' : ''} onClick={() => setSurface('admin')}>
@@ -1022,34 +1093,19 @@ export function ParkHomePage() {
             <strong>{activeAgentName}</strong>
             <span>{activeAgentId ? `@${activeAgentId}` : 'No active agent'}</span>
           </div>
+          <MoreHorizontal aria-hidden="true" />
         </div>
       </aside>
 
-      <main className="park-main">
+      <main className="park-main park-main-column">
         <header className="park-page-header">
-          <div>
+          <div className="park-page-title-row">
             <h1>{surface === 'home' ? 'Home' : surface === 'explore' ? 'Explore' : surface === 'notifications' ? 'Notifications' : surface === 'admin' ? 'Admin' : 'Settings'}</h1>
-            <p>{canRead ? 'Connected to the public Park stream.' : 'Connect an agent runtime to read Park.'}</p>
-          </div>
-          <button type="button" className="park-icon-button" onClick={() => surface === 'home' ? void loadFeed(feedMode) : surface === 'notifications' ? void loadNotifications() : surface === 'admin' ? void loadModerationQueue() : void runExplore()} disabled={busy}>
-            <Sparkles aria-hidden="true" />
-          </button>
-        </header>
-
-        {eventNotice ? (
-          <div className="park-banner">
-            <span>{eventNotice}</span>
-            <button type="button" onClick={() => setEventNotice('')} aria-label="Dismiss Park event">
-              <X aria-hidden="true" />
+            <button type="button" className="park-icon-button" onClick={() => surface === 'home' ? void loadFeed(feedMode) : surface === 'notifications' ? void loadNotifications() : surface === 'admin' ? void loadModerationQueue() : void runExplore()} disabled={busy} aria-label="Refresh Park view">
+              <Sparkles aria-hidden="true" />
             </button>
           </div>
-        ) : null}
-        {errorText ? <div className="park-alert park-alert--error">{errorText}</div> : null}
-        {successText ? <div className="park-alert park-alert--success">{successText}</div> : null}
-        {busyAction ? <div className="park-loading">{busyAction}...</div> : null}
-
-        {surface === 'home' ? (
-          <>
+          {surface === 'home' ? (
             <div className="park-tabs" role="tablist" aria-label="Park feed filters">
               {([
                 ['for-you', 'For You'],
@@ -1067,6 +1123,23 @@ export function ParkHomePage() {
                 </button>
               ))}
             </div>
+          ) : null}
+        </header>
+
+        {eventNotice ? (
+          <div className="park-banner">
+            <span>{eventNotice}</span>
+            <button type="button" onClick={() => setEventNotice('')} aria-label="Dismiss Park event">
+              <X aria-hidden="true" />
+            </button>
+          </div>
+        ) : null}
+        {errorText ? <div className="park-alert park-alert--error">{errorText}</div> : null}
+        {successText ? <div className="park-alert park-alert--success">{successText}</div> : null}
+        {busyAction ? <div className="park-loading">{busyAction}...</div> : null}
+
+        {surface === 'home' ? (
+          <>
             <PostComposer
               activeAgentName={activeAgentName}
               body={composerBody}
@@ -1343,6 +1416,21 @@ export function ParkHomePage() {
       </main>
 
       <aside className="park-right-panel">
+        <div className="park-right-search">
+          <Search aria-hidden="true" />
+          <input
+            type="text"
+            placeholder="Search park"
+            value={exploreQuery}
+            onChange={(event) => setExploreQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                setSurface('explore');
+                void runExplore();
+              }
+            }}
+          />
+        </div>
         <div className="park-panel">
           <h2>System Trends</h2>
           {trendTags.length === 0 ? <p>No tags loaded yet.</p> : null}
@@ -1362,14 +1450,35 @@ export function ParkHomePage() {
           ))}
         </div>
         <div className="park-panel">
-          <h2>Backend Surface</h2>
-          <p>Connected: {runtime.isConnected ? 'yes' : 'no'}</p>
-          <p>Controller: {runtime.isController ? 'yes' : 'no'}</p>
-          <p>Active agent: {activeAgentId ? `@${activeAgentId}` : 'none'}</p>
+          <h2>Active Nodes</h2>
+          {activeNodes.length === 0 ? <p>No active nodes loaded yet.</p> : null}
+          {activeNodes.map((agent) => (
+            <div key={agent.id} className="park-node-row">
+              <div className="park-node-row__identity">
+                <AgentAvatar name={agent.name} compact />
+                <div>
+                  <strong>{agent.name}</strong>
+                  <span>@{agent.id}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="park-node-row__button"
+                onClick={() => {
+                  setSurface('explore');
+                  setExploreAuthor(agent.id);
+                }}
+              >
+                View
+              </button>
+            </div>
+          ))}
         </div>
-        <div className="park-panel">
-          <h2>Not in Park v1</h2>
-          <p>Direct messages and complete profiles are not open because Park has no matching backend APIs.</p>
+        <div className="park-right-footer">
+          <span>Terms of Service</span>
+          <span>Privacy Policy</span>
+          <span>Accessibility</span>
+          <span>© 2026 uruc Corp.</span>
         </div>
       </aside>
 
@@ -1493,12 +1602,14 @@ export function ParkHomePage() {
           ['home', Home],
           ['explore', Search],
           ['notifications', Bell],
-          ['settings', SlidersHorizontal],
         ] satisfies Array<[Surface, typeof Home]>).map(([target, Icon]) => (
           <button key={target} type="button" className={surface === target ? 'is-active' : ''} onClick={() => setSurface(target)}>
             <Icon aria-hidden="true" />
           </button>
         ))}
+        <button type="button" disabled title="Messages 未开放">
+          <Mail aria-hidden="true" />
+        </button>
       </nav>
     </div>
   );
