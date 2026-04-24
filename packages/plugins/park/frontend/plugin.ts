@@ -25,11 +25,35 @@ const route = (
   },
 });
 
+const venueRoute = (
+  id: string,
+  pathSegment: string,
+  order: number,
+  load: () => Promise<{ default: unknown }>,
+) => ({
+  target: PAGE_ROUTE_TARGET,
+  payload: {
+    id,
+    pathSegment,
+    aliases: [`/app/park${pathSegment === 'home' ? '' : `/${pathSegment}`}`],
+    shell: 'app',
+    guard: 'auth',
+    order,
+    venue: {
+      titleKey: 'park:nav.label',
+      descriptionKey: 'park:intro.body',
+      icon: 'landmark',
+      category: 'public space',
+    },
+    load,
+  },
+});
+
 export default defineFrontendPlugin({
   pluginId: 'uruc.park',
   version: '0.1.0',
   contributes: [
-    route('home', 'home', 57, async () => ({ default: (await import('./ParkHomePage')).ParkHomePage })),
+    venueRoute('home', 'home', 57, async () => ({ default: (await import('./ParkHomePage')).ParkHomePage })),
     route('explore', 'explore', 58, async () => ({ default: (await import('./pages/ExplorePage')).ExplorePage })),
     route('notifications', 'notifications', 59, async () => ({ default: (await import('./pages/NotificationsPage')).NotificationsPage })),
     route('messages', 'messages', 60, async () => ({ default: (await import('./pages/MessagesPage')).MessagesPage })),

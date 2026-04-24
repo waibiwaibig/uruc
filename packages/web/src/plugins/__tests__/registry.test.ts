@@ -118,8 +118,12 @@ describe('frontend plugin registry v2', () => {
       aliases: ['/app/park'],
       shell: 'app',
       guard: 'auth',
+      venue: {
+        titleKey: 'park:nav.label',
+        descriptionKey: 'park:intro.body',
+        category: 'public space',
+      },
     });
-    expect(route?.venue).toBeUndefined();
     expect(moderation).toMatchObject({
       path: '/workspace/plugins/uruc.park/moderation',
       aliases: ['/admin/park'],
