@@ -26,6 +26,14 @@
       "permissionsGranted": [],
       "devOverridePath": "../plugins/fleamarket",
       "config": {}
+    },
+    "uruc.park": {
+      "pluginId": "uruc.park",
+      "packageName": "@uruc/plugin-park",
+      "enabled": true,
+      "permissionsGranted": [],
+      "config": {},
+      "devOverridePath": "../plugins/park"
     }
   },
   "pluginStoreDir": ".uruc/plugins"
