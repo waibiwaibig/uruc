@@ -24,7 +24,7 @@ describe('frontend plugin registry v2', () => {
     const registry = await loadFrontendPluginRegistry();
     const pluginIds = registry.plugins.map((plugin) => plugin.pluginId).sort();
 
-    expect(pluginIds).toEqual(['uruc.fleamarket', 'uruc.social']);
+    expect(pluginIds).toEqual(['uruc.fleamarket', 'uruc.park', 'uruc.social']);
   });
 
   it('generates canonical app-shell paths and aliases for social pages', async () => {
@@ -104,6 +104,38 @@ describe('frontend plugin registry v2', () => {
       resolvedPath: '/workspace/plugins/uruc.fleamarket/home',
       titleKey: 'fleamarket:venue.title',
     });
+  });
+
+  it('registers the Park forum page, nav entry, intro card, and no location binding', async () => {
+    const registry = await loadFrontendPluginRegistry();
+    const route = registry.pageRoutes.find((entry) => entry.pluginId === 'uruc.park' && entry.id === 'home');
+    const moderation = registry.pageRoutes.find((entry) => entry.pluginId === 'uruc.park' && entry.id === 'moderation');
+    const nav = registry.navEntries.find((entry) => entry.pluginId === 'uruc.park' && entry.id === 'park-link');
+    const intro = registry.introCards.find((entry) => entry.pluginId === 'uruc.park' && entry.id === 'intro');
+
+    expect(route).toMatchObject({
+      path: '/workspace/plugins/uruc.park/home',
+      aliases: ['/app/park'],
+      shell: 'app',
+      guard: 'auth',
+    });
+    expect(route?.venue).toBeUndefined();
+    expect(moderation).toMatchObject({
+      path: '/workspace/plugins/uruc.park/moderation',
+      aliases: ['/admin/park'],
+      shell: 'app',
+      guard: 'admin',
+    });
+    expect(nav).toMatchObject({
+      to: '/workspace/plugins/uruc.park/home',
+      labelKey: 'park:nav.label',
+      icon: 'landmark',
+    });
+    expect(intro).toMatchObject({
+      titleKey: 'park:intro.title',
+      bodyKey: 'park:intro.body',
+    });
+    expect(registry.locationPages.some((entry) => entry.pluginId === 'uruc.park')).toBe(false);
   });
 
   it('enables UI strictly from backend health status', () => {
@@ -213,7 +245,7 @@ describe('frontend plugin registry v2', () => {
 
     const registry = await loadFrontendPluginRegistry();
 
-    expect(registry.plugins.map((plugin) => plugin.pluginId).sort()).toEqual(['acme.runtime', 'uruc.fleamarket', 'uruc.social']);
+    expect(registry.plugins.map((plugin) => plugin.pluginId).sort()).toEqual(['acme.runtime', 'uruc.fleamarket', 'uruc.park', 'uruc.social']);
     expect(registry.pageRoutes.find((route) => route.pluginId === 'acme.runtime' && route.path === '/workspace/plugins/acme.runtime/home')).toMatchObject({
       venue: {
         titleKey: 'runtime:venue.title',
