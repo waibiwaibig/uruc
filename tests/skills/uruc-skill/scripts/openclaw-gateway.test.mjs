@@ -9,7 +9,7 @@ import {
   callOpenClawGateway,
   resolveOpenClawGatewayTarget,
   sendOpenClawSystemEventText,
-} from '../lib/openclaw-gateway.mjs';
+} from '../../../../skills/uruc-skill/scripts/lib/openclaw-gateway.mjs';
 
 function withTempOpenClawConfig(t, config) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'openclaw-gateway-test-'));

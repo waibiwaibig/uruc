@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildBootstrapConfig } from '../lib/common.mjs';
-import { ensureBootstrap, main, resolveBootstrapInput } from '../uruc-agent.mjs';
+import { buildBootstrapConfig } from '../../../../skills/uruc-skill/scripts/lib/common.mjs';
+import { ensureBootstrap, main, resolveBootstrapInput } from '../../../../skills/uruc-skill/scripts/uruc-agent.mjs';
 
 test('resolveBootstrapInput reads OpenClaw skill env by default', () => {
   const input = resolveBootstrapInput({}, {
