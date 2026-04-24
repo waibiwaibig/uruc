@@ -58,6 +58,7 @@ interface RegisteredContributionBase {
 export interface RegisteredPageRoute extends RegisteredContributionBase, Omit<PageRoutePayload, 'load'> {
   path: string;
   load: PageRoutePayload['load'];
+  styleUrls: string[];
 }
 
 export interface RegisteredLocationPage extends RegisteredContributionBase, LocationPagePayload {
@@ -81,6 +82,7 @@ export interface FrontendPluginRegistry {
 interface LoadedPluginRecord {
   plugin: FrontendPlugin;
   source: string;
+  cssUrls: string[];
 }
 
 interface DiscoveredPackageRecord {
@@ -93,7 +95,6 @@ interface DiscoveredPackageRecord {
 }
 
 const runtimeScriptLoads = new Map<string, Promise<void>>();
-const runtimeStylesLoaded = new Set<string>();
 
 function formatZodError(error: ZodError): string {
   return error.issues
@@ -118,22 +119,6 @@ function hasRuntimeFrontendEnvironment(): boolean {
     && typeof document !== 'undefined'
     && typeof document.createElement === 'function'
     && typeof document.head?.appendChild === 'function';
-}
-
-function ensureRuntimeStylesheet(url: string): void {
-  if (!hasRuntimeFrontendEnvironment()) {
-    return;
-  }
-  if (runtimeStylesLoaded.has(url)) {
-    return;
-  }
-
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = url;
-  link.setAttribute?.('data-uruc-plugin-asset', url);
-  document.head.appendChild(link);
-  runtimeStylesLoaded.add(url);
 }
 
 async function ensureRuntimeScript(url: string): Promise<void> {
@@ -237,6 +222,7 @@ function addLoadedPluginCandidate(options: {
   expectedPluginId: string;
   candidate: unknown;
   source: string;
+  cssUrls?: string[];
   diagnostics: FrontendPluginDiagnostic[];
   loadedPlugins: LoadedPluginRecord[];
 }): void {
@@ -265,6 +251,7 @@ function addLoadedPluginCandidate(options: {
   options.loadedPlugins.push({
     plugin,
     source: options.source,
+    cssUrls: options.cssUrls ?? [],
   });
 }
 
@@ -416,9 +403,6 @@ async function loadRuntimeFrontendPlugins(staticPluginIds: Set<string>): Promise
     seenRuntimePluginIds.add(manifest.pluginId);
 
     try {
-      for (const cssUrl of manifest.cssUrls) {
-        ensureRuntimeStylesheet(cssUrl);
-      }
       await ensureRuntimeScript(manifest.entryUrl);
     } catch (error) {
       diagnostics.push({
@@ -445,6 +429,7 @@ async function loadRuntimeFrontendPlugins(staticPluginIds: Set<string>): Promise
       expectedPluginId: manifest.pluginId,
       candidate,
       source: manifest.entryUrl,
+      cssUrls: manifest.cssUrls,
       diagnostics,
       loadedPlugins,
     });
@@ -465,7 +450,7 @@ function buildRegistryFromLoadedPlugins(
   const runtimeSlices: RegisteredRuntimeSlice[] = [];
   const rawLocationPages: Array<RegisteredContributionBase & LocationPagePayload> = [];
 
-  for (const { plugin, source } of loadedPlugins) {
+  for (const { plugin, source, cssUrls } of loadedPlugins) {
     if (seenPluginIds.has(plugin.pluginId)) {
       diagnostics.push({
         pluginId: plugin.pluginId,
@@ -523,6 +508,8 @@ function buildRegistryFromLoadedPlugins(
           pageRoutes.push({
             ...base,
             ...payload,
+            styles: payload.styles ?? [],
+            styleUrls: [...cssUrls],
             venue: payload.venue ? { ...payload.venue, category: payload.venue.category ?? 'else' } : undefined,
             path: canonicalPluginRoute(plugin.pluginId, payload),
           });

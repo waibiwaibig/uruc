@@ -9,6 +9,7 @@ const pluginPackagesRoot = path.join(root, 'packages/plugins');
 const coreTypesFile = path.join(root, 'packages/web/src/lib/types.ts');
 const coreApiFile = path.join(root, 'packages/web/src/lib/api.ts');
 const registryFile = path.join(root, 'packages/web/src/plugins/registry.ts');
+const pluginRouteElementFile = path.join(root, 'packages/web/src/components/plugins/PluginRouteElement.tsx');
 
 const forbiddenImportSnippets = [
   'web/src/context/',
@@ -16,6 +17,17 @@ const forbiddenImportSnippets = [
   'web/src/lib/ws',
   'web/src/lib/types',
   'web/src/lib/api',
+];
+
+const cssImportPattern = /^\s*import\s+(?:[^'"()]+?\s+from\s+)?['"]([^'"]+\.css(?:\?[^'"]*)?)['"];?/gm;
+const forbiddenGlobalCssPatterns = [
+  { label: '.hidden', pattern: /\.hidden\b/ },
+  { label: '.flex', pattern: /\.flex\b/ },
+  { label: '.flex-col', pattern: /\.flex-col\b/ },
+  { label: 'html selector', pattern: /(^|[,\s])html(?=[\s,{:.#\[]|$)/ },
+  { label: 'body selector', pattern: /(^|[,\s])body(?=[\s,{:.#\[]|$)/ },
+  { label: ':root selector', pattern: /:root\b/ },
+  { label: '@layer utilities', pattern: /@layer\s+utilities\b/ },
 ];
 
 async function walk(dir) {
@@ -55,6 +67,10 @@ async function checkPluginFrontends() {
       const frontendEntry = pkg.urucFrontend.entry;
       const frontendPath = path.join(packageRoot, frontendEntry.replace(/^\.\//, ''));
       const frontendText = await readFile(frontendPath, 'utf8');
+      const entryCssImports = [...frontendText.matchAll(cssImportPattern)];
+      for (const match of entryCssImports) {
+        violations.push(`${relative(frontendPath)} directly imports stylesheet '${match[1]}'; declare route styles with a ?inline loader so CSS is injected into the plugin shadow root`);
+      }
       const pluginIdMatch = frontendText.match(/pluginId:\s*['"`]([^'"`]+)['"`]/);
       if (!pluginIdMatch) {
         violations.push(`${relative(frontendPath)} must declare a literal pluginId`);
@@ -81,6 +97,20 @@ async function checkPluginFrontends() {
       for (const file of files) {
         if (!/\.(ts|tsx|mts|cts|js|jsx)$/.test(file)) continue;
         const text = await readFile(file, 'utf8');
+        const cssImports = [...text.matchAll(cssImportPattern)];
+        for (const match of cssImports) {
+          const cssFile = path.resolve(path.dirname(file), match[1].replace(/\?.*$/, ''));
+          let cssText = '';
+          try {
+            cssText = await readFile(cssFile, 'utf8');
+          } catch {
+            cssText = '';
+          }
+          const globalPattern = forbiddenGlobalCssPatterns.find((item) => item.pattern.test(cssText));
+          if (globalPattern) {
+            violations.push(`${relative(file)} directly imports stylesheet '${match[1]}' containing global selector '${globalPattern.label}'; plugin CSS with global selectors must be shadow-only`);
+          }
+        }
         for (const snippet of forbiddenImportSnippets) {
           if (text.includes(snippet)) {
             violations.push(`${relative(file)} imports forbidden host path fragment '${snippet}'`);
@@ -116,6 +146,17 @@ async function checkCoreFiles() {
   const registry = await readFile(registryFile, 'utf8');
   if (registry.includes('server/src/plugins')) {
     violations.push(`${relative(registryFile)} still references the legacy server plugin source tree`);
+  }
+  if (registry.includes('ensureRuntimeStylesheet') || /rel\s*=\s*['"]stylesheet['"][\s\S]{0,500}document\.head/.test(registry)) {
+    violations.push(`${relative(registryFile)} must not inject plugin stylesheets into document.head; pass CSS URLs to the isolated plugin route host`);
+  }
+
+  const pluginRouteElement = await readFile(pluginRouteElementFile, 'utf8');
+  if (!pluginRouteElement.includes('attachShadow({ mode: \'open\' })') && !pluginRouteElement.includes('attachShadow({ mode: "open" })')) {
+    violations.push(`${relative(pluginRouteElementFile)} must render plugin pages inside an open shadow root`);
+  }
+  if (!pluginRouteElement.includes('data-uruc-plugin-portal-root')) {
+    violations.push(`${relative(pluginRouteElementFile)} must provide a plugin-local portal root for overlays`);
   }
 
   return violations;

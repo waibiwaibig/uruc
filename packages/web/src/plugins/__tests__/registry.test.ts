@@ -251,15 +251,109 @@ describe('frontend plugin registry v2', () => {
 
     expect(registry.plugins.map((plugin) => plugin.pluginId).sort()).toEqual(['acme.runtime', 'uruc.fleamarket', 'uruc.park', 'uruc.social']);
     expect(registry.pageRoutes.find((route) => route.pluginId === 'acme.runtime' && route.path === '/workspace/plugins/acme.runtime/home')).toMatchObject({
+      styleUrls: ['/api/plugin-assets/acme.runtime/rev-runtime/frontend-dist/plugin.css'],
       venue: {
         titleKey: 'runtime:venue.title',
         descriptionKey: 'runtime:venue.body',
         category: 'else',
       },
     });
-    expect(appended).toEqual(expect.arrayContaining([
-      expect.objectContaining({ tagName: 'LINK', href: '/api/plugin-assets/acme.runtime/rev-runtime/frontend-dist/plugin.css' }),
+    expect(appended).toEqual([
       expect.objectContaining({ tagName: 'SCRIPT', src: '/api/plugin-assets/acme.runtime/rev-runtime/frontend-dist/plugin.js' }),
-    ]));
+    ]);
+  });
+
+  it('keeps runtime plugin styles out of document.head so plugin utilities cannot override the workspace shell', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.pathname
+          : input.url;
+
+      if (url === '/api/frontend-plugins') {
+        return new Response(JSON.stringify({
+          plugins: [{
+            pluginId: 'acme.css-guard',
+            version: '0.1.0',
+            revision: 'rev-css-guard',
+            format: 'global-script',
+            entryUrl: '/api/plugin-assets/acme.css-guard/rev-css-guard/frontend-dist/plugin.js',
+            cssUrls: ['/api/plugin-assets/acme.css-guard/rev-css-guard/frontend-dist/plugin.css'],
+            exportKey: 'acme.css-guard',
+            source: 'frontend-dist/manifest.json',
+          }],
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json; charset=utf-8' },
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    }));
+
+    const inserted: Array<{ tagName: string; href?: string; beforeHref?: string }> = [];
+    const appended: Array<{ tagName: string; src?: string }> = [];
+    vi.stubGlobal('document', {
+      head: {
+        insertBefore(node: Record<string, unknown>, before: Record<string, unknown>) {
+          inserted.push({
+            tagName: String(node.tagName ?? ''),
+            href: typeof node.href === 'string' ? node.href : undefined,
+            beforeHref: typeof before.href === 'string' ? before.href : undefined,
+          });
+          return node;
+        },
+        appendChild(node: Record<string, unknown>) {
+          appended.push({
+            tagName: String(node.tagName ?? ''),
+            src: typeof node.src === 'string' ? node.src : undefined,
+          });
+          if (typeof node.onload === 'function') {
+            node.onload(new Event('load'));
+          }
+          return node;
+        },
+      },
+      createElement(tagName: string) {
+        return {
+          tagName: tagName.toUpperCase(),
+          rel: '',
+          href: '',
+          src: '',
+          async: false,
+          onload: null,
+          onerror: null,
+          setAttribute() {},
+        };
+      },
+    });
+
+    (globalThis as Record<string, unknown>).__uruc_plugin_exports = {
+      'acme.css-guard': {
+        pluginId: 'acme.css-guard',
+        version: '0.1.0',
+        contributes: [{
+          target: PAGE_ROUTE_TARGET,
+          payload: {
+            id: 'home',
+            pathSegment: 'home',
+            shell: 'app',
+            guard: 'auth',
+            load: async () => ({ default: () => null }),
+          },
+        }],
+      },
+    };
+
+    const registry = await loadFrontendPluginRegistry();
+
+    expect(registry.pageRoutes.find((route) => route.pluginId === 'acme.css-guard')?.styleUrls).toEqual([
+      '/api/plugin-assets/acme.css-guard/rev-css-guard/frontend-dist/plugin.css',
+    ]);
+    expect(inserted).toEqual([]);
+    expect(appended).toEqual([
+      expect.objectContaining({ tagName: 'SCRIPT', src: '/api/plugin-assets/acme.css-guard/rev-css-guard/frontend-dist/plugin.js' }),
+    ]);
   });
 });

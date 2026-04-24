@@ -21,6 +21,8 @@ export type FrontendApiVersion = 1;
 
 export type PluginPageModule = { default: unknown };
 export type PluginPageLoader = () => Promise<PluginPageModule>;
+export type PluginStyleModule = string | { default: string };
+export type PluginStyleLoader = () => Promise<PluginStyleModule>;
 export type RuntimeListener = (payload: unknown) => void;
 
 export interface PluginCommandErrorPayload {
@@ -185,6 +187,7 @@ export const pageRouteSchema = z.object({
   order: z.number().optional(),
   venue: venueMetadataSchema.optional(),
   load: functionSchema,
+  styles: z.array(functionSchema).optional(),
 });
 
 export const locationPageSchema = z.object({
@@ -247,7 +250,10 @@ export const pluginPackageSchema = z.object({
   urucFrontend: frontendPackageMetadataSchema.optional(),
 });
 
-export type PageRoutePayload = z.infer<typeof pageRouteSchema> & { load: PluginPageLoader };
+export type PageRoutePayload = Omit<z.infer<typeof pageRouteSchema>, 'load' | 'styles'> & {
+  load: PluginPageLoader;
+  styles?: PluginStyleLoader[];
+};
 export type LocationPagePayload = z.infer<typeof locationPageSchema>;
 export type NavEntryPayload = z.infer<typeof navEntrySchema>;
 export type IntroCardPayload = z.infer<typeof introCardSchema>;

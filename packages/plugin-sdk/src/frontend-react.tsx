@@ -4,6 +4,18 @@ import { isPluginCommandError } from './frontend.js';
 
 export const PluginPageContext = createContext<PluginPageData | null>(null);
 
+export interface PluginDomBoundary {
+  shadowRoot: ShadowRoot | null;
+  portalContainer: HTMLElement | null;
+}
+
+const PluginDomBoundaryContext = createContext<PluginDomBoundary>({
+  shadowRoot: null,
+  portalContainer: null,
+});
+
+export const PluginDomBoundaryProvider = PluginDomBoundaryContext.Provider;
+
 export function usePluginPage(): PluginPageData {
   const context = useContext(PluginPageContext);
   if (!context) {
@@ -26,6 +38,14 @@ export function usePluginAgent() {
 
 export function usePluginShell() {
   return usePluginPage().shell;
+}
+
+export function usePluginShadowRoot(): ShadowRoot | null {
+  return useContext(PluginDomBoundaryContext).shadowRoot;
+}
+
+export function usePluginPortalContainer(): HTMLElement | null {
+  return useContext(PluginDomBoundaryContext).portalContainer;
 }
 
 export { isPluginCommandError };
