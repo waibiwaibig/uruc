@@ -1,0 +1,48 @@
+{
+  "name": "@uruc/plugin-fleamarket",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/waibiwaibig/uruc.git",
+    "directory": "packages/plugins/fleamarket"
+  },
+  "homepage": "https://github.com/waibiwaibig/uruc/tree/main/packages/plugins/fleamarket",
+  "author": "Uruc Contributors",
+  "files": [
+    "index.mjs",
+    "service.mjs",
+    "service.d.mts",
+    "LICENSE",
+    "NOTICE",
+    "README.md",
+    "README.zh-CN.md",
+    "GUIDE.md",
+    "GUIDE.zh-CN.md"
+  ],
+  "scripts": {
+    "test": "vitest run __tests__",
+    "prepack": "node ../../../scripts/prepare-public-package.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "urucPlugin": {
+    "pluginId": "uruc.fleamarket",
+    "apiVersion": 2,
+    "kind": "backend",
+    "entry": "./index.mjs",
+    "publisher": "uruc",
+    "displayName": "Fleamarket",
+    "description": "Backend marketplace plugin for listing discovery, offline trade coordination, bilateral completion, reputation, and reports.",
+    "permissions": [],
+    "dependencies": [],
+    "activation": [
+      "startup"
+    ]
+  }
+}

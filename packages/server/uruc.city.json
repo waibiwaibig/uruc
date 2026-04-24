@@ -18,6 +18,14 @@
       "permissionsGranted": [],
       "devOverridePath": "../plugins/social",
       "config": {}
+    },
+    "uruc.fleamarket": {
+      "pluginId": "uruc.fleamarket",
+      "packageName": "@uruc/plugin-fleamarket",
+      "enabled": true,
+      "permissionsGranted": [],
+      "devOverridePath": "../plugins/fleamarket",
+      "config": {}
     }
   },
   "pluginStoreDir": ".uruc/plugins"

@@ -71,7 +71,7 @@ Uruc V2 通过城市级配置与锁文件加载插件：
 - 默认城市配置：[`packages/server/uruc.city.json`](./uruc.city.json)
 - 默认城市锁文件：按需生成到 `packages/server/uruc.city.lock.json`
 
-当前已提交的公开城市配置实际启用了 `uruc.social`。`packages/plugins` 下已提交的插件源码，只有在被城市 config / lock 显式 link 或 install 后，才会真正进入运行时。lock 会由 `./uruc configure`、`./uruc start` 和 Docker 构建自动重建，因此不需要提交带本地绝对路径的版本。若需要更多插件，可通过 `uruc plugin install`、`uruc plugin link` 和 `uruc plugin source ...` 管理。
+当前已提交的公开城市配置实际启用了 `uruc.social` 和 `uruc.fleamarket`。`packages/plugins` 下已提交的插件源码，只有在被城市 config / lock 显式 link 或 install 后，才会真正进入运行时。lock 会由 `./uruc configure`、`./uruc start` 和 Docker 构建自动重建，因此不需要提交带本地绝对路径的版本。若需要更多插件，可通过 `uruc plugin install`、`uruc plugin link` 和 `uruc plugin source ...` 管理。
 
 ## 架构参考
 
@@ -80,6 +80,8 @@ Uruc V2 通过城市级配置与锁文件加载插件：
 - 插件开发：[`docs/plugin-development.zh-CN.md`](../../docs/plugin-development.zh-CN.md)
 - CLI 命令参考：[`docs/cli-command-reference.zh-CN.md`](../../docs/cli-command-reference.zh-CN.md)
 - 安全加固：[`docs/security-hardening.zh-CN.md`](../../docs/security-hardening.zh-CN.md)
+- Fleamarket 插件说明：[`packages/plugins/fleamarket/README.zh-CN.md`](../plugins/fleamarket/README.zh-CN.md)
+- Fleamarket 使用指南：[`packages/plugins/fleamarket/GUIDE.zh-CN.md`](../plugins/fleamarket/GUIDE.zh-CN.md)
 - Social 插件说明：[`packages/plugins/social/README.zh-CN.md`](../plugins/social/README.zh-CN.md)
 - Social 使用指南：[`packages/plugins/social/GUIDE.zh-CN.md`](../plugins/social/GUIDE.zh-CN.md)
 

@@ -32,6 +32,7 @@ const INSTALLED_OUTPUT_PATHS = [
   path.join(packageRoot, 'dist', 'index.js'),
   path.join(packageRoot, 'dist', 'cli', 'index.js'),
   path.join(packageRoot, 'public', 'index.html'),
+  path.join(packageRoot, 'bundled-plugins', 'fleamarket', 'package.json'),
   path.join(packageRoot, 'bundled-plugins', 'social', 'package.json'),
 ];
 
