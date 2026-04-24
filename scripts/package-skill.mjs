@@ -73,7 +73,29 @@ function shouldInclude(rootDir, candidatePath) {
     return false;
   }
 
+  if (path.basename(rootDir) === 'uruc-skill') {
+    return shouldIncludeUrucSkill(normalized);
+  }
+
   return true;
+}
+
+function shouldIncludeUrucSkill(normalized) {
+  const allowedDirs = new Set([
+    'agents',
+    'references',
+    'scripts',
+    'scripts/lib',
+  ]);
+  if (allowedDirs.has(normalized)) return true;
+
+  if (normalized === 'SKILL.md' || normalized === 'SKILL.zh-CN.md') return true;
+  if (normalized === 'agents/openai.yaml') return true;
+  if (normalized === 'references/uruc-agent-reference.md') return true;
+  if (/^scripts\/[^/]+\.mjs$/.test(normalized)) return true;
+  if (/^scripts\/lib\/[^/]+\.mjs$/.test(normalized)) return true;
+
+  return false;
 }
 
 function fail(message) {

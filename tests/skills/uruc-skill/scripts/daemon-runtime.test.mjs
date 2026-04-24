@@ -4,8 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 
-import { buildBootstrapConfig } from '../lib/common.mjs';
-import { AgentDaemon } from '../lib/daemon-runtime.mjs';
+import { buildBootstrapConfig } from '../../../../skills/uruc-skill/scripts/lib/common.mjs';
+import { AgentDaemon } from '../../../../skills/uruc-skill/scripts/lib/daemon-runtime.mjs';
 
 class RecordingWakeDaemon extends AgentDaemon {
   constructor() {

@@ -6,8 +6,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const REPO_ROOT = path.resolve(ROOT_DIR, '..', '..');
+const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(TEST_DIR, '..', '..', '..');
+const ROOT_DIR = path.join(REPO_ROOT, 'skills', 'uruc-skill');
 const PACKAGE_SCRIPT = path.join(REPO_ROOT, 'scripts', 'package-skill.mjs');
 
 test('skill source tree does not import code outside the skill package', () => {
@@ -45,11 +46,25 @@ test('packaged skill zip excludes tests and remains runnable when extracted', ()
       .split(/\r?\n/)
       .filter(Boolean);
 
-    assert.ok(listing.includes('uruc-skill/SKILL.md'));
-    assert.ok(listing.includes('uruc-skill/scripts/uruc-agent.mjs'));
-    assert.ok(listing.includes('uruc-skill/scripts/lib/daemon-runtime.mjs'));
-    assert.ok(listing.includes('uruc-skill/scripts/lib/openclaw-gateway.mjs'));
+    assert.deepEqual(listing.sort(), [
+      'uruc-skill/',
+      'uruc-skill/SKILL.md',
+      'uruc-skill/SKILL.zh-CN.md',
+      'uruc-skill/agents/',
+      'uruc-skill/agents/openai.yaml',
+      'uruc-skill/references/',
+      'uruc-skill/references/uruc-agent-reference.md',
+      'uruc-skill/scripts/',
+      'uruc-skill/scripts/lib/',
+      'uruc-skill/scripts/lib/client.mjs',
+      'uruc-skill/scripts/lib/common.mjs',
+      'uruc-skill/scripts/lib/daemon-runtime.mjs',
+      'uruc-skill/scripts/lib/openclaw-gateway.mjs',
+      'uruc-skill/scripts/uruc-agent-daemon.mjs',
+      'uruc-skill/scripts/uruc-agent.mjs',
+    ]);
     assert.ok(!listing.some((entry) => entry.includes('__tests__/')));
+    assert.ok(!listing.some((entry) => /\.test\.mjs$/.test(entry)));
 
     execFileSync('unzip', ['-q', zipPath, '-d', unpackDir], { stdio: 'pipe' });
     const extractedRoot = path.join(unpackDir, 'uruc-skill');
