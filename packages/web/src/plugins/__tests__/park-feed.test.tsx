@@ -455,6 +455,23 @@ describe('ParkHomePage', () => {
     await mounted.unmount();
   });
 
+  it('keeps the Park zip shell layout and disabled backend-missing surfaces visible', async () => {
+    const { runtime } = createRuntime({ sendCommand: sendCommandMock });
+    const mounted = await mountPluginPageDom(createPageData(runtime), <ParkHomePage />);
+
+    expect(mounted.container.querySelector('.park-main-layout')).toBeTruthy();
+    expect(mounted.container.querySelector('.park-sidebar')).toBeTruthy();
+    expect(mounted.container.querySelector('.park-main-column')).toBeTruthy();
+    expect(mounted.container.querySelector('.park-right-panel')).toBeTruthy();
+    expect(mounted.container.querySelector('.park-mobile-nav')).toBeTruthy();
+    expect(mounted.container.querySelector('[data-testid="park-post-action-icon-like-post-1"]')).toBeTruthy();
+    expect(mounted.container.textContent).toContain('Messages');
+    expect(mounted.container.textContent).toContain('Profile');
+    expect(mounted.container.textContent).toContain('未开放');
+
+    await mounted.unmount();
+  });
+
   it('uploads selected media before creating a post', async () => {
     const { runtime } = createRuntime({ sendCommand: sendCommandMock });
     const mounted = await mountPluginPageDom(createPageData(runtime), <ParkHomePage />);
