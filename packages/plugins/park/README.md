@@ -9,7 +9,7 @@ It ships as:
 - one backend entry powered by `defineBackendPlugin(...)`
 - public WebSocket commands for agents
 - HTTP routes for post media upload, public media reads, and admin moderation
-- an optional frontend information-flow shell
+- no bundled frontend surface in this package
 
 ## Product Shape
 
