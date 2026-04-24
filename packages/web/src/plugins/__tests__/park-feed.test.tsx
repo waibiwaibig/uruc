@@ -160,9 +160,19 @@ function findButtonByText(container: HTMLElement, text: string) {
     .find((button) => button.textContent?.includes(text));
 }
 
+function findMenuButtonByText(container: HTMLElement, text: string) {
+  return [...container.querySelectorAll('.park-post__menu button')]
+    .find((button) => button.textContent?.includes(text));
+}
+
 function findInputByPlaceholder(container: HTMLElement, text: string) {
   return [...container.querySelectorAll('input')]
     .find((input) => input.placeholder.includes(text));
+}
+
+function findTextareaByPlaceholder(container: HTMLElement, text: string) {
+  return [...container.querySelectorAll('textarea')]
+    .find((textarea) => textarea.placeholder.includes(text));
 }
 
 const recommendedPost = {
@@ -502,19 +512,64 @@ describe('ParkHomePage', () => {
     await mounted.unmount();
   });
 
+  it('shows selected media in the composer strip and lets a user remove it before posting', async () => {
+    const { runtime } = createRuntime({ sendCommand: sendCommandMock });
+    const mounted = await mountPluginPageDom(createPageData(runtime), <ParkHomePage />);
+    const textarea = mounted.container.querySelector('textarea') as HTMLTextAreaElement | null;
+    const fileInput = mounted.container.querySelector('input[type="file"]') as HTMLInputElement | null;
+    expect(textarea).toBeTruthy();
+    expect(fileInput).toBeTruthy();
+
+    await inputText(textarea as HTMLTextAreaElement, 'Text-only after removing media');
+    await uploadFiles(fileInput as HTMLInputElement, [new File(['image-bytes'], 'field.png', { type: 'image/png' })]);
+    expect(mounted.container.textContent).toContain('field.png');
+
+    await clickElement(findButtonByText(mounted.container, 'Remove field.png') as Element);
+    expect(mounted.container.textContent).not.toContain('field.png');
+
+    await clickElement(findButtonByText(mounted.container, 'Broadcast') as Element);
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      '/api/plugins/uruc.park/v1/assets/posts?agentId=agent-a',
+      expect.anything(),
+    );
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.park.create_post@v1', expect.objectContaining({
+      body: 'Text-only after removing media',
+      mediaAssetIds: [],
+    }));
+
+    await mounted.unmount();
+  });
+
+  it('sends replyToPostId when replying from the zip-style main composer', async () => {
+    const { runtime } = createRuntime({ sendCommand: sendCommandMock });
+    const mounted = await mountPluginPageDom(createPageData(runtime), <ParkHomePage />);
+
+    await clickElement(mounted.container.querySelector('[aria-label^="Reply to Route planning"]') as Element);
+    expect(mounted.container.textContent).toContain('Replying to Agent B');
+    await inputText(findTextareaByPlaceholder(mounted.container, 'What is your current computation?') as HTMLTextAreaElement, 'Reply from composer');
+    await clickElement(findButtonByText(mounted.container, 'Broadcast') as Element);
+
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.park.create_post@v1', expect.objectContaining({
+      body: 'Reply from composer',
+      replyToPostId: 'post-1',
+    }));
+
+    await mounted.unmount();
+  });
+
   it('sends Park interaction commands and updates the card state', async () => {
     const { runtime } = createRuntime({ sendCommand: sendCommandMock });
     const mounted = await mountPluginPageDom(createPageData(runtime), <ParkHomePage />);
 
     await clickElement(mounted.container.querySelector('[data-testid="park-like-post-1"]') as Element);
     await clickElement(mounted.container.querySelector('[data-testid="park-repost-post-1"]') as Element);
-    await clickElement(mounted.container.querySelector('[data-testid="park-bookmark-post-1"]') as Element);
+    await clickElement(mounted.container.querySelector('[data-testid="park-more-post-1"]') as Element);
+    await clickElement(findMenuButtonByText(mounted.container, 'Bookmark') as Element);
 
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.park.set_post_like@v1', { postId: 'post-1', value: true });
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.park.set_repost@v1', { postId: 'post-1', value: true });
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.park.set_bookmark@v1', { postId: 'post-1', value: true });
     expect(mounted.container.textContent).toContain('4');
-    expect((mounted.container.querySelector('[data-testid="park-bookmark-post-1"]') as HTMLButtonElement).className).toContain('is-active');
 
     await mounted.unmount();
   });
@@ -535,6 +590,69 @@ describe('ParkHomePage', () => {
     await settle();
 
     expect(mounted.container.textContent).toContain('Agent C liked your post.');
+
+    await mounted.unmount();
+  });
+
+  it('inserts notification push payloads into the notification list', async () => {
+    const runtimeHarness = createRuntime({ sendCommand: sendCommandMock });
+    const mounted = await mountPluginPageDom(createPageData(runtimeHarness.runtime), <ParkHomePage />);
+
+    await clickElement(findButtonByText(mounted.container, 'Notifications') as Element);
+    expect(mounted.container.querySelector('.park-notification')).toBeNull();
+
+    await act(async () => {
+      runtimeHarness.emit('park_notification_update', {
+        targetAgentId: 'agent-a',
+        serverTimestamp: 3,
+        unreadCount: 1,
+        lastNotificationAt: 3,
+        summary: 'Agent C mentioned you.',
+        notification: {
+          notificationId: 'notification-push',
+          targetAgentId: 'agent-a',
+          actorAgentId: 'agent-c',
+          actorAgentName: 'Agent C',
+          kind: 'mention',
+          postId: 'post-1',
+          sourcePostId: 'post-1',
+          summary: 'Agent C mentioned you.',
+          createdAt: 3,
+          updatedAt: 3,
+          isRead: false,
+        },
+      });
+    });
+    await settle();
+
+    expect(mounted.container.querySelector('.park-notification')?.textContent).toContain('Agent C mentioned you.');
+
+    await mounted.unmount();
+  });
+
+  it('disables Park write actions after an account restriction push for the active agent', async () => {
+    const runtimeHarness = createRuntime({ sendCommand: sendCommandMock });
+    const mounted = await mountPluginPageDom(createPageData(runtimeHarness.runtime), <ParkHomePage />);
+
+    await act(async () => {
+      runtimeHarness.emit('park_account_restricted', {
+        targetAgentId: 'agent-a',
+        serverTimestamp: 3,
+        account: {
+          agentId: 'agent-a',
+          agentName: 'Agent A',
+          restricted: true,
+          restrictionReason: 'policy_violation',
+          updatedAt: 3,
+        },
+      });
+    });
+    await settle();
+
+    const composer = mounted.container.querySelector('textarea') as HTMLTextAreaElement;
+    expect(composer.disabled).toBe(true);
+    expect(composer.placeholder).toContain('Posting is temporarily restricted');
+    expect((mounted.container.querySelector('[data-testid="park-like-post-1"]') as HTMLButtonElement).disabled).toBe(true);
 
     await mounted.unmount();
   });
@@ -599,11 +717,15 @@ describe('ParkHomePage', () => {
     await mounted.unmount();
   });
 
-  it('passes Explore author and mentioned filters to list_posts', async () => {
+  it('keeps Explore close to the zip shell and folds advanced filters before passing them to list_posts', async () => {
     const { runtime } = createRuntime({ sendCommand: sendCommandMock });
     const mounted = await mountPluginPageDom(createPageData(runtime), <ParkHomePage />);
 
     await clickElement(findButtonByText(mounted.container, 'Explore') as Element);
+    expect(findInputByPlaceholder(mounted.container, 'Search park')).toBeTruthy();
+    expect(findInputByPlaceholder(mounted.container, 'author agent id')).toBeUndefined();
+
+    await clickElement(findButtonByText(mounted.container, 'Advanced filters') as Element);
     await inputText(findInputByPlaceholder(mounted.container, 'author agent id') as HTMLInputElement, 'agent-b');
     await inputText(findInputByPlaceholder(mounted.container, 'mentioned agent id') as HTMLInputElement, 'agent-a');
     await clickElement(findButtonByText(mounted.container, 'Search') as Element);
@@ -633,7 +755,8 @@ describe('ParkHomePage', () => {
       includeHidden: true,
     });
 
-    await clickElement(mounted.container.querySelector('.park-action--text') as Element);
+    await clickElement(mounted.container.querySelector('[data-testid="park-more-reply-1"]') as Element);
+    await clickElement(findMenuButtonByText(mounted.container, 'Hide') as Element);
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.park.hide_reply@v1', {
       postId: 'reply-1',
       value: true,
@@ -646,7 +769,8 @@ describe('ParkHomePage', () => {
     const { runtime } = createRuntime({ sendCommand: sendCommandMock });
     const mounted = await mountPluginPageDom(createPageData(runtime), <ParkHomePage />);
 
-    await clickElement(mounted.container.querySelector('[aria-label^="Report Route planning"]') as Element);
+    await clickElement(mounted.container.querySelector('[data-testid="park-more-post-1"]') as Element);
+    await clickElement(findButtonByText(mounted.container, 'Report post') as Element);
     await inputText(mounted.container.querySelector('.park-modal textarea') as HTMLTextAreaElement, 'post report');
     await clickElement(findButtonByText(mounted.container, 'Submit report') as Element);
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.park.create_report@v1', expect.objectContaining({

@@ -34,7 +34,6 @@ import {
   Repeat2,
   Search,
   Settings,
-  Share,
   Smile,
   Sparkles,
   User,
@@ -50,11 +49,13 @@ import type {
   ParkInteractionPayload,
   ParkListPostsPayload,
   ParkModerationQueue,
+  ParkNotification,
   ParkNotificationEventPayload,
   ParkNotificationsPayload,
   ParkPostDetail,
   ParkPostDetailPayload,
   ParkPostSummary,
+  ParkRecommendedPostsPayload,
   ParkRepliesPayload,
   ParkRestrictionEventPayload,
 } from './types';
@@ -157,6 +158,24 @@ function isTargetedToActiveAgent(payload: { targetAgentId?: string } | undefined
   return Boolean(payload && agentId && payload.targetAgentId === agentId);
 }
 
+function notificationFromPush(payload: ParkNotificationEventPayload): ParkNotification | null {
+  const notification = payload.notification;
+  if (!notification?.notificationId || !notification.postId) return null;
+  return {
+    notificationId: notification.notificationId,
+    targetAgentId: notification.targetAgentId ?? payload.targetAgentId,
+    actorAgentId: notification.actorAgentId ?? '',
+    actorAgentName: notification.actorAgentName ?? 'Park',
+    kind: notification.kind ?? 'mention',
+    postId: notification.postId,
+    sourcePostId: notification.sourcePostId ?? notification.postId,
+    summary: notification.summary ?? payload.summary ?? 'Park notification updated.',
+    createdAt: notification.createdAt ?? payload.serverTimestamp,
+    updatedAt: notification.updatedAt ?? payload.serverTimestamp,
+    isRead: notification.isRead ?? false,
+  };
+}
+
 interface AvatarProps {
   name: string;
   compact?: boolean;
@@ -181,6 +200,7 @@ interface PostCardProps {
   onReportAgent: (post: ParkPostSummary) => void;
   onHideReply?: (post: ParkPostSummary) => void;
   canHideReply?: boolean;
+  canWrite: boolean;
 }
 
 function PostCard({
@@ -194,8 +214,10 @@ function PostCard({
   onReportAgent,
   onHideReply,
   canHideReply = false,
+  canWrite,
 }: PostCardProps) {
   const body = post.bodyPreview || '(media post)';
+  const [menuOpen, setMenuOpen] = useState(false);
   const stop = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
   };
@@ -233,6 +255,7 @@ function PostCard({
             <span key={agentId} className="park-chip park-chip--mention">@{agentId}</span>
           ))}
           {post.mediaCount > 0 ? <span className="park-chip">{post.mediaCount} media</span> : null}
+          {post.quotePostId ? <span className="park-chip">Quoted post</span> : null}
           {post.madeWithAi ? <span className="park-chip">AI-made</span> : null}
           {post.recommendation ? (
             <span className="park-chip park-chip--signal">
@@ -249,7 +272,7 @@ function PostCard({
               stop(event);
               onReply(post);
             }}
-            disabled={busy}
+            disabled={busy || !canWrite}
             aria-label={`Reply to ${body}`}
           >
             <span className="park-action__icon" data-testid={`park-post-action-icon-reply-${post.postId}`}>
@@ -265,7 +288,7 @@ function PostCard({
               stop(event);
               onInteract(post, 'repost');
             }}
-            disabled={busy}
+            disabled={busy || !canWrite}
             aria-label={`Repost ${body}`}
           >
             <span className="park-action__icon" data-testid={`park-post-action-icon-repost-${post.postId}`}>
@@ -281,43 +304,13 @@ function PostCard({
               stop(event);
               onInteract(post, 'like');
             }}
-            disabled={busy}
+            disabled={busy || !canWrite}
             aria-label={`Like ${body}`}
           >
             <span className="park-action__icon" data-testid={`park-post-action-icon-like-${post.postId}`}>
               <Heart aria-hidden="true" />
             </span>
             <span>{post.counts.likes}</span>
-          </button>
-          <button
-            type="button"
-            className="park-action"
-            onClick={(event) => {
-              stop(event);
-              onQuote(post);
-            }}
-            disabled={busy}
-            aria-label={`Quote ${body}`}
-          >
-            <span className="park-action__icon" data-testid={`park-post-action-icon-quote-${post.postId}`}>
-              <Share aria-hidden="true" />
-            </span>
-            <span>{post.counts.quotes}</span>
-          </button>
-          <button
-            type="button"
-            data-testid={`park-bookmark-${post.postId}`}
-            className={`park-action park-action--bookmark${post.viewer.bookmarked ? ' is-active' : ''}`}
-            onClick={(event) => {
-              stop(event);
-              onInteract(post, 'bookmark');
-            }}
-            disabled={busy}
-            aria-label={`Bookmark ${body}`}
-          >
-            <span className="park-action__icon" data-testid={`park-post-action-icon-bookmark-${post.postId}`}>
-              <Bookmark aria-hidden="true" />
-            </span>
           </button>
           <button
             type="button"
@@ -333,47 +326,45 @@ function PostCard({
               <BarChart2 aria-hidden="true" />
             </span>
           </button>
-          <button
-            type="button"
-            className="park-action park-action--subtle"
-            onClick={(event) => {
-              stop(event);
-              onReportPost(post);
-            }}
-            disabled={busy}
-            aria-label={`Report ${body}`}
-          >
-            <span className="park-action__icon" data-testid={`park-post-action-icon-report-${post.postId}`}>
-              <Flag aria-hidden="true" />
-            </span>
-          </button>
-          <button
-            type="button"
-            className="park-action park-action--subtle"
-            onClick={(event) => {
-              stop(event);
-              onReportAgent(post);
-            }}
-            disabled={busy}
-            aria-label={`Report ${post.authorAgentName}`}
-          >
-            <span className="park-action__icon" data-testid={`park-post-action-icon-report-agent-${post.postId}`}>
-              <User aria-hidden="true" />
-            </span>
-          </button>
-          {canHideReply && onHideReply ? (
+          <div className="park-action-menu-wrap">
             <button
               type="button"
-              className="park-action park-action--text"
+              data-testid={`park-more-${post.postId}`}
+              className={`park-action park-action--share${post.viewer.bookmarked ? ' is-active' : ''}`}
               onClick={(event) => {
                 stop(event);
-                onHideReply(post);
+                setMenuOpen((current) => !current);
               }}
-              disabled={busy}
+              disabled={busy || !canWrite}
+              aria-label={`More actions for ${body}`}
+              aria-expanded={menuOpen}
             >
-              {post.hiddenByRootAuthor ? 'Unhide' : 'Hide'}
+              <span className="park-action__icon" data-testid={`park-post-action-icon-more-${post.postId}`}>
+                <MoreHorizontal aria-hidden="true" />
+              </span>
             </button>
-          ) : null}
+            {menuOpen ? (
+              <div className="park-post__menu" role="menu" onClick={(event) => event.stopPropagation()}>
+                <button type="button" onClick={() => { onQuote(post); setMenuOpen(false); }}>
+                  Quote
+                </button>
+                <button type="button" onClick={() => { onInteract(post, 'bookmark'); setMenuOpen(false); }}>
+                  {post.viewer.bookmarked ? 'Remove bookmark' : 'Bookmark'}
+                </button>
+                <button type="button" onClick={() => { onReportPost(post); setMenuOpen(false); }}>
+                  Report post
+                </button>
+                <button type="button" onClick={() => { onReportAgent(post); setMenuOpen(false); }}>
+                  Report agent
+                </button>
+                {canHideReply && onHideReply ? (
+                  <button type="button" onClick={() => { onHideReply(post); setMenuOpen(false); }}>
+                    {post.hiddenByRootAuthor ? 'Unhide' : 'Hide'}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     </motion.article>
@@ -396,8 +387,10 @@ interface ComposerProps {
   onMentionDraftChange: (value: string) => void;
   onMadeWithAiChange: (value: boolean) => void;
   onFilesChange: (files: File[]) => void;
+  onRemoveFile: (index: number) => void;
   onClearContext: () => void;
   onSubmit: () => void;
+  restrictionReason: string | null;
 }
 
 function PostComposer({
@@ -416,8 +409,10 @@ function PostComposer({
   onMentionDraftChange,
   onMadeWithAiChange,
   onFilesChange,
+  onRemoveFile,
   onClearContext,
   onSubmit,
+  restrictionReason,
 }: ComposerProps) {
   const context = replyTarget
     ? `Replying to ${replyTarget.authorAgentName}`
@@ -441,7 +436,7 @@ function PostComposer({
         <textarea
           value={body}
           onChange={(event) => onBodyChange(event.target.value)}
-          placeholder={canWrite ? 'What is your current computation?' : 'Connect and claim control to broadcast.'}
+          placeholder={restrictionReason ? 'Posting is temporarily restricted in Park.' : canWrite ? 'What is your current computation?' : 'Connect and claim control to broadcast.'}
           disabled={!canWrite || busy}
           rows={4}
         />
@@ -511,6 +506,20 @@ function PostComposer({
             Broadcast
           </button>
         </div>
+        {selectedFiles.length > 0 ? (
+          <div className="park-media-strip" aria-label="Selected media">
+            {selectedFiles.map((file, index) => (
+              <div className="park-media-pill" key={`${file.name}-${file.size}-${index}`}>
+                <Image aria-hidden="true" />
+                <span>{file.name}</span>
+                <button type="button" onClick={() => onRemoveFile(index)} disabled={!canWrite || busy}>
+                  <span className="park-sr-only">Remove {file.name}</span>
+                  <X aria-hidden="true" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -566,6 +575,13 @@ export function ParkHomePage() {
   const [errorText, setErrorText] = useState('');
   const [successText, setSuccessText] = useState('');
   const [eventNotice, setEventNotice] = useState('');
+  const [restrictedAccount, setRestrictedAccount] = useState<ParkAccountSummary | null>(null);
+  const [showExploreFilters, setShowExploreFilters] = useState(false);
+
+  const canParticipate = canWrite && !restrictedAccount?.restricted;
+  const restrictionReason = restrictedAccount?.restricted
+    ? restrictedAccount.restrictionReason ?? 'Posting is restricted for this account.'
+    : null;
 
   const visiblePosts = surface === 'explore' ? explorePosts : posts;
   const selectedReport = useMemo(
@@ -700,8 +716,9 @@ export function ParkHomePage() {
   }, [canRead, includeHiddenReplies, loadRepliesForPost, posts, runtime, sendParkCommand]);
 
   const publishPost = useCallback(async (options?: { replyToPostId?: string; body?: string }) => {
-    if (!activeAgentId || !canWrite) return;
+    if (!activeAgentId || !canParticipate) return;
     const body = (options?.body ?? composerBody).trim();
+    const replyToPostId = options?.replyToPostId ?? replyTarget?.postId ?? undefined;
     const uploadResults = [];
     for (const file of selectedFiles) {
       uploadResults.push(await ParkApi.uploadPostAsset(activeAgentId, file));
@@ -713,18 +730,18 @@ export function ParkHomePage() {
       tags: normalizeList(tagDraft),
       mentionAgentIds: normalizeMentions(mentionDraft),
       madeWithAi,
-      ...(options?.replyToPostId ? { replyToPostId: options.replyToPostId } : {}),
-      ...(!options?.replyToPostId && quoteTarget ? { quotePostId: quoteTarget.postId } : {}),
+      ...(replyToPostId ? { replyToPostId } : {}),
+      ...(!replyToPostId && quoteTarget ? { quotePostId: quoteTarget.postId } : {}),
     };
     const created = await sendParkCommand<ParkCreatePostPayload>('Create post', 'create_post', payload);
     if (!created) return;
     const summary = toSummary(created.post);
-    if (!options?.replyToPostId) setPosts((current) => [summary, ...current]);
-    if (options?.replyToPostId) {
+    if (!replyToPostId) {
+      setPosts((current) => [summary, ...current]);
+    }
+    if (replyToPostId && postDetail?.postId === replyToPostId) {
       setReplies((current) => [summary, ...current]);
-      if (postDetail) {
-        await openPost(postDetail.postId);
-      }
+      await openPost(postDetail.postId);
     }
     setComposerBody('');
     setTagDraft('');
@@ -737,20 +754,21 @@ export function ParkHomePage() {
     setSuccessText('Park post published.');
   }, [
     activeAgentId,
-    canWrite,
+    canParticipate,
     composerBody,
     madeWithAi,
     mentionDraft,
     openPost,
     postDetail,
     quoteTarget,
+    replyTarget,
     selectedFiles,
     sendParkCommand,
     tagDraft,
   ]);
 
   const interact = useCallback(async (post: ParkPostSummary, kind: InteractionKind) => {
-    if (!canWrite) return;
+    if (!canParticipate) return;
     const command = kind === 'like'
       ? 'set_post_like'
       : kind === 'repost'
@@ -766,10 +784,10 @@ export function ParkHomePage() {
       value: !currentValue,
     });
     if (result) replacePostEverywhere(result.post);
-  }, [canWrite, replacePostEverywhere, sendParkCommand]);
+  }, [canParticipate, replacePostEverywhere, sendParkCommand]);
 
   const deleteSelectedPost = useCallback(async () => {
-    if (!postDetail || !canWrite) return;
+    if (!postDetail || !canParticipate) return;
     const deleted = await sendParkCommand<{ postId: string }>('Delete post', 'delete_post', { postId: postDetail.postId });
     if (!deleted) return;
     setPosts((current) => current.filter((post) => post.postId !== deleted.postId));
@@ -777,7 +795,7 @@ export function ParkHomePage() {
     setPostDetail(null);
     setReplies([]);
     setSuccessText('Post deleted.');
-  }, [canWrite, postDetail, sendParkCommand]);
+  }, [canParticipate, postDetail, sendParkCommand]);
 
   const reportPost = useCallback((post: ParkPostSummary) => {
     setReportTarget({
@@ -807,7 +825,7 @@ export function ParkHomePage() {
   }, []);
 
   const submitReport = useCallback(async () => {
-    if (!reportTarget || !reportDetail.trim() || !canWrite) return;
+    if (!reportTarget || !reportDetail.trim() || !canParticipate) return;
     const result = await sendParkCommand<{ reportId: string }>('Submit report', 'create_report', {
       targetType: reportTarget.targetType,
       targetId: reportTarget.targetId,
@@ -818,10 +836,10 @@ export function ParkHomePage() {
     setReportTarget(null);
     setReportDetail('');
     setSuccessText('Report submitted for moderation.');
-  }, [canWrite, reportDetail, reportTarget, sendParkCommand]);
+  }, [canParticipate, reportDetail, reportTarget, sendParkCommand]);
 
   const hideReply = useCallback(async (reply: ParkPostSummary) => {
-    if (!canWrite) return;
+    if (!canParticipate) return;
     const result = await sendParkCommand<{ reply: ParkPostSummary }>('Update hidden reply', 'hide_reply', {
       postId: reply.postId,
       value: !reply.hiddenByRootAuthor,
@@ -829,7 +847,7 @@ export function ParkHomePage() {
     if (!result) return;
     setReplies((current) => mergePost(current, result.reply));
     setSuccessText(result.reply.hiddenByRootAuthor ? 'Reply hidden.' : 'Reply visible again.');
-  }, [canWrite, sendParkCommand]);
+  }, [canParticipate, sendParkCommand]);
 
   const toggleIncludeHiddenReplies = useCallback(async () => {
     if (!postDetail) return;
@@ -839,7 +857,7 @@ export function ParkHomePage() {
   }, [includeHiddenReplies, loadRepliesForPost, postDetail]);
 
   const markNotificationsRead = useCallback(async () => {
-    if (!canWrite) return;
+    if (!canParticipate) return;
     const result = await sendParkCommand<{ unreadCount: number; lastNotificationAt: number }>(
       'Mark notifications read',
       'mark_notifications_read',
@@ -847,7 +865,7 @@ export function ParkHomePage() {
     );
     if (!result) return;
     await loadNotifications();
-  }, [canWrite, loadNotifications, notifications.lastNotificationAt, sendParkCommand]);
+  }, [canParticipate, loadNotifications, notifications.lastNotificationAt, sendParkCommand]);
 
   const loadFeedPreferences = useCallback(async () => {
     if (!canRead) return;
@@ -860,7 +878,7 @@ export function ParkHomePage() {
   }, [canRead, sendParkCommand]);
 
   const savePreferences = useCallback(async () => {
-    if (!canWrite) return;
+    if (!canParticipate) return;
     const result = await sendParkCommand<ParkFeedPreferencesPayload>('Save feed preferences', 'set_feed_preferences', {
       preferredTags: normalizeList(preferredTagsDraft),
       mutedTags: normalizeList(mutedTagsDraft),
@@ -869,7 +887,7 @@ export function ParkHomePage() {
     if (!result) return;
     setSavedPreferences(result.feed);
     setSuccessText('Recommendation preferences saved.');
-  }, [canWrite, mutedAgentsDraft, mutedTagsDraft, preferredTagsDraft, sendParkCommand]);
+  }, [canParticipate, mutedAgentsDraft, mutedTagsDraft, preferredTagsDraft, sendParkCommand]);
 
   const loadModerationQueue = useCallback(async () => {
     if (!isAdmin) return;
@@ -973,16 +991,23 @@ export function ParkHomePage() {
   }, [loadModerationQueue, surface]);
 
   useEffect(() => {
+    setRestrictedAccount(null);
+  }, [activeAgentId]);
+
+  useEffect(() => {
     const offNotification = runtime.subscribe('park_notification_update', (payload) => {
       const next = payload as ParkNotificationEventPayload;
       if (!isTargetedToActiveAgent(next, activeAgentId)) return;
+      const pushedNotification = notificationFromPush(next);
       setEventNotice(next.summary ?? 'Park notification updated.');
       setNotifications((current) => ({
         ...current,
+        notifications: pushedNotification
+          ? [pushedNotification, ...current.notifications.filter((item) => item.notificationId !== pushedNotification.notificationId)]
+          : current.notifications,
         unreadCount: next.unreadCount ?? current.unreadCount,
         lastNotificationAt: next.lastNotificationAt ?? current.lastNotificationAt,
       }));
-      if (surface === 'notifications') void loadNotifications();
     });
     const offDigest = runtime.subscribe('park_feed_digest_update', (payload) => {
       const next = payload as ParkFeedDigestEventPayload;
@@ -998,8 +1023,11 @@ export function ParkHomePage() {
     const offRestriction = runtime.subscribe('park_account_restricted', (payload) => {
       const next = payload as ParkRestrictionEventPayload;
       if (!isTargetedToActiveAgent(next, activeAgentId)) return;
+      setRestrictedAccount(next.account);
       setEventNotice(next.account.restricted
-        ? `${next.account.agentName} is restricted in Park.`
+        ? next.account.restrictionReason
+          ? `${next.account.agentName} is restricted in Park: ${next.account.restrictionReason}.`
+          : `${next.account.agentName} is restricted in Park.`
         : `${next.account.agentName} can post in Park again.`);
     });
 
@@ -1008,7 +1036,7 @@ export function ParkHomePage() {
       offDigest();
       offRestriction();
     };
-  }, [activeAgentId, feedMode, loadNotifications, runtime, surface]);
+  }, [activeAgentId, feedMode, runtime]);
 
   const trendTags = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1147,7 +1175,7 @@ export function ParkHomePage() {
               mentionDraft={mentionDraft}
               madeWithAi={madeWithAi}
               selectedFiles={selectedFiles}
-              canWrite={canWrite}
+              canWrite={canParticipate}
               busy={busy}
               replyTarget={replyTarget}
               quoteTarget={quoteTarget}
@@ -1156,15 +1184,20 @@ export function ParkHomePage() {
               onMentionDraftChange={setMentionDraft}
               onMadeWithAiChange={setMadeWithAi}
               onFilesChange={setSelectedFiles}
+              onRemoveFile={(index) => {
+                setSelectedFiles((current) => current.filter((_, currentIndex) => currentIndex !== index));
+              }}
               onClearContext={() => {
                 setReplyTarget(null);
                 setQuoteTarget(null);
               }}
               onSubmit={() => void publishPost()}
+              restrictionReason={restrictionReason}
             />
             <PostList
               posts={visiblePosts}
               busy={busy}
+              canWrite={canParticipate}
               onOpen={openPost}
               onInteract={interact}
               onReply={(post) => {
@@ -1195,35 +1228,56 @@ export function ParkHomePage() {
             <div className="park-search-row">
               <label>
                 <Search aria-hidden="true" />
-                <input value={exploreQuery} onChange={(event) => setExploreQuery(event.target.value)} placeholder="Search post text" />
+                <input value={exploreQuery} onChange={(event) => setExploreQuery(event.target.value)} placeholder="Search park" />
               </label>
               <label>
                 <Hash aria-hidden="true" />
                 <input value={exploreTag} onChange={(event) => setExploreTag(event.target.value)} placeholder="tag" />
               </label>
-              <label>
-                <User aria-hidden="true" />
-                <input value={exploreAuthor} onChange={(event) => setExploreAuthor(event.target.value)} placeholder="author agent id" />
-              </label>
-              <label>
-                <AtSign aria-hidden="true" />
-                <input value={exploreMentioned} onChange={(event) => setExploreMentioned(event.target.value)} placeholder="mentioned agent id" />
-              </label>
               <select value={exploreSort} onChange={(event) => setExploreSort(event.target.value as SortMode)}>
                 <option value="recent">Recent</option>
                 <option value="hot">Hot</option>
               </select>
+              <button
+                type="button"
+                className="park-secondary-button"
+                onClick={() => setShowExploreFilters((current) => !current)}
+                aria-expanded={showExploreFilters}
+              >
+                Advanced filters
+              </button>
               <button type="button" className="park-primary-button" onClick={() => void runExplore()} disabled={!canRead || busy}>
                 Search
               </button>
             </div>
+            {showExploreFilters ? (
+              <div className="park-search-row park-search-row--advanced">
+                <label>
+                  <User aria-hidden="true" />
+                  <input value={exploreAuthor} onChange={(event) => setExploreAuthor(event.target.value)} placeholder="author agent id" />
+                </label>
+                <label>
+                  <AtSign aria-hidden="true" />
+                  <input value={exploreMentioned} onChange={(event) => setExploreMentioned(event.target.value)} placeholder="mentioned agent id" />
+                </label>
+              </div>
+            ) : null}
             <PostList
               posts={visiblePosts}
               busy={busy}
+              canWrite={canParticipate}
               onOpen={openPost}
               onInteract={interact}
-              onReply={(post) => setReplyTarget(post)}
-              onQuote={(post) => setQuoteTarget(post)}
+              onReply={(post) => {
+                setSurface('home');
+                setReplyTarget(post);
+                setQuoteTarget(null);
+              }}
+              onQuote={(post) => {
+                setSurface('home');
+                setQuoteTarget(post);
+                setReplyTarget(null);
+              }}
               onReportPost={reportPost}
               onReportAgent={reportAgent}
             />
@@ -1244,7 +1298,7 @@ export function ParkHomePage() {
                 <strong>{notifications.unreadCount} unread</strong>
                 <span>{notifications.notifications.length} loaded</span>
               </div>
-              <button type="button" className="park-secondary-button" disabled={!canWrite || busy || notifications.unreadCount <= 0} onClick={() => void markNotificationsRead()}>
+              <button type="button" className="park-secondary-button" disabled={!canParticipate || busy || notifications.unreadCount <= 0} onClick={() => void markNotificationsRead()}>
                 Mark read
               </button>
             </div>
@@ -1287,7 +1341,7 @@ export function ParkHomePage() {
               Muted agent ids
               <input aria-label="Muted agent ids" value={mutedAgentsDraft} onChange={(event) => setMutedAgentsDraft(event.target.value)} placeholder="agent-x, agent-y" />
             </label>
-            <button type="button" className="park-primary-button" disabled={!canWrite || busy} onClick={() => void savePreferences()}>
+            <button type="button" className="park-primary-button" disabled={!canParticipate || busy} onClick={() => void savePreferences()}>
               Save preferences
             </button>
             {savedPreferences ? (
@@ -1493,6 +1547,7 @@ export function ParkHomePage() {
           <PostCard
             post={toSummary(postDetail)}
             busy={busy}
+            canWrite={canParticipate}
             onOpen={() => undefined}
             onInteract={interact}
             onReply={(post) => setReplyTarget(post)}
@@ -1525,7 +1580,7 @@ export function ParkHomePage() {
             </div>
           ) : null}
           {postDetail.authorAgentId === activeAgentId ? (
-            <button type="button" className="park-danger-button" disabled={!canWrite || busy} onClick={() => void deleteSelectedPost()}>
+            <button type="button" className="park-danger-button" disabled={!canParticipate || busy} onClick={() => void deleteSelectedPost()}>
               Delete post
             </button>
           ) : null}
@@ -1533,13 +1588,13 @@ export function ParkHomePage() {
             <textarea
               value={replyDraft}
               onChange={(event) => setReplyDraft(event.target.value)}
-              placeholder={canWrite ? 'Write a reply' : 'Claim control to reply'}
-              disabled={!canWrite || busy}
+              placeholder={restrictionReason ? 'Posting is temporarily restricted in Park.' : canParticipate ? 'Write a reply' : 'Claim control to reply'}
+              disabled={!canParticipate || busy}
             />
             <button
               type="button"
               className="park-primary-button"
-              disabled={!canWrite || busy || !replyDraft.trim()}
+              disabled={!canParticipate || busy || !replyDraft.trim()}
               onClick={() => void publishPost({ replyToPostId: postDetail.postId, body: replyDraft })}
             >
               Reply
@@ -1568,6 +1623,7 @@ export function ParkHomePage() {
                 onReportAgent={reportAgent}
                 onHideReply={hideReply}
                 canHideReply={postDetail.authorAgentId === activeAgentId}
+                canWrite={canParticipate}
               />
             ))}
             {replyCursor ? (
@@ -1590,7 +1646,7 @@ export function ParkHomePage() {
             <h2>{reportTarget.title}</h2>
             <p>{reportTarget.preview}</p>
             <textarea value={reportDetail} onChange={(event) => setReportDetail(event.target.value)} placeholder="Explain what moderators should review." />
-            <button type="button" className="park-primary-button" disabled={!canWrite || busy || !reportDetail.trim()} onClick={() => void submitReport()}>
+            <button type="button" className="park-primary-button" disabled={!canParticipate || busy || !reportDetail.trim()} onClick={() => void submitReport()}>
               Submit report
             </button>
           </section>
@@ -1618,15 +1674,30 @@ export function ParkHomePage() {
 interface PostListProps {
   posts: ParkPostSummary[];
   busy: boolean;
+  canWrite: boolean;
   onOpen: (postId: string) => void;
   onInteract: (post: ParkPostSummary, kind: InteractionKind) => void;
   onReply: (post: ParkPostSummary) => void;
   onQuote: (post: ParkPostSummary) => void;
   onReportPost: (post: ParkPostSummary) => void;
   onReportAgent: (post: ParkPostSummary) => void;
+  onHideReply?: (post: ParkPostSummary) => void;
+  canHideReply?: (post: ParkPostSummary) => boolean;
 }
 
-function PostList({ posts, busy, onOpen, onInteract, onReply, onQuote, onReportPost, onReportAgent }: PostListProps) {
+function PostList({
+  posts,
+  busy,
+  canWrite,
+  onOpen,
+  onInteract,
+  onReply,
+  onQuote,
+  onReportPost,
+  onReportAgent,
+  onHideReply,
+  canHideReply,
+}: PostListProps) {
   if (posts.length === 0) {
     return (
       <div className="park-empty">
@@ -1649,6 +1720,9 @@ function PostList({ posts, busy, onOpen, onInteract, onReply, onQuote, onReportP
           onQuote={onQuote}
           onReportPost={onReportPost}
           onReportAgent={onReportAgent}
+          onHideReply={onHideReply}
+          canHideReply={canHideReply?.(post) ?? false}
+          canWrite={canWrite}
         />
       ))}
     </div>
