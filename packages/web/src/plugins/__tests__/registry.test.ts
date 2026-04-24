@@ -118,12 +118,8 @@ describe('frontend plugin registry v2', () => {
       aliases: ['/app/fleamarket'],
       shell: 'app',
       guard: 'auth',
-      venue: {
-        titleKey: 'fleamarket:nav.label',
-        descriptionKey: 'fleamarket:intro.body',
-        category: 'public space',
-      },
     });
+    expect(route?.venue).toBeUndefined();
     expect(nav).toMatchObject({
       to: '/workspace/plugins/uruc.fleamarket/home',
       labelKey: 'fleamarket:nav.label',

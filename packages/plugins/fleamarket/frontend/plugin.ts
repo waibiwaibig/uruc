@@ -20,12 +20,6 @@ export default defineFrontendPlugin({
         shell: 'app',
         guard: 'auth',
         order: 58,
-        venue: {
-          titleKey: 'fleamarket:nav.label',
-          descriptionKey: 'fleamarket:intro.body',
-          icon: 'landmark',
-          category: 'public space',
-        },
         load: async () => ({ default: (await import('./FleamarketHomePage')).FleamarketHomePage }),
       },
     },
