@@ -144,6 +144,16 @@ async function inputText(element: HTMLInputElement | HTMLTextAreaElement, value:
   await settle();
 }
 
+async function selectValue(element: HTMLSelectElement, value: string) {
+  await act(async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+    descriptor?.set?.call(element, value);
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await settle();
+}
+
 async function uploadFiles(input: HTMLInputElement, files: File[]) {
   await act(async () => {
     Object.defineProperty(input, 'files', {
@@ -158,6 +168,14 @@ async function uploadFiles(input: HTMLInputElement, files: File[]) {
 function findButtonByText(container: HTMLElement, text: string) {
   return [...container.querySelectorAll('button')]
     .find((button) => button.textContent?.includes(text));
+}
+
+async function openUserMenu(container: HTMLElement) {
+  await clickElement(container.querySelector('button[aria-label="Open Fleamarket account menu"]') as Element);
+}
+
+async function openNoticeMenu(container: HTMLElement) {
+  await clickElement(container.querySelector('button[aria-label="Fleamarket notifications"]') as Element);
 }
 
 const listingSummary = {
@@ -264,6 +282,9 @@ describe('FleamarketHomePage', () => {
     sendCommandMock = vi.fn(async (commandId: string, payload?: unknown) => {
       switch (commandId) {
         case 'uruc.fleamarket.search_listings@v1':
+          if ((payload as { sellerAgentId?: string })?.sellerAgentId === 'seller-a') {
+            return { count: 1, listings: [{ ...listingSummary, listingId: 'seller-listing-2', title: 'Seller Backup Slot' }], hasMore: false, nextCursor: null };
+          }
           return { count: 1, listings: [listingSummary], hasMore: false, nextCursor: null };
         case 'uruc.fleamarket.get_listing@v1':
           if ((payload as { listingId?: string })?.listingId === 'listing-draft') {
@@ -309,7 +330,11 @@ describe('FleamarketHomePage', () => {
             hasMore: false,
           };
         case 'uruc.fleamarket.open_trade@v1':
-          expect(payload).toMatchObject({ listingId: 'listing-1', quantity: 1 });
+          expect(payload).toMatchObject({
+            listingId: 'listing-1',
+            quantity: 2,
+            openingMessage: 'Can start with two hours?',
+          });
           return { ok: true, trade: openedTrade };
         case 'uruc.fleamarket.get_trade@v1':
           if ((payload as { tradeId?: string })?.tradeId === 'trade-completed') {
@@ -317,6 +342,22 @@ describe('FleamarketHomePage', () => {
           }
           return { trade: openedTrade };
         case 'uruc.fleamarket.get_trade_messages@v1':
+          if ((payload as { beforeCreatedAt?: number })?.beforeCreatedAt) {
+            return {
+              trade: openedTrade,
+              count: 1,
+              messages: [{
+                messageId: 'message-older',
+                tradeId: 'trade-1',
+                senderAgentId: 'buyer-a',
+                senderAgentName: 'Buyer A',
+                body: 'Earlier route question.',
+                createdAt: 1_700_000_205_000,
+                updatedAt: 1_700_000_205_000,
+              }],
+              hasMore: false,
+            };
+          }
           return {
             trade: (payload as { tradeId?: string })?.tradeId === 'trade-completed' ? completedTrade : openedTrade,
             count: 1,
@@ -329,16 +370,25 @@ describe('FleamarketHomePage', () => {
               createdAt: 1_700_000_210_000,
               updatedAt: 1_700_000_210_000,
             }],
-            hasMore: false,
+            hasMore: (payload as { tradeId?: string })?.tradeId === 'trade-1',
           };
         case 'uruc.fleamarket.list_my_trades@v1':
+          if ((payload as { beforeUpdatedAt?: number })?.beforeUpdatedAt) {
+            return {
+              count: 1,
+              trades: [{ ...openedTrade, tradeId: 'trade-older', status: 'open', updatedAt: 1_700_000_100_000 }],
+              hasMore: false,
+              nextCursor: null,
+            };
+          }
           return {
             count: 2,
             trades: [
               { ...openedTrade, tradeId: 'trade-1', status: 'open' },
               { ...completedTrade, tradeId: 'trade-completed', status: 'completed' },
             ],
-            hasMore: false,
+            hasMore: true,
+            nextCursor: 1_700_000_190_000,
           };
         case 'uruc.fleamarket.accept_trade@v1':
           expect(payload).toEqual({ tradeId: 'trade-1' });
@@ -383,21 +433,32 @@ describe('FleamarketHomePage', () => {
         case 'uruc.fleamarket.create_listing@v1':
           expect(payload).toMatchObject({
             title: 'Fresh Dataset',
+            category: 'data-coop',
             imageAssetIds: ['asset-uploaded'],
             tradeRoute: 'Coordinate delivery in the trade thread.',
           });
           return { ok: true, listing: { ...listingDetail, listingId: 'listing-created', title: 'Fresh Dataset', status: 'draft' } };
         case 'uruc.fleamarket.list_my_listings@v1':
+          if ((payload as { beforeUpdatedAt?: number })?.beforeUpdatedAt) {
+            return {
+              count: 1,
+              listings: [{ ...draftListing, listingId: 'listing-older', title: 'Older Draft', updatedAt: 1_700_000_200_000 }],
+              hasMore: false,
+              nextCursor: null,
+            };
+          }
           return {
             count: 2,
             listings: [listingSummary, draftListing],
-            hasMore: false,
+            hasMore: true,
+            nextCursor: 1_700_000_250_000,
           };
         case 'uruc.fleamarket.update_listing@v1':
           expect(payload).toMatchObject({
             listingId: 'listing-draft',
             title: 'Edited Dataset',
             tradeRoute: 'Updated offline route.',
+            imageAssetIds: ['asset-uploaded'],
           });
           return { ok: true, listing: { ...draftListing, title: 'Edited Dataset', tradeRoute: 'Updated offline route.' } };
         case 'uruc.fleamarket.publish_listing@v1':
@@ -413,15 +474,13 @@ describe('FleamarketHomePage', () => {
           expect(payload).toEqual({ listingId: 'listing-1' });
           return { ok: true, listing: { ...listingDetail, status: 'closed' } };
         case 'uruc.fleamarket.create_report@v1':
-          expect(payload).toMatchObject({
-            targetType: 'listing',
-            targetId: 'listing-1',
-            reasonCode: 'safety_review',
-            detail: 'Needs review.',
-          });
+          expect(payload).toEqual(expect.objectContaining({ targetAgentId: expect.any(String) }));
           return { ok: true, report: submittedReport };
         case 'uruc.fleamarket.list_my_reports@v1':
-          return { count: 1, reports: [submittedReport], hasMore: false };
+          if ((payload as { beforeUpdatedAt?: number })?.beforeUpdatedAt) {
+            return { count: 0, reports: [], hasMore: false, nextCursor: null };
+          }
+          return { count: 1, reports: [submittedReport], hasMore: true, nextCursor: 1_700_000_240_000 };
         default:
           return {};
       }
@@ -436,7 +495,17 @@ describe('FleamarketHomePage', () => {
     const { runtime } = createRuntime({ sendCommand: sendCommandMock });
     const mounted = await mountPluginPageDom(createPageData(runtime), <FleamarketHomePage />);
 
-    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.search_listings@v1', { limit: 20 });
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.search_listings@v1', { limit: 20, sortBy: 'latest' });
+    expect(mounted.container.querySelector('.fleamarket-topbar')).toBeTruthy();
+    expect(mounted.container.textContent).toContain('uruc | fleamarket');
+    expect(mounted.container.textContent).toContain('Discover, trade, and connect.');
+    expect(mounted.container.textContent).toContain('All Listings');
+    expect(mounted.container.textContent).toContain('Electronics');
+    expect(mounted.container.textContent).toContain('Physical Goods');
+    expect(mounted.container.querySelector('[data-testid="fleamarket-listing-grid"]')).toBeTruthy();
+    expect(mounted.container.querySelector('.fleamarket-tabs')).toBeFalsy();
+    expect(mounted.container.querySelector('.fleamarket-hero__stats')).toBeFalsy();
+    expect(mounted.container.textContent).not.toContain('coordinate offline settlement');
     expect(mounted.container.textContent).toContain('Vector Search Compute Window');
 
     await clickElement(mounted.container.querySelector('[data-testid="fleamarket-open-listing-1"]') as Element);
@@ -448,6 +517,34 @@ describe('FleamarketHomePage', () => {
     expect(mounted.container.textContent).toContain('Clear route and quick handoff.');
     expect(mounted.container.querySelector('img[src="/api/plugins/uruc.fleamarket/v1/assets/asset-1"]')).toBeTruthy();
 
+    await clickElement(findButtonByText(mounted.container, 'View seller listings') as Element);
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.search_listings@v1', {
+      limit: 20,
+      sortBy: 'latest',
+      sellerAgentId: 'seller-a',
+    });
+
+    await mounted.unmount();
+  });
+
+  it('passes category chips and sort selection through to backend search', async () => {
+    const { runtime } = createRuntime({ sendCommand: sendCommandMock });
+    const mounted = await mountPluginPageDom(createPageData(runtime), <FleamarketHomePage />);
+
+    await clickElement(findButtonByText(mounted.container, 'Electronics') as Element);
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.search_listings@v1', {
+      limit: 20,
+      category: 'electronics',
+      sortBy: 'latest',
+    });
+
+    await selectValue(mounted.container.querySelector('select[aria-label="Sort listings"]') as HTMLSelectElement, 'priceLow');
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.search_listings@v1', {
+      limit: 20,
+      category: 'electronics',
+      sortBy: 'price_asc',
+    });
+
     await mounted.unmount();
   });
 
@@ -456,9 +553,26 @@ describe('FleamarketHomePage', () => {
     const mounted = await mountPluginPageDom(createPageData(runtime), <FleamarketHomePage />);
 
     await clickElement(mounted.container.querySelector('[data-testid="fleamarket-open-listing-1"]') as Element);
+    await inputText(mounted.container.querySelector('input[aria-label="Trade quantity"]') as HTMLInputElement, '2');
+    await inputText(mounted.container.querySelector('textarea[aria-label="Opening trade message"]') as HTMLTextAreaElement, 'Can start with two hours?');
     await clickElement(findButtonByText(mounted.container, 'Open trade') as Element);
-    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.open_trade@v1', expect.objectContaining({ listingId: 'listing-1' }));
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.open_trade@v1', {
+      listingId: 'listing-1',
+      quantity: 2,
+      openingMessage: 'Can start with two hours?',
+    });
     expect(mounted.container.textContent).toContain('Still available.');
+    expect(mounted.container.textContent).toContain('Both-side confirmation');
+    expect(mounted.container.textContent).not.toContain('Payment Sent');
+    expect(mounted.container.textContent).not.toContain('escrow');
+
+    await clickElement(findButtonByText(mounted.container, 'Load earlier messages') as Element);
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.get_trade_messages@v1', {
+      tradeId: 'trade-1',
+      limit: 50,
+      beforeCreatedAt: 1_700_000_210_000,
+    });
+    expect(mounted.container.textContent).toContain('Earlier route question.');
 
     const messageInput = mounted.container.querySelector('textarea[aria-label="Trade message"]') as HTMLTextAreaElement;
     await inputText(messageInput, 'Can we start at 20:00?');
@@ -473,10 +587,11 @@ describe('FleamarketHomePage', () => {
     const { runtime } = createRuntime({ sendCommand: sendCommandMock });
     const mounted = await mountPluginPageDom(createPageData(runtime), <FleamarketHomePage />);
 
-    await clickElement(findButtonByText(mounted.container, 'Post listing') as Element);
+    await clickElement(findButtonByText(mounted.container, 'Post an Item') as Element);
     await inputText(mounted.container.querySelector('input[name="title"]') as HTMLInputElement, 'Fresh Dataset');
     await inputText(mounted.container.querySelector('textarea[name="description"]') as HTMLTextAreaElement, 'Curated retrieval dataset.');
-    await inputText(mounted.container.querySelector('input[name="category"]') as HTMLInputElement, 'data');
+    await selectValue(mounted.container.querySelector('select[name="categoryPreset"]') as HTMLSelectElement, 'custom');
+    await inputText(mounted.container.querySelector('input[name="category"]') as HTMLInputElement, 'data-coop');
     await inputText(mounted.container.querySelector('input[name="priceText"]') as HTMLInputElement, '15 USDC');
     await inputText(mounted.container.querySelector('input[name="condition"]') as HTMLInputElement, 'Ready');
     await inputText(mounted.container.querySelector('textarea[name="tradeRoute"]') as HTMLTextAreaElement, 'Coordinate delivery in the trade thread.');
@@ -489,6 +604,7 @@ describe('FleamarketHomePage', () => {
     );
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.create_listing@v1', expect.objectContaining({
       title: 'Fresh Dataset',
+      category: 'data-coop',
       imageAssetIds: ['asset-uploaded'],
     }));
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.publish_listing@v1', { listingId: 'listing-created' });
@@ -500,10 +616,20 @@ describe('FleamarketHomePage', () => {
     const { runtime } = createRuntime({ agentId: 'seller-a', agentName: 'Seller A', sendCommand: sendCommandMock });
     const mounted = await mountPluginPageDom(createPageData(runtime, { id: 'seller-a', name: 'Seller A' }), <FleamarketHomePage />);
 
-    await clickElement(findButtonByText(mounted.container, 'Trades') as Element);
+    await openUserMenu(mounted.container);
+    await clickElement(findButtonByText(mounted.container, 'My trades') as Element);
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.list_my_trades@v1', { limit: 20 });
     expect(mounted.container.textContent).toContain('trade-1');
     expect(mounted.container.textContent).toContain('trade-completed');
+
+    await selectValue(mounted.container.querySelector('select[name="tradeStatus"]') as HTMLSelectElement, 'open');
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.list_my_trades@v1', { limit: 20, status: 'open' });
+    await clickElement(findButtonByText(mounted.container, 'Load more') as Element);
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.list_my_trades@v1', {
+      limit: 20,
+      status: 'open',
+      beforeUpdatedAt: 1_700_000_190_000,
+    });
 
     await clickElement(mounted.container.querySelector('[data-testid="fleamarket-open-trade-1"]') as Element);
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.get_trade@v1', { tradeId: 'trade-1' });
@@ -521,9 +647,10 @@ describe('FleamarketHomePage', () => {
     const { runtime } = createRuntime({ sendCommand: sendCommandMock });
     const mounted = await mountPluginPageDom(createPageData(runtime), <FleamarketHomePage />);
 
-    await clickElement(findButtonByText(mounted.container, 'Trades') as Element);
+    await openUserMenu(mounted.container);
+    await clickElement(findButtonByText(mounted.container, 'My trades') as Element);
     await clickElement(mounted.container.querySelector('[data-testid="fleamarket-open-trade-completed"]') as Element);
-    await inputText(mounted.container.querySelector('input[aria-label="Review rating"]') as HTMLInputElement, '5');
+    await clickElement(mounted.container.querySelector('button[aria-label="Rate 5"]') as Element);
     await inputText(mounted.container.querySelector('textarea[aria-label="Review comment"]') as HTMLTextAreaElement, 'Clean handoff.');
     await clickElement(findButtonByText(mounted.container, 'Submit review') as Element);
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.create_review@v1', {
@@ -539,11 +666,24 @@ describe('FleamarketHomePage', () => {
     const { runtime } = createRuntime({ sendCommand: sendCommandMock });
     const mounted = await mountPluginPageDom(createPageData(runtime), <FleamarketHomePage />);
 
+    await openUserMenu(mounted.container);
     await clickElement(findButtonByText(mounted.container, 'My listings') as Element);
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.list_my_listings@v1', { limit: 20 });
     expect(mounted.container.textContent).toContain('Draft Dataset');
 
+    await selectValue(mounted.container.querySelector('select[name="listingStatus"]') as HTMLSelectElement, 'draft');
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.list_my_listings@v1', { limit: 20, status: 'draft' });
+    await clickElement(findButtonByText(mounted.container, 'Load more') as Element);
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.list_my_listings@v1', {
+      limit: 20,
+      status: 'draft',
+      beforeUpdatedAt: 1_700_000_250_000,
+    });
+
     await clickElement(mounted.container.querySelector('[data-testid="fleamarket-edit-listing-draft"]') as Element);
+    expect(mounted.container.textContent).toContain('Keep attached images');
+    await clickElement(mounted.container.querySelector('[data-testid="fleamarket-remove-image-asset-1"]') as Element);
+    await uploadFiles(mounted.container.querySelector('input[type="file"]') as HTMLInputElement, [new File(['new-image'], 'edited.png', { type: 'image/png' })]);
     await inputText(mounted.container.querySelector('input[name="title"]') as HTMLInputElement, 'Edited Dataset');
     await inputText(mounted.container.querySelector('textarea[name="tradeRoute"]') as HTMLTextAreaElement, 'Updated offline route.');
     await clickElement(findButtonByText(mounted.container, 'Save listing') as Element);
@@ -551,9 +691,9 @@ describe('FleamarketHomePage', () => {
       listingId: 'listing-draft',
       title: 'Edited Dataset',
       tradeRoute: 'Updated offline route.',
+      imageAssetIds: ['asset-uploaded'],
     }));
 
-    await clickElement(findButtonByText(mounted.container, 'My listings') as Element);
     await clickElement(mounted.container.querySelector('[data-testid="fleamarket-publish-listing-draft"]') as Element);
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.publish_listing@v1', { listingId: 'listing-draft' });
     await clickElement(mounted.container.querySelector('[data-testid="fleamarket-pause-listing-1"]') as Element);
@@ -568,7 +708,8 @@ describe('FleamarketHomePage', () => {
     const runtimeHarness = createRuntime({ sendCommand: sendCommandMock });
     const mounted = await mountPluginPageDom(createPageData(runtimeHarness.runtime), <FleamarketHomePage />);
 
-    await clickElement(findButtonByText(mounted.container, 'Trades') as Element);
+    await openUserMenu(mounted.container);
+    await clickElement(findButtonByText(mounted.container, 'My trades') as Element);
     await clickElement(mounted.container.querySelector('[data-testid="fleamarket-open-trade-1"]') as Element);
 
     await act(async () => {
@@ -587,9 +728,16 @@ describe('FleamarketHomePage', () => {
         status: 'accepted',
         summary: 'A fleamarket trade changed status.',
       });
+      runtimeHarness.emit('fleamarket_trade_message', {
+        tradeId: 'trade-third',
+        messageId: 'message-third',
+        summary: 'A fleamarket trade received a new message.',
+      });
     });
     await settle();
+    await openNoticeMenu(mounted.container);
     expect(mounted.container.textContent).toContain('trade-other');
+    expect(mounted.container.textContent).toContain('trade-third');
 
     await mounted.unmount();
   });
@@ -606,12 +754,34 @@ describe('FleamarketHomePage', () => {
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.create_report@v1', expect.objectContaining({
       targetType: 'listing',
       targetId: 'listing-1',
+      targetAgentId: 'seller-a',
       reasonCode: 'safety_review',
       detail: 'Needs review.',
     }));
 
-    await clickElement(findButtonByText(mounted.container, 'Reports') as Element);
+    await openUserMenu(mounted.container);
+    await clickElement(findButtonByText(mounted.container, 'My trades') as Element);
+    await clickElement(mounted.container.querySelector('[data-testid="fleamarket-open-trade-1"]') as Element);
+    await clickElement(findButtonByText(mounted.container, 'File a Report') as Element);
+    await inputText(mounted.container.querySelector('input[aria-label="Report reason code"]') as HTMLInputElement, 'buyer_no_show');
+    await inputText(mounted.container.querySelector('textarea[aria-label="Report detail"]') as HTMLTextAreaElement, 'Counterparty missed the route.');
+    await clickElement(findButtonByText(mounted.container, 'Submit report') as Element);
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.create_report@v1', expect.objectContaining({
+      targetType: 'trade',
+      targetId: 'trade-1',
+      targetAgentId: 'seller-a',
+      reasonCode: 'buyer_no_show',
+      detail: 'Counterparty missed the route.',
+    }));
+
+    await openUserMenu(mounted.container);
+    await clickElement(findButtonByText(mounted.container, 'My reports') as Element);
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.list_my_reports@v1', { limit: 20 });
+    await clickElement(findButtonByText(mounted.container, 'Load more') as Element);
+    expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.list_my_reports@v1', {
+      limit: 20,
+      beforeUpdatedAt: 1_700_000_240_000,
+    });
     expect(mounted.container.textContent).toContain('report-1');
 
     await mounted.unmount();

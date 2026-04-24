@@ -232,6 +232,46 @@ describe('FleamarketService listing and discovery', () => {
     expect(results.next).toBe('uruc.fleamarket.get_listing@v1');
   });
 
+  it('sorts active listings with backend sortBy modes', async () => {
+    const service = new FleamarketService({ ctx: createFakeCtx(), pluginId: 'uruc.fleamarket' });
+    const seller = session('seller');
+
+    const alpha = await service.createListing(seller, {
+      title: 'Alpha Dataset',
+      description: 'A curated bundle.',
+      category: 'data',
+      priceText: '30 credits',
+      priceAmount: 30,
+      quantity: 1,
+      condition: 'available',
+      tradeRoute: 'Meet at market-hall and settle offline.',
+    });
+    await service.publishListing(seller, { listingId: alpha.listing.listingId });
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    const beta = await service.createListing(seller, {
+      title: 'Beta Compute',
+      description: 'A compute window.',
+      category: 'compute',
+      priceText: '10 credits',
+      priceAmount: 10,
+      quantity: 1,
+      condition: 'available',
+      tradeRoute: 'Meet at market-hall and settle offline.',
+    });
+    await service.publishListing(seller, { listingId: beta.listing.listingId });
+
+    const byPrice = await service.searchListings({ sortBy: 'price_asc', limit: 10 });
+    expect(byPrice.listings.map((listing) => listing.title)).toEqual(['Beta Compute', 'Alpha Dataset']);
+
+    const byTitle = await service.searchListings({ sortBy: 'title', limit: 10 });
+    expect(byTitle.listings.map((listing) => listing.title)).toEqual(['Alpha Dataset', 'Beta Compute']);
+
+    await expect(service.searchListings({ sortBy: 'distance' })).rejects.toMatchObject({
+      code: 'INVALID_PARAMS',
+      details: { field: 'sortBy' },
+    });
+  });
+
   it('requires a trade route because payment and delivery are settled outside the platform', async () => {
     const service = new FleamarketService({ ctx: createFakeCtx(), pluginId: 'uruc.fleamarket' });
 
@@ -338,5 +378,72 @@ describe('FleamarketService trade flow, reputation, and safety', () => {
     const reputation = await service.getReputationProfile({ agentId: 'seller' });
     expect(reputation.profile.reportCount).toBe(1);
     expect(reputation.profile.averageRating).toBeNull();
+  });
+
+  it('supports status filters, cursor pagination, and explicit report target agents', async () => {
+    const service = new FleamarketService({ ctx: createFakeCtx(), pluginId: 'uruc.fleamarket' });
+    const seller = session('seller');
+    const buyer = session('buyer');
+    const { listing: firstListing } = await publishedListing(service, seller);
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    const second = await service.createListing(seller, {
+      title: 'Dataset bundle',
+      description: 'Curated text shards.',
+      category: 'data',
+      priceText: '75 credits',
+      priceAmount: 75,
+      quantity: 1,
+      condition: 'available',
+      tradeRoute: 'Meet at market-hall and settle offline.',
+    });
+    const { listing: secondListing } = await service.publishListing(seller, { listingId: second.listing.listingId });
+
+    const firstTrade = await service.openTrade(buyer, { listingId: firstListing.listingId, quantity: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    const secondTrade = await service.openTrade(buyer, { listingId: secondListing.listingId, quantity: 1 });
+    await service.acceptTrade(seller, { tradeId: secondTrade.trade.tradeId });
+
+    const firstListingsPage = await service.listMyListings(seller, { status: 'active', limit: 1 });
+    expect(firstListingsPage.listings).toHaveLength(1);
+    expect(firstListingsPage.hasMore).toBe(true);
+    expect(firstListingsPage.nextCursor).toEqual(expect.any(Number));
+    const secondListingsPage = await service.listMyListings(seller, {
+      status: 'active',
+      limit: 1,
+      beforeUpdatedAt: firstListingsPage.nextCursor,
+    });
+    expect(secondListingsPage.listings).toHaveLength(1);
+    expect(secondListingsPage.listings[0].listingId).not.toBe(firstListingsPage.listings[0].listingId);
+
+    const openTrades = await service.listMyTrades(buyer, { status: 'open', limit: 10 });
+    expect(openTrades.trades.map((trade) => trade.tradeId)).toEqual([firstTrade.trade.tradeId]);
+
+    const report = await service.createReport(seller, {
+      targetType: 'trade',
+      targetId: firstTrade.trade.tradeId,
+      targetAgentId: buyer.agentId,
+      reasonCode: 'buyer_no_show',
+      detail: 'Buyer did not appear at the agreed route.',
+    });
+    expect(report.report.targetAgentId).toBe('buyer');
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    await service.createReport(seller, {
+      targetType: 'listing',
+      targetId: firstListing.listingId,
+      reasonCode: 'listing_terms_changed',
+    });
+
+    await expect(service.createReport(seller, {
+      targetType: 'trade',
+      targetId: firstTrade.trade.tradeId,
+      targetAgentId: 'unrelated-agent',
+      reasonCode: 'bad_target',
+    })).rejects.toMatchObject({
+      code: 'INVALID_REPORT_TARGET_AGENT',
+    });
+
+    const firstReportsPage = await service.listMyReports(seller, { limit: 1 });
+    expect(firstReportsPage.reports).toHaveLength(1);
+    expect(firstReportsPage.nextCursor).toEqual(expect.any(Number));
   });
 });

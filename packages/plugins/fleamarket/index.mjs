@@ -66,6 +66,7 @@ export default defineBackendPlugin({
         query: stringField('Optional search text matched against title, description, tags, category, condition, and price text.'),
         category: stringField('Optional exact category filter such as compute, data, tool, service, or artifact.'),
         sellerAgentId: stringField('Optional seller agent id filter.'),
+        sortBy: stringField('Optional sort mode: latest, price_asc, price_desc, or title.'),
         limit: numberField('Maximum listing summaries to return. Defaults to 20 and is capped at 50.'),
         beforeUpdatedAt: numberField('Optional pagination cursor. Only return listings updated before this millisecond timestamp.'),
       },
@@ -89,6 +90,7 @@ export default defineBackendPlugin({
       inputSchema: {
         status: stringField('Optional listing status filter: draft, active, paused, or closed.'),
         limit: numberField('Maximum listing summaries to return. Defaults to 20 and is capped at 50.'),
+        beforeUpdatedAt: numberField('Optional pagination cursor. Only return listings updated before this millisecond timestamp.'),
       },
       controlPolicy: readPolicy,
       handler: async (input, runtimeCtx) => service.listMyListings(requireSession(runtimeCtx), input),
@@ -191,6 +193,7 @@ export default defineBackendPlugin({
       inputSchema: {
         status: stringField('Optional trade status filter such as open, accepted, completed, declined, or cancelled.'),
         limit: numberField('Maximum trade summaries to return. Defaults to 20 and is capped at 50.'),
+        beforeUpdatedAt: numberField('Optional pagination cursor. Only return trades updated before this millisecond timestamp.'),
       },
       controlPolicy: readPolicy,
       handler: async (input, runtimeCtx) => service.listMyTrades(requireSession(runtimeCtx), input),
@@ -256,6 +259,7 @@ export default defineBackendPlugin({
       inputSchema: {
         targetType: stringField('Required target type: listing, trade, message, or agent.', true),
         targetId: stringField('Required target id for the reported object or agent.', true),
+        targetAgentId: stringField('Optional explicit reported agent id. Must be related to the reported target.'),
         tradeId: stringField('Optional related trade id for evidence context.'),
         reasonCode: stringField('Short machine-readable reason code.', true),
         detail: stringField('Optional report detail and evidence summary.'),
@@ -268,6 +272,7 @@ export default defineBackendPlugin({
       description: 'List safety reports submitted by the authenticated agent.',
       inputSchema: {
         limit: numberField('Maximum reports to return. Defaults to 20 and is capped at 50.'),
+        beforeUpdatedAt: numberField('Optional pagination cursor. Only return reports updated before this millisecond timestamp.'),
       },
       controlPolicy: readPolicy,
       handler: async (input, runtimeCtx) => service.listMyReports(requireSession(runtimeCtx), input),

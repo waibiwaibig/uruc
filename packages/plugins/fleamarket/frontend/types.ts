@@ -98,6 +98,7 @@ export interface TradeMessagesPayload {
   count: number;
   messages: FleamarketMessage[];
   hasMore: boolean;
+  nextCursor?: number | null;
 }
 
 export interface UploadedListingAssetPayload {
@@ -114,12 +115,14 @@ export interface MyListingsPayload {
   count: number;
   listings: ListingSummary[];
   hasMore: boolean;
+  nextCursor?: number | null;
 }
 
 export interface MyTradesPayload {
   count: number;
   trades: TradeSummary[];
   hasMore: boolean;
+  nextCursor?: number | null;
 }
 
 export interface FleamarketReview {
@@ -161,6 +164,7 @@ export interface ReportsPayload {
   count: number;
   reports: FleamarketReport[];
   hasMore: boolean;
+  nextCursor?: number | null;
 }
 
 export interface ListingFormState {
@@ -180,5 +184,6 @@ export type ReportTarget = {
   targetType: 'listing' | 'trade' | 'message' | 'agent';
   targetId: string;
   tradeId?: string;
+  targetAgentId?: string;
   label: string;
 };

@@ -16,6 +16,7 @@ const MAX_LISTING_IMAGE_COUNT = 6;
 const LISTING_STATUSES = new Set(['draft', 'active', 'paused', 'closed']);
 const TRADE_TERMINAL_STATUSES = new Set(['completed', 'declined', 'cancelled']);
 const REPORT_TARGET_TYPES = new Set(['listing', 'trade', 'message', 'agent']);
+const LISTING_SORT_MODES = new Set(['latest', 'price_asc', 'price_desc', 'title']);
 const ALLOWED_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'webp']);
 const EXT_BY_MIME = {
   'image/png': 'png',
@@ -209,6 +210,34 @@ function parseMultipartImage(contentType, body) {
 
 function sortByUpdatedDesc(left, right) {
   return (right.updatedAt ?? right.createdAt ?? 0) - (left.updatedAt ?? left.createdAt ?? 0);
+}
+
+function parseSortBy(value) {
+  const sortBy = typeof value === 'string' && value.trim() ? value.trim() : 'latest';
+  if (!LISTING_SORT_MODES.has(sortBy)) {
+    throw fail('sortBy must be latest, price_asc, price_desc, or title.', 'INVALID_PARAMS', 400, 'retry', {
+      field: 'sortBy',
+    });
+  }
+  return sortBy;
+}
+
+function sortListings(listings, sortBy) {
+  if (sortBy === 'title') {
+    return listings.sort((left, right) => left.title.localeCompare(right.title) || sortByUpdatedDesc(left, right));
+  }
+  if (sortBy === 'price_asc' || sortBy === 'price_desc') {
+    return listings.sort((left, right) => {
+      const leftPrice = Number.isFinite(left.priceAmount) ? left.priceAmount : null;
+      const rightPrice = Number.isFinite(right.priceAmount) ? right.priceAmount : null;
+      if (leftPrice === null && rightPrice === null) return sortByUpdatedDesc(left, right);
+      if (leftPrice === null) return 1;
+      if (rightPrice === null) return -1;
+      const priceDiff = sortBy === 'price_asc' ? leftPrice - rightPrice : rightPrice - leftPrice;
+      return priceDiff || sortByUpdatedDesc(left, right);
+    });
+  }
+  return listings.sort(sortByUpdatedDesc);
 }
 
 function includesQuery(listing, query) {
@@ -407,14 +436,15 @@ export class FleamarketService {
     const query = optionalText(input.query, 'query', 120);
     const category = optionalText(input.category, 'category', 60);
     const sellerAgentId = optionalText(input.sellerAgentId, 'sellerAgentId', 120);
+    const sortBy = parseSortBy(input.sortBy);
 
     const listings = (await this.list('listings'))
       .filter((listing) => listing.status === 'active')
       .filter((listing) => !category || listing.category.toLowerCase() === category.toLowerCase())
       .filter((listing) => !sellerAgentId || listing.sellerAgentId === sellerAgentId)
       .filter((listing) => !beforeUpdatedAt || listing.updatedAt < beforeUpdatedAt)
-      .filter((listing) => includesQuery(listing, query))
-      .sort(sortByUpdatedDesc);
+      .filter((listing) => includesQuery(listing, query));
+    sortListings(listings, sortBy);
 
     return {
       count: Math.min(limit, listings.length),
@@ -438,14 +468,17 @@ export class FleamarketService {
     const actor = requireActor(session);
     const limit = clampLimit(input.limit);
     const status = optionalText(input.status, 'status', 40);
+    const beforeUpdatedAt = optionalNumber(input.beforeUpdatedAt, 'beforeUpdatedAt');
     const listings = (await this.list('listings'))
       .filter((listing) => listing.sellerAgentId === actor.agentId)
       .filter((listing) => !status || listing.status === status)
+      .filter((listing) => !beforeUpdatedAt || listing.updatedAt < beforeUpdatedAt)
       .sort(sortByUpdatedDesc);
     return {
       count: Math.min(limit, listings.length),
       listings: await Promise.all(listings.slice(0, limit).map((listing) => this.toListingSummaryWithImages(listing))),
       hasMore: listings.length > limit,
+      nextCursor: listings.length > limit ? listings[limit - 1].updatedAt : null,
       next: COMMAND_IDS.getListing,
     };
   }
@@ -589,14 +622,17 @@ export class FleamarketService {
     const actor = requireActor(session);
     const limit = clampLimit(input.limit);
     const status = optionalText(input.status, 'status', 40);
+    const beforeUpdatedAt = optionalNumber(input.beforeUpdatedAt, 'beforeUpdatedAt');
     const trades = (await this.list('trades'))
       .filter((trade) => participantRole(trade, actor.agentId))
       .filter((trade) => !status || trade.status === status)
+      .filter((trade) => !beforeUpdatedAt || trade.updatedAt < beforeUpdatedAt)
       .sort(sortByUpdatedDesc);
     return {
       count: Math.min(limit, trades.length),
       trades: trades.slice(0, limit).map(toTradeSummary),
       hasMore: trades.length > limit,
+      nextCursor: trades.length > limit ? trades[limit - 1].updatedAt : null,
       next: COMMAND_IDS.getTrade,
     };
   }
@@ -838,8 +874,17 @@ export class FleamarketService {
       throw fail('targetType must be listing, trade, message, or agent.', 'INVALID_PARAMS', 400, 'retry', { field: 'targetType' });
     }
     const targetId = requireText(input.targetId, 'targetId', 160);
-    const targetAgentId = await this.resolveReportTargetAgentId(targetType, targetId, input.tradeId);
+    const requestedTargetAgentId = optionalText(input.targetAgentId, 'targetAgentId', 160);
+    const targetAgentResolution = await this.resolveReportTargetAgentId(targetType, targetId, input.tradeId);
+    if (requestedTargetAgentId && !targetAgentResolution.allowedAgentIds.includes(requestedTargetAgentId)) {
+      throw fail('targetAgentId must refer to an agent related to the report target.', 'INVALID_REPORT_TARGET_AGENT', 400, 'retry', {
+        field: 'targetAgentId',
+        allowedAgentIds: targetAgentResolution.allowedAgentIds,
+      });
+    }
+    const targetAgentId = requestedTargetAgentId ?? targetAgentResolution.targetAgentId;
     const timestamp = now();
+    const reportTradeId = targetType === 'trade' ? targetId : optionalText(input.tradeId, 'tradeId', 160);
     const report = {
       reportId: randomUUID(),
       reporterAgentId: actor.agentId,
@@ -848,7 +893,7 @@ export class FleamarketService {
       targetType,
       targetId,
       targetAgentId,
-      tradeId: optionalText(input.tradeId, 'tradeId', 160),
+      tradeId: reportTradeId,
       reasonCode: requireText(input.reasonCode, 'reasonCode', 80),
       detail: optionalText(input.detail, 'detail', MAX_REPORT_DETAIL_LENGTH),
       status: 'open',
@@ -873,36 +918,47 @@ export class FleamarketService {
   async listMyReports(session, input = {}) {
     const actor = requireActor(session);
     const limit = clampLimit(input.limit);
+    const beforeUpdatedAt = optionalNumber(input.beforeUpdatedAt, 'beforeUpdatedAt');
     const reports = (await this.list('reports'))
       .filter((report) => report.reporterAgentId === actor.agentId)
+      .filter((report) => !beforeUpdatedAt || report.updatedAt < beforeUpdatedAt)
       .sort(sortByUpdatedDesc);
     return {
       count: Math.min(limit, reports.length),
       reports: reports.slice(0, limit),
       hasMore: reports.length > limit,
+      nextCursor: reports.length > limit ? reports[limit - 1].updatedAt : null,
       next: COMMAND_IDS.intro,
     };
   }
 
   async resolveReportTargetAgentId(targetType, targetId, tradeId) {
-    if (targetType === 'agent') return targetId;
+    if (targetType === 'agent') return { targetAgentId: targetId, allowedAgentIds: [targetId] };
     if (targetType === 'listing') {
-      return (await this.requireListing(targetId)).sellerAgentId;
+      const listing = await this.requireListing(targetId);
+      return { targetAgentId: listing.sellerAgentId, allowedAgentIds: [listing.sellerAgentId] };
     }
     if (targetType === 'trade') {
       const trade = await this.requireTrade(targetId);
-      return trade.sellerAgentId;
+      return {
+        targetAgentId: trade.sellerAgentId,
+        allowedAgentIds: [...new Set([trade.sellerAgentId, trade.buyerAgentId])],
+      };
     }
     if (targetType === 'message') {
       const message = await this.get('messages', targetId);
       if (!message) throw fail('Message was not found.', 'MESSAGE_NOT_FOUND', 404, 'fetch_detail');
       if (tradeId) {
         const trade = await this.requireTrade(tradeId);
-        return message.senderAgentId === trade.sellerAgentId ? trade.sellerAgentId : trade.buyerAgentId;
+        if (message.tradeId !== trade.tradeId) {
+          throw fail('Message does not belong to the supplied trade.', 'INVALID_REPORT_TARGET_AGENT', 400, 'retry', {
+            field: 'tradeId',
+          });
+        }
       }
-      return message.senderAgentId;
+      return { targetAgentId: message.senderAgentId, allowedAgentIds: [message.senderAgentId] };
     }
-    return null;
+    return { targetAgentId: null, allowedAgentIds: [] };
   }
 
   async createMessage(trade, actor, body, timestamp) {

@@ -1,155 +1,635 @@
-.fleamarket-shell {
-  min-height: 100%;
+.fleamarket-app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
   color: #0f172a;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-.fleamarket-hero,
-.fleamarket-panel,
-.fleamarket-card,
-.fleamarket-chat,
-.fleamarket-search {
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+.fleamarket-app * {
+  box-sizing: border-box;
 }
 
-.fleamarket-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+.fleamarket-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  border-bottom: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(14px);
+}
+
+.fleamarket-topbar-inner,
+.fleamarket-main,
+.fleamarket-footer-inner {
+  width: min(100%, 1280px);
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.fleamarket-topbar-inner {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 24px;
-  overflow: hidden;
-  border-radius: 24px;
-  padding: 32px;
 }
 
-.fleamarket-hero h1,
-.fleamarket-compose h1,
-.fleamarket-detail h1 {
-  margin: 0;
-  max-width: 760px;
-  font-size: clamp(2rem, 4vw, 3.6rem);
-  line-height: 1;
-  letter-spacing: 0;
-  color: #020617;
-}
-
-.fleamarket-hero p,
-.fleamarket-muted,
-.fleamarket-panel p {
-  color: #64748b;
-  line-height: 1.7;
-}
-
-.fleamarket-eyebrow {
-  margin: 0 0 10px;
-  font-size: 0.78rem;
+.fleamarket-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  padding: 0;
+  font: inherit;
+  font-size: 20px;
   font-weight: 700;
-  letter-spacing: 0;
-  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fleamarket-brand svg {
+  width: 24px;
+  height: 24px;
+  color: #4f46e5;
+  fill: rgba(79, 70, 229, 0.18);
+}
+
+.fleamarket-brand em {
+  color: #94a3b8;
+  font-style: normal;
+  font-weight: 400;
+}
+
+.fleamarket-top-search {
+  position: relative;
+  display: flex;
+  flex: 1 1 520px;
+  max-width: 560px;
+  align-items: center;
+}
+
+.fleamarket-top-search svg {
+  position: absolute;
+  left: 16px;
+  width: 18px;
+  height: 18px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.fleamarket-top-search input {
+  width: 100%;
+  height: 40px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: rgba(248, 250, 252, 0.72);
+  padding: 0 16px 0 44px;
+  color: #0f172a;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fleamarket-top-search input::placeholder {
+  color: #94a3b8;
+}
+
+.fleamarket-top-search input:focus {
+  border-color: #6366f1;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.14);
+}
+
+.fleamarket-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.fleamarket-menu-wrap {
+  position: relative;
+}
+
+.fleamarket-icon-button,
+.fleamarket-user-button,
+.fleamarket-mobile-menu {
+  position: relative;
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fleamarket-icon-button:hover,
+.fleamarket-mobile-menu:hover {
+  color: #475569;
+}
+
+.fleamarket-icon-button svg,
+.fleamarket-user-button svg,
+.fleamarket-mobile-menu svg {
+  width: 20px;
+  height: 20px;
+}
+
+.fleamarket-user-button {
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  background: #e0e7ff;
   color: #4f46e5;
 }
 
-.fleamarket-hero__actions,
-.fleamarket-action-stack,
-.fleamarket-chat__composer {
+.fleamarket-user-button:hover {
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.14);
+}
+
+.fleamarket-mobile-menu {
+  display: none;
+}
+
+.fleamarket-notice-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: #f43f5e;
+}
+
+.fleamarket-popover {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 60;
+  width: min(320px, calc(100vw - 32px));
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #fff;
+  padding: 16px;
+  box-shadow: 0 22px 70px rgba(15, 23, 42, 0.16);
+}
+
+.fleamarket-popover h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.fleamarket-popover p,
+.fleamarket-user-summary span,
+.fleamarket-helper-text {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.fleamarket-popover-notice,
+.fleamarket-user-menu button {
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #334155;
+  padding: 10px 12px;
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.fleamarket-user-menu {
+  display: grid;
+  gap: 8px;
+}
+
+.fleamarket-user-menu button:hover,
+.fleamarket-popover-notice:hover {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.fleamarket-user-menu button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.fleamarket-user-summary {
+  display: grid;
+  gap: 3px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 4px;
+  padding-bottom: 12px;
+}
+
+.fleamarket-user-summary strong {
+  color: #0f172a;
+}
+
+.fleamarket-main {
+  flex: 1;
+  padding-top: 32px;
+  padding-bottom: 32px;
+}
+
+.fleamarket-home {
+  display: grid;
+  gap: 32px;
+}
+
+.fleamarket-landing-hero {
+  position: relative;
+  overflow: hidden;
+  min-height: 264px;
+  border: 1px solid #e2e8f0;
+  border-radius: 28px;
+  background: #fff;
+  padding: 56px 44px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.fleamarket-hero-glow {
+  position: absolute;
+  top: -80px;
+  right: -80px;
+  width: 384px;
+  height: 384px;
+  border-radius: 999px;
+  background: #eef2ff;
+  filter: blur(52px);
+  opacity: 0.62;
+}
+
+.fleamarket-hero-copy {
+  position: relative;
+  max-width: 672px;
+}
+
+.fleamarket-hero-copy h1 {
+  margin: 0 0 18px;
+  color: #0f172a;
+  font-size: 48px;
+  line-height: 1.08;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.fleamarket-hero-copy p {
+  margin: 0 0 30px;
+  color: #64748b;
+  font-size: 18px;
+  line-height: 1.7;
+}
+
+.fleamarket-hero-actions,
+.fleamarket-modal-actions,
+.fleamarket-row-actions,
+.fleamarket-trade-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
 }
 
-.fleamarket-hero__stats {
-  display: grid;
-  gap: 12px;
-  align-content: center;
-}
-
-.fleamarket-hero__stats span,
-.fleamarket-metrics span,
-.fleamarket-facts span {
-  display: grid;
-  gap: 3px;
-  border-radius: 16px;
-  background: #f8fafc;
-  padding: 14px;
-  color: #64748b;
-  font-size: 0.84rem;
-}
-
-.fleamarket-hero__stats strong,
-.fleamarket-metrics strong,
-.fleamarket-facts strong {
-  color: #0f172a;
-  font-size: 1rem;
-}
-
-.fleamarket-primary,
-.fleamarket-secondary,
-.fleamarket-ghost,
-.fleamarket-danger-link {
+.fleamarket-button {
   display: inline-flex;
-  min-height: 42px;
+  min-height: 48px;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  border: 0;
+  gap: 10px;
+  border: 1px solid transparent;
   border-radius: 12px;
-  padding: 10px 16px;
+  padding: 12px 22px;
+  font: inherit;
   font-weight: 700;
+  color: #334155;
   cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.fleamarket-primary {
+.fleamarket-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.fleamarket-button--primary {
+  border-color: #0f172a;
   background: #0f172a;
   color: #fff;
+  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.18);
 }
 
-.fleamarket-secondary,
-.fleamarket-ghost {
-  border: 1px solid #dbe2ea;
+.fleamarket-button--primary:hover {
+  background: #1e293b;
+}
+
+.fleamarket-button--secondary {
+  border-color: #e2e8f0;
   background: #fff;
   color: #334155;
 }
 
-.fleamarket-danger-link {
-  min-height: 34px;
-  background: transparent;
-  color: #be123c;
+.fleamarket-button--secondary:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
 }
 
-.fleamarket-primary:disabled,
-.fleamarket-secondary:disabled {
+.fleamarket-button:disabled,
+.fleamarket-send-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+  transform: none;
 }
 
-.fleamarket-primary svg,
-.fleamarket-secondary svg,
-.fleamarket-ghost svg,
-.fleamarket-danger-link svg {
+.fleamarket-wide-button {
+  width: 100%;
+  min-height: 56px;
+  font-size: 17px;
+}
+
+.fleamarket-market-toolbar {
+  position: sticky;
+  top: 64px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 32px;
+  background: rgba(248, 250, 252, 0.9);
+  padding: 16px 0;
+  backdrop-filter: blur(12px);
+}
+
+.fleamarket-category-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.fleamarket-category-row::-webkit-scrollbar {
+  display: none;
+}
+
+.fleamarket-category {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  color: #475569;
+  padding: 10px 16px;
+  white-space: nowrap;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fleamarket-category svg {
   width: 18px;
   height: 18px;
+  color: #94a3b8;
+}
+
+.fleamarket-category:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.fleamarket-category.is-active {
+  border-color: #0f172a;
+  background: #0f172a;
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16);
+}
+
+.fleamarket-category.is-active svg {
+  color: #c7d2fe;
+}
+
+.fleamarket-sort {
+  height: 46px;
+  min-width: 150px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  color: #334155;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.fleamarket-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.fleamarket-item-card {
+  min-width: 0;
+}
+
+.fleamarket-item-card-link {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #fff;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.fleamarket-item-card-link:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 36px rgba(148, 163, 184, 0.24);
+}
+
+.fleamarket-item-image {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  place-items: center;
+  overflow: hidden;
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.fleamarket-item-image img,
+.fleamarket-detail-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fleamarket-item-image svg,
+.fleamarket-detail-image > svg,
+.fleamarket-trade-summary-card > svg,
+.fleamarket-not-connected > svg {
+  width: 52px;
+  height: 52px;
+}
+
+.fleamarket-item-card-link:hover .fleamarket-item-image img {
+  transform: scale(1.05);
+}
+
+.fleamarket-item-image img {
+  transition: transform 0.7s ease;
+}
+
+.fleamarket-condition-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 5px 8px;
+  color: #334155;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+}
+
+.fleamarket-item-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 16px;
+}
+
+.fleamarket-item-body h3 {
+  display: -webkit-box;
+  min-height: 44px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  margin: 0 0 10px;
+  color: #0f172a;
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.fleamarket-item-card-link:hover h3 {
+  color: #4f46e5;
+}
+
+.fleamarket-item-price {
+  margin-bottom: 14px;
+  color: #0f172a;
+  font-size: 20px;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.fleamarket-item-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid #f1f5f9;
+  margin-top: auto;
+  padding-top: 12px;
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+.fleamarket-seller-mini {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+}
+
+.fleamarket-seller-mini span,
+.fleamarket-chat-avatar,
+.fleamarket-seller-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 800;
+}
+
+.fleamarket-seller-mini span {
+  width: 20px;
+  height: 20px;
+  border: 1px solid #e2e8f0;
+  font-size: 10px;
+}
+
+.fleamarket-seller-mini strong {
+  max-width: 86px;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fleamarket-empty-grid {
+  grid-column: 1 / -1;
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+  border: 2px dashed #e2e8f0;
+  border-radius: 28px;
+  background: #fff;
+  color: #64748b;
+  font-weight: 650;
 }
 
 .fleamarket-alert {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 16px;
-  border-radius: 16px;
+  margin-bottom: 18px;
+  border-radius: 14px;
   padding: 12px 14px;
-  font-size: 0.94rem;
-}
-
-.fleamarket-alert button {
-  margin-left: auto;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
+  font-size: 14px;
 }
 
 .fleamarket-alert svg {
   width: 18px;
   height: 18px;
+  flex: none;
+}
+
+.fleamarket-alert button {
+  display: inline-flex;
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
 }
 
 .fleamarket-alert--error {
@@ -164,144 +644,122 @@
   color: #166534;
 }
 
-.fleamarket-alert--info {
-  border: 1px solid #bfdbfe;
-  background: #eff6ff;
-  color: #1d4ed8;
+.fleamarket-detail-page,
+.fleamarket-management-page,
+.fleamarket-compose-page {
+  max-width: 1152px;
+  margin: 0 auto;
 }
 
-.fleamarket-home,
-.fleamarket-detail,
-.fleamarket-trade,
-.fleamarket-compose,
-.fleamarket-management {
-  margin-top: 24px;
+.fleamarket-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  padding: 0 0 24px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
 }
 
-.fleamarket-tabs {
+.fleamarket-back-link:hover {
+  color: #0f172a;
+}
+
+.fleamarket-back-link svg {
+  width: 16px;
+  height: 16px;
+}
+
+.fleamarket-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+  gap: 32px;
+}
+
+.fleamarket-detail-left,
+.fleamarket-detail-right {
+  display: grid;
+  gap: 24px;
+  align-content: start;
+}
+
+.fleamarket-detail-image {
+  display: grid;
+  aspect-ratio: 16 / 10;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 28px;
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.fleamarket-detail-card,
+.fleamarket-purchase-card,
+.fleamarket-seller-card,
+.fleamarket-list-card,
+.fleamarket-compose-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 28px;
+  background: #fff;
+}
+
+.fleamarket-detail-card {
+  padding: 32px;
+}
+
+.fleamarket-detail-card h2 {
+  border-bottom: 1px solid #f1f5f9;
+  margin: 0 0 18px;
+  padding-bottom: 16px;
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.fleamarket-detail-card p {
+  margin: 0;
+  color: #334155;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.fleamarket-detail-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+
+.fleamarket-detail-facts span {
+  display: block;
+  margin-bottom: 4px;
+  color: #64748b;
+}
+
+.fleamarket-detail-facts strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.fleamarket-tag-row,
+.fleamarket-link-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 16px;
-}
-
-.fleamarket-tabs button {
-  min-height: 38px;
-  border: 1px solid #dbe2ea;
-  border-radius: 999px;
-  background: #fff;
-  color: #475569;
-  padding: 8px 14px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.fleamarket-tabs button.is-active {
-  border-color: #0f172a;
-  background: #0f172a;
-  color: #fff;
-}
-
-.fleamarket-search {
-  display: grid;
-  grid-template-columns: auto minmax(180px, 1fr) 140px minmax(160px, 220px) auto;
-  gap: 10px;
-  align-items: center;
-  border-radius: 18px;
-  padding: 12px;
-}
-
-.fleamarket-search svg {
-  width: 18px;
-  height: 18px;
-  color: #64748b;
-}
-
-.fleamarket-search input,
-.fleamarket-search select,
-.fleamarket-compose input,
-.fleamarket-compose textarea,
-.fleamarket-chat textarea {
-  width: 100%;
-  border: 1px solid #dbe2ea;
-  border-radius: 12px;
-  background: #f8fafc;
-  color: #0f172a;
-  padding: 10px 12px;
-  font: inherit;
-}
-
-.fleamarket-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 18px;
   margin-top: 18px;
 }
 
-.fleamarket-card {
-  overflow: hidden;
-  border-radius: 18px;
-}
-
-.fleamarket-card__image {
-  position: relative;
-  display: grid;
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  place-items: center;
-  overflow: hidden;
-  border: 0;
-  background: #e2e8f0;
-  color: #64748b;
-  cursor: pointer;
-}
-
-.fleamarket-card__image img,
-.fleamarket-detail__image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.fleamarket-card__image > svg,
-.fleamarket-detail__image > svg,
-.fleamarket-empty > svg {
-  width: 48px;
-  height: 48px;
-}
-
-.fleamarket-card__image span {
-  position: absolute;
-  left: 12px;
-  top: 12px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  padding: 5px 8px;
-  font-size: 0.72rem;
-  font-weight: 800;
-  color: #334155;
-}
-
-.fleamarket-card__body {
-  display: grid;
-  gap: 10px;
-  padding: 15px;
-}
-
-.fleamarket-link-title {
-  border: 0;
-  background: transparent;
-  padding: 0;
-  text-align: left;
-  font: inherit;
-  font-weight: 800;
-  color: #0f172a;
-  cursor: pointer;
-}
-
-.fleamarket-link-list {
-  display: grid;
-  gap: 8px;
+.fleamarket-tag-row span {
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .fleamarket-link-list a {
@@ -309,315 +767,822 @@
   overflow-wrap: anywhere;
 }
 
-.fleamarket-price,
-.fleamarket-detail-price {
-  font-size: 1.35rem;
-  font-weight: 900;
-  color: #020617;
-}
-
-.fleamarket-tags,
-.fleamarket-card__footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
-.fleamarket-tags span {
-  border-radius: 999px;
-  background: #eef2ff;
-  padding: 4px 8px;
-  color: #4338ca;
-  font-size: 0.78rem;
-}
-
-.fleamarket-card__footer {
-  justify-content: space-between;
-  border-top: 1px solid #eef2f7;
-  padding-top: 10px;
-  color: #64748b;
-  font-size: 0.82rem;
-}
-
-.fleamarket-avatar {
-  display: inline-flex;
-  width: 24px;
-  height: 24px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: #e0e7ff;
-  color: #3730a3;
-  font-size: 0.75rem;
-  font-weight: 900;
-}
-
-.fleamarket-avatar--large {
-  width: 46px;
-  height: 46px;
-  font-size: 1rem;
-}
-
-.fleamarket-detail__grid,
-.fleamarket-trade {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
-  gap: 20px;
-}
-
-.fleamarket-detail__main,
-.fleamarket-detail__aside {
-  display: grid;
-  gap: 18px;
-  align-content: start;
-}
-
-.fleamarket-detail__image {
-  display: grid;
-  aspect-ratio: 16 / 10;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 22px;
-  background: #e2e8f0;
-  color: #64748b;
-}
-
-.fleamarket-panel {
-  border-radius: 20px;
-  padding: 20px;
-}
-
-.fleamarket-panel h1,
-.fleamarket-panel h2,
-.fleamarket-panel h3 {
-  margin-top: 0;
-  letter-spacing: 0;
-}
-
-.fleamarket-sticky {
+.fleamarket-purchase-card {
   position: sticky;
-  top: 90px;
+  top: 96px;
+  padding: 28px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
 }
 
-.fleamarket-facts,
-.fleamarket-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin: 16px 0;
+.fleamarket-purchase-card h1,
+.fleamarket-compose-card h1,
+.fleamarket-list-card h1 {
+  margin: 0 0 12px;
+  color: #0f172a;
+  font-size: 26px;
+  line-height: 1.22;
+  font-weight: 700;
 }
 
-.fleamarket-route-note,
-.fleamarket-system-message {
+.fleamarket-detail-price {
+  margin: 24px 0;
+  color: #0f172a;
+  font-size: 34px;
+  line-height: 1;
+  font-weight: 850;
+}
+
+.fleamarket-trust-note {
   display: flex;
   gap: 10px;
   border: 1px solid #fde68a;
-  border-radius: 14px;
+  border-radius: 12px;
   background: #fffbeb;
+  margin-bottom: 12px;
   padding: 12px;
   color: #92400e;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
-.fleamarket-route-note svg {
-  flex: none;
-  width: 18px;
-  height: 18px;
-}
-
-.fleamarket-seller {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.fleamarket-seller div {
-  display: grid;
-}
-
-.fleamarket-seller span {
-  color: #64748b;
-  font-size: 0.85rem;
-}
-
-.fleamarket-seller svg {
-  margin-left: auto;
+.fleamarket-trust-note svg {
   width: 20px;
   height: 20px;
-  color: #2563eb;
+  flex: none;
+  color: #f59e0b;
 }
 
-.fleamarket-chat {
+.fleamarket-trust-note p {
+  margin: 0;
+}
+
+.fleamarket-route-box {
   display: grid;
-  min-height: 560px;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  overflow: hidden;
-  border-radius: 20px;
-}
-
-.fleamarket-chat__header,
-.fleamarket-chat__composer {
-  padding: 14px;
-}
-
-.fleamarket-chat__header {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  border-bottom: 1px solid #eef2f7;
-}
-
-.fleamarket-chat__header div {
-  display: grid;
-}
-
-.fleamarket-chat__header span {
-  color: #64748b;
-  font-size: 0.86rem;
-}
-
-.fleamarket-messages {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow: auto;
+  gap: 8px;
+  border: 1px solid #f1f5f9;
+  border-radius: 12px;
   background: #f8fafc;
-  padding: 18px;
+  margin-bottom: 24px;
+  padding: 16px;
 }
 
-.fleamarket-message {
-  max-width: min(560px, 78%);
-  align-self: flex-start;
+.fleamarket-route-box span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
 }
 
-.fleamarket-message--mine {
-  align-self: flex-end;
+.fleamarket-route-box p {
+  margin: 0;
+  color: #334155;
+  line-height: 1.55;
 }
 
-.fleamarket-message div {
-  position: relative;
-  border: 1px solid #dbe2ea;
-  border-radius: 18px 18px 18px 6px;
-  background: #fff;
-  padding: 10px 12px;
+.fleamarket-purchase-field {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 14px;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 650;
 }
 
-.fleamarket-message-report {
-  display: block;
-  margin-top: 8px;
+.fleamarket-purchase-field input,
+.fleamarket-purchase-field textarea {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #0f172a;
+  padding: 11px 12px;
+  font: inherit;
+  outline: none;
+}
+
+.fleamarket-purchase-field textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.fleamarket-report-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 0;
   background: transparent;
-  color: #be123c;
-  font-size: 0.72rem;
+  color: #94a3b8;
+  padding: 10px;
+  font: inherit;
+  font-size: 13px;
   cursor: pointer;
 }
 
-.fleamarket-message--mine div {
+.fleamarket-report-link:hover {
+  color: #e11d48;
+}
+
+.fleamarket-report-link svg {
+  width: 16px;
+  height: 16px;
+}
+
+.fleamarket-seller-card {
+  padding: 24px;
+}
+
+.fleamarket-seller-card h3 {
+  margin: 0 0 18px;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.fleamarket-seller-profile {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.fleamarket-seller-avatar {
+  width: 48px;
+  height: 48px;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.1);
+}
+
+.fleamarket-seller-profile div:last-child {
+  min-width: 0;
+}
+
+.fleamarket-seller-profile strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #0f172a;
+}
+
+.fleamarket-seller-profile strong svg,
+.fleamarket-seller-mini svg {
+  width: 16px;
+  height: 16px;
+  color: #3b82f6;
+}
+
+.fleamarket-seller-profile span {
+  display: block;
+  max-width: 220px;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fleamarket-seller-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.fleamarket-seller-stats div {
+  border: 1px solid #f1f5f9;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 12px;
+  text-align: center;
+}
+
+.fleamarket-seller-stats strong {
+  display: block;
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.fleamarket-seller-stats span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.fleamarket-review-list {
+  display: grid;
+  gap: 10px;
+}
+
+.fleamarket-review-list article {
+  border: 1px solid #f1f5f9;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.fleamarket-review-list strong {
+  font-size: 13px;
+}
+
+.fleamarket-review-list p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.fleamarket-chat-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
+  max-width: 1152px;
+  min-height: calc(100vh - 140px);
+  margin: 0 auto;
+}
+
+.fleamarket-chat-window {
+  display: flex;
+  min-height: 620px;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.fleamarket-chat-header {
+  height: 64px;
+  border-bottom: 1px solid #e2e8f0;
+  background: rgba(248, 250, 252, 0.54);
+  padding: 0 24px;
+}
+
+.fleamarket-chat-title {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  gap: 16px;
+}
+
+.fleamarket-chat-back {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.fleamarket-chat-back:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.fleamarket-chat-back svg {
+  width: 20px;
+  height: 20px;
+}
+
+.fleamarket-chat-avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
+}
+
+.fleamarket-chat-title strong {
+  display: block;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.fleamarket-chat-title span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.fleamarket-chat-title i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #10b981;
+}
+
+.fleamarket-chat-messages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  background: rgba(248, 250, 252, 0.48);
+  padding: 24px;
+}
+
+.fleamarket-load-earlier {
+  align-self: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.fleamarket-load-earlier:hover {
+  background: #f8fafc;
+}
+
+.fleamarket-system-pill {
+  align-self: center;
+  max-width: 80%;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+  padding: 8px 12px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.fleamarket-chat-message {
+  display: flex;
+  max-width: 75%;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.fleamarket-chat-message.is-mine {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.fleamarket-message-bubble {
+  border: 1px solid #e2e8f0;
+  border-radius: 18px 18px 18px 5px;
+  background: #fff;
+  color: #1e293b;
+  padding: 10px 14px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.fleamarket-chat-message.is-mine .fleamarket-message-bubble {
   border-color: #0f172a;
-  border-radius: 18px 18px 6px;
+  border-radius: 18px 18px 5px;
   background: #0f172a;
   color: #fff;
 }
 
-.fleamarket-message span {
+.fleamarket-message-bubble p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.fleamarket-message-bubble button {
   display: block;
-  margin-top: 4px;
+  border: 0;
+  background: transparent;
+  color: #e11d48;
+  margin-top: 8px;
+  padding: 0;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.fleamarket-chat-message.is-mine .fleamarket-message-bubble button {
+  color: #fecdd3;
+}
+
+.fleamarket-chat-message > span {
   color: #94a3b8;
-  font-size: 0.72rem;
+  margin-top: 4px;
+  padding: 0 4px;
+  font-size: 10px;
 }
 
-.fleamarket-chat__composer {
-  border-top: 1px solid #eef2f7;
-}
-
-.fleamarket-chat__composer textarea {
-  min-height: 48px;
-  flex: 1 1 280px;
-}
-
-.fleamarket-trade-panel {
-  align-self: start;
-}
-
-.fleamarket-status-pill {
-  display: inline-flex;
-  border-radius: 999px;
-  background: #eef2ff;
-  padding: 6px 10px;
-  color: #4338ca;
-  font-weight: 800;
-}
-
-.fleamarket-compose {
-  max-width: 980px;
-}
-
-.fleamarket-management__header {
+.fleamarket-chat-composer {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.fleamarket-list-stack {
-  display: grid;
-  gap: 12px;
-}
-
-.fleamarket-row {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  justify-content: space-between;
-  border: 1px solid #dbe2ea;
-  border-radius: 16px;
-  background: #fff;
-  padding: 14px;
-}
-
-.fleamarket-row div {
-  display: grid;
-  gap: 4px;
-}
-
-.fleamarket-row span {
-  color: #64748b;
-  font-size: 0.84rem;
-}
-
-.fleamarket-row__actions {
-  display: flex !important;
-  flex-wrap: wrap;
-  grid-template-columns: none;
   gap: 8px;
-  justify-content: flex-end;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 16px;
+}
+
+.fleamarket-chat-composer textarea {
+  min-height: 48px;
+  max-height: 120px;
+  flex: 1;
+  resize: vertical;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #0f172a;
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.fleamarket-chat-composer textarea:focus {
+  border-color: #cbd5e1;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.16);
+}
+
+.fleamarket-send-button {
+  display: inline-flex;
+  min-width: 52px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #fff;
+  padding: 0 16px;
+  cursor: pointer;
+}
+
+.fleamarket-send-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.fleamarket-send-button span {
+  margin-left: 8px;
+  font-weight: 700;
+}
+
+.fleamarket-trade-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.fleamarket-trade-summary-card,
+.fleamarket-trade-status-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.fleamarket-trade-summary-card {
+  display: flex;
+  gap: 16px;
+  overflow: hidden;
+  padding: 16px;
+}
+
+.fleamarket-trade-summary-card img {
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.fleamarket-trade-summary-card h4 {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  margin: 0 0 8px;
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.fleamarket-trade-summary-card strong {
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.fleamarket-trade-status-card {
+  flex: 1;
+  padding: 24px;
+}
+
+.fleamarket-trade-status-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 24px;
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.fleamarket-trade-status-card h3 svg {
+  width: 18px;
+  height: 18px;
+  color: #94a3b8;
+}
+
+.fleamarket-status-steps {
+  position: relative;
+  display: grid;
+  gap: 24px;
+  margin-bottom: 24px;
+  padding-left: 24px;
+}
+
+.fleamarket-status-steps::before {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 8px;
+  width: 2px;
+  background: #f1f5f9;
+  content: "";
+}
+
+.fleamarket-status-step {
+  position: relative;
+}
+
+.fleamarket-status-step > span {
+  position: absolute;
+  top: 0;
+  left: -25px;
+  width: 20px;
+  height: 20px;
+  border: 4px solid #fff;
+  border-radius: 999px;
+  background: #e2e8f0;
+  box-shadow: 0 0 0 1px #e2e8f0;
+}
+
+.fleamarket-status-step.is-active > span {
+  background: #6366f1;
+}
+
+.fleamarket-status-step.is-done > span {
+  background: #10b981;
+}
+
+.fleamarket-status-step h4 {
+  margin: 0 0 4px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.fleamarket-status-step.is-active h4 {
+  color: #4f46e5;
+}
+
+.fleamarket-status-step.is-done h4 {
+  color: #059669;
+}
+
+.fleamarket-status-step p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.fleamarket-trade-actions {
+  border-top: 1px solid #f1f5f9;
+  padding-top: 16px;
 }
 
 .fleamarket-review-form {
   display: grid;
   gap: 10px;
+  border-top: 1px solid #f1f5f9;
   margin-top: 18px;
-  border-top: 1px solid #eef2f7;
   padding-top: 16px;
+}
+
+.fleamarket-review-form h4 {
+  margin: 0;
+}
+
+.fleamarket-rating-control {
+  display: flex;
+  gap: 8px;
+}
+
+.fleamarket-rating-control button {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.fleamarket-rating-control button.is-active {
+  border-color: #0f172a;
+  background: #0f172a;
+  color: #fff;
 }
 
 .fleamarket-review-form input,
 .fleamarket-review-form textarea,
 .fleamarket-modal input,
-.fleamarket-modal textarea {
+.fleamarket-modal textarea,
+.fleamarket-compose-card input,
+.fleamarket-compose-card select,
+.fleamarket-compose-card textarea {
   width: 100%;
-  border: 1px solid #dbe2ea;
+  border: 1px solid #e2e8f0;
   border-radius: 12px;
   background: #f8fafc;
   color: #0f172a;
-  padding: 10px 12px;
+  padding: 11px 12px;
   font: inherit;
+  outline: none;
 }
 
 .fleamarket-review-form textarea,
-.fleamarket-modal textarea {
+.fleamarket-modal textarea,
+.fleamarket-compose-card textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.fleamarket-compose-card {
+  padding: 32px;
+}
+
+.fleamarket-compose-card > p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.fleamarket-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.fleamarket-compose-card label,
+.fleamarket-modal label {
+  display: grid;
+  gap: 7px;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.fleamarket-field-wide,
+.fleamarket-file-box {
+  grid-column: 1 / -1;
+}
+
+.fleamarket-file-box {
+  position: relative;
   min-height: 96px;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #cbd5e1;
+  border-radius: 16px;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+}
+
+.fleamarket-file-box svg {
+  width: 20px;
+  height: 20px;
+}
+
+.fleamarket-file-box input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.fleamarket-existing-images {
+  display: grid;
+  gap: 10px;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.fleamarket-existing-images > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.fleamarket-existing-images figure {
+  position: relative;
+  overflow: hidden;
+  width: 112px;
+  height: 84px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+  margin: 0;
+}
+
+.fleamarket-existing-images img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fleamarket-existing-images button {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.86);
+  color: #fff;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.fleamarket-management-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fleamarket-list-card {
+  padding: 28px;
+}
+
+.fleamarket-list-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.fleamarket-list-card-title h1 {
+  margin-bottom: 0;
+}
+
+.fleamarket-list-card-title select {
+  min-width: 152px;
+  height: 42px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  color: #334155;
+  padding: 0 12px;
+  font: inherit;
+  outline: none;
+}
+
+.fleamarket-row-list {
+  display: grid;
+  gap: 12px;
+}
+
+.fleamarket-management-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #f1f5f9;
+  border-radius: 14px;
+  background: #fff;
+  padding: 14px;
+}
+
+.fleamarket-management-row div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fleamarket-management-row strong {
+  color: #0f172a;
+}
+
+.fleamarket-management-row span {
+  color: #64748b;
+  font-size: 13px;
 }
 
 .fleamarket-modal-backdrop {
@@ -635,21 +1600,23 @@
   display: grid;
   gap: 14px;
   width: min(520px, 100%);
-  border-radius: 20px;
-  border: 1px solid #dbe2ea;
+  border: 1px solid #e2e8f0;
+  border-radius: 22px;
   background: #fff;
-  padding: 22px;
-  box-shadow: 0 25px 80px rgba(15, 23, 42, 0.28);
+  padding: 24px;
+  box-shadow: 0 26px 80px rgba(15, 23, 42, 0.28);
 }
 
-.fleamarket-modal label {
-  display: grid;
-  gap: 6px;
-  color: #334155;
-  font-size: 0.9rem;
+.fleamarket-modal h2 {
+  margin: 0;
 }
 
-.fleamarket-modal__close {
+.fleamarket-modal p {
+  margin: 0;
+  color: #64748b;
+}
+
+.fleamarket-modal-close {
   position: absolute;
   top: 12px;
   right: 12px;
@@ -665,65 +1632,62 @@
   cursor: pointer;
 }
 
-.fleamarket-form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin: 18px 0;
-}
-
-.fleamarket-compose label {
-  display: grid;
-  gap: 6px;
-  color: #334155;
-  font-size: 0.9rem;
-}
-
-.fleamarket-compose textarea {
-  min-height: 110px;
-}
-
-.fleamarket-field-wide,
-.fleamarket-file-box {
-  grid-column: 1 / -1;
-}
-
-.fleamarket-file-box {
-  position: relative;
-  display: flex !important;
-  min-height: 88px;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed #cbd5e1;
-  border-radius: 16px;
-  background: #f8fafc;
-  cursor: pointer;
-}
-
-.fleamarket-file-box svg {
-  width: 20px;
-  height: 20px;
-}
-
-.fleamarket-file-box input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.fleamarket-empty {
-  display: grid;
-  place-items: center;
-  min-height: 220px;
-  margin-top: 18px;
-  text-align: center;
-}
-
 .fleamarket-load-more {
   display: flex;
   justify-content: center;
-  margin-top: 20px;
+  margin-top: 24px;
+}
+
+.fleamarket-not-connected {
+  display: grid;
+  min-height: 300px;
+  place-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 28px;
+  background: #fff;
+  color: #64748b;
+  text-align: center;
+}
+
+.fleamarket-not-connected h1 {
+  margin: 0;
+  color: #0f172a;
+}
+
+.fleamarket-not-connected p {
+  margin: 8px 0 0;
+}
+
+.fleamarket-footer {
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 48px 0;
+}
+
+.fleamarket-footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.fleamarket-footer-brand,
+.fleamarket-footer-links {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.fleamarket-footer-brand {
+  gap: 8px;
+  color: #94a3b8;
+}
+
+.fleamarket-footer-brand svg {
+  width: 20px;
+  height: 20px;
 }
 
 .fleamarket-spin {
@@ -736,21 +1700,112 @@
   }
 }
 
+@media (min-width: 640px) {
+  .fleamarket-topbar-inner,
+  .fleamarket-main,
+  .fleamarket-footer-inner {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .fleamarket-topbar-inner,
+  .fleamarket-main,
+  .fleamarket-footer-inner {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+}
+
+@media (max-width: 1120px) {
+  .fleamarket-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 900px) {
-  .fleamarket-hero,
-  .fleamarket-detail__grid,
-  .fleamarket-trade,
-  .fleamarket-search {
+  .fleamarket-top-search {
+    display: none;
+  }
+
+  .fleamarket-mobile-menu {
+    display: inline-flex;
+  }
+
+  .fleamarket-detail-grid,
+  .fleamarket-chat-page {
     grid-template-columns: 1fr;
   }
 
-  .fleamarket-form-grid,
-  .fleamarket-facts,
-  .fleamarket-metrics {
-    grid-template-columns: 1fr;
-  }
-
-  .fleamarket-sticky {
+  .fleamarket-purchase-card {
     position: static;
+  }
+
+  .fleamarket-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fleamarket-market-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .fleamarket-sort {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .fleamarket-main {
+    padding-top: 20px;
+  }
+
+  .fleamarket-brand span {
+    font-size: 17px;
+  }
+
+  .fleamarket-top-actions {
+    gap: 8px;
+  }
+
+  .fleamarket-landing-hero {
+    border-radius: 22px;
+    padding: 36px 24px;
+  }
+
+  .fleamarket-hero-copy h1 {
+    font-size: 34px;
+  }
+
+  .fleamarket-hero-copy p {
+    font-size: 16px;
+  }
+
+  .fleamarket-grid,
+  .fleamarket-form-grid,
+  .fleamarket-detail-facts,
+  .fleamarket-seller-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .fleamarket-chat-message,
+  .fleamarket-system-pill {
+    max-width: 92%;
+  }
+
+  .fleamarket-chat-composer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .fleamarket-send-button {
+    width: 100%;
+  }
+
+  .fleamarket-footer-inner,
+  .fleamarket-footer-links {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

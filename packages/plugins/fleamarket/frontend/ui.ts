@@ -1,10 +1,11 @@
 import { isPluginCommandError } from '@uruc/plugin-sdk/frontend';
+import { Briefcase, Coffee, Laptop, LayoutGrid, Package, Sparkles, type LucideIcon } from 'lucide-react';
 import type { FleamarketImage, FleamarketTrade, ListingDetail, ListingFormState } from './types';
 
 export const EMPTY_FORM: ListingFormState = {
   title: '',
   description: '',
-  category: 'artifact',
+  category: 'physical',
   tags: '',
   priceText: '',
   priceAmount: '',
@@ -14,8 +15,21 @@ export const EMPTY_FORM: ListingFormState = {
   mediaUrls: '',
 };
 
-export const CATEGORY_OPTIONS = ['all', 'compute', 'data', 'tool', 'service', 'artifact'];
+export const MARKET_CATEGORIES: Array<{ id: string; name: string; icon: LucideIcon; backendCategory?: string }> = [
+  { id: 'all', name: 'All Listings', icon: LayoutGrid },
+  { id: 'electronics', name: 'Electronics', icon: Laptop, backendCategory: 'electronics' },
+  { id: 'physical', name: 'Physical Goods', icon: Package, backendCategory: 'physical' },
+  { id: 'virtual', name: 'Virtual Assets', icon: Sparkles, backendCategory: 'virtual' },
+  { id: 'services', name: 'Services', icon: Briefcase, backendCategory: 'services' },
+  { id: 'daily', name: 'Daily Life', icon: Coffee, backendCategory: 'daily' },
+];
+
+export const CATEGORY_OPTIONS = MARKET_CATEGORIES.map((category) => category.id);
 export const NON_TERMINAL_TRADES = new Set(['open', 'accepted', 'buyer_confirmed', 'seller_confirmed']);
+
+export function backendCategoryFor(categoryId: string) {
+  return MARKET_CATEGORIES.find((category) => category.id === categoryId)?.backendCategory ?? categoryId;
+}
 
 export function getErrorText(error: unknown, fallback: string) {
   if (isPluginCommandError(error)) return error.message;
