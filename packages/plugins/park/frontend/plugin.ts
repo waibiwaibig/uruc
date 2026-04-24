@@ -4,7 +4,8 @@ import {
   PAGE_ROUTE_TARGET,
   defineFrontendPlugin,
 } from '@uruc/plugin-sdk/frontend';
-import './styles/index.css';
+
+const loadParkStyles = () => import('./styles/index.css?inline');
 
 const route = (
   id: string,
@@ -21,6 +22,7 @@ const route = (
     shell: 'app',
     guard: options.guard ?? 'auth',
     order,
+    styles: [loadParkStyles],
     load,
   },
 });
@@ -39,6 +41,7 @@ const venueRoute = (
     shell: 'app',
     guard: 'auth',
     order,
+    styles: [loadParkStyles],
     venue: {
       titleKey: 'park:nav.label',
       descriptionKey: 'park:intro.body',

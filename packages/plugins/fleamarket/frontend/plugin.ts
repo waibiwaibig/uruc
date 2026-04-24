@@ -5,7 +5,8 @@ import {
   PAGE_ROUTE_TARGET,
   defineFrontendPlugin,
 } from '@uruc/plugin-sdk/frontend';
-import './styles/index.css';
+
+const loadFleamarketStyles = () => import('./styles/index.css?inline');
 
 export default defineFrontendPlugin({
   pluginId: 'uruc.fleamarket',
@@ -20,6 +21,7 @@ export default defineFrontendPlugin({
         shell: 'app',
         guard: 'auth',
         order: 58,
+        styles: [loadFleamarketStyles],
         load: async () => ({ default: (await import('./FleamarketHomePage')).FleamarketHomePage }),
       },
     },
