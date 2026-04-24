@@ -1,1811 +1,2395 @@
-.fleamarket-app {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: #f8fafc;
-  color: #0f172a;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
-.fleamarket-app * {
-  box-sizing: border-box;
-}
-
-.fleamarket-topbar {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  border-bottom: 1px solid #e2e8f0;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(14px);
-}
-
-.fleamarket-topbar-inner,
-.fleamarket-main,
-.fleamarket-footer-inner {
-  width: min(100%, 1280px);
-  margin: 0 auto;
-  padding: 0 16px;
-}
-
-.fleamarket-topbar-inner {
-  height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-}
-
-.fleamarket-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 0;
-  background: transparent;
-  color: #0f172a;
-  padding: 0;
-  font: inherit;
-  font-size: 20px;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.fleamarket-brand svg {
-  width: 24px;
-  height: 24px;
-  color: #4f46e5;
-  fill: rgba(79, 70, 229, 0.18);
-}
-
-.fleamarket-brand em {
-  color: #94a3b8;
-  font-style: normal;
-  font-weight: 400;
-}
-
-.fleamarket-top-search {
-  position: relative;
-  display: flex;
-  flex: 1 1 520px;
-  max-width: 560px;
-  align-items: center;
-}
-
-.fleamarket-top-search svg {
-  position: absolute;
-  left: 16px;
-  width: 18px;
-  height: 18px;
-  color: #94a3b8;
-  pointer-events: none;
-}
-
-.fleamarket-top-search input {
-  width: 100%;
-  height: 40px;
-  border: 1px solid #e2e8f0;
-  border-radius: 999px;
-  background: rgba(248, 250, 252, 0.72);
-  padding: 0 16px 0 44px;
-  color: #0f172a;
-  font: inherit;
-  font-size: 14px;
-  outline: none;
-  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-}
-
-.fleamarket-top-search input::placeholder {
-  color: #94a3b8;
-}
-
-.fleamarket-top-search input:focus {
-  border-color: #6366f1;
-  background: #fff;
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.14);
-}
-
-.fleamarket-top-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.fleamarket-menu-wrap {
-  position: relative;
-}
-
-.fleamarket-icon-button,
-.fleamarket-user-button,
-.fleamarket-mobile-menu {
-  position: relative;
-  display: inline-flex;
-  width: 40px;
-  height: 40px;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  background: transparent;
-  color: #94a3b8;
-  cursor: pointer;
-  transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-}
-
-.fleamarket-icon-button:hover,
-.fleamarket-mobile-menu:hover {
-  color: #475569;
-}
-
-.fleamarket-icon-button svg,
-.fleamarket-user-button svg,
-.fleamarket-mobile-menu svg {
-  width: 20px;
-  height: 20px;
-}
-
-.fleamarket-user-button {
-  border: 1px solid #c7d2fe;
-  border-radius: 999px;
-  background: #e0e7ff;
-  color: #4f46e5;
-}
-
-.fleamarket-user-button:hover {
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.14);
-}
-
-.fleamarket-mobile-menu {
-  display: none;
-}
-
-.fleamarket-notice-dot {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 8px;
-  height: 8px;
-  border: 2px solid #fff;
-  border-radius: 999px;
-  background: #f43f5e;
-}
-
-.fleamarket-popover {
-  position: absolute;
-  top: calc(100% + 12px);
-  right: 0;
-  z-index: 60;
-  width: min(320px, calc(100vw - 32px));
-  border: 1px solid #e2e8f0;
-  border-radius: 18px;
-  background: #fff;
-  padding: 16px;
-  box-shadow: 0 22px 70px rgba(15, 23, 42, 0.16);
-}
-
-.fleamarket-popover h3 {
-  margin: 0 0 8px;
-  font-size: 15px;
-}
-
-.fleamarket-popover p,
-.fleamarket-user-summary span,
-.fleamarket-helper-text {
-  color: #64748b;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.fleamarket-popover-notice,
-.fleamarket-user-menu button {
-  width: 100%;
-  border: 0;
-  border-radius: 12px;
-  background: #f8fafc;
-  color: #334155;
-  padding: 10px 12px;
-  text-align: left;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.fleamarket-user-menu {
-  display: grid;
-  gap: 8px;
-}
-
-.fleamarket-user-menu button:hover,
-.fleamarket-popover-notice:hover {
-  background: #eef2ff;
-  color: #3730a3;
-}
-
-.fleamarket-user-menu button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.fleamarket-user-summary {
-  display: grid;
-  gap: 3px;
-  border-bottom: 1px solid #f1f5f9;
-  margin-bottom: 4px;
-  padding-bottom: 12px;
-}
-
-.fleamarket-user-summary strong {
-  color: #0f172a;
-}
-
-.fleamarket-main {
-  flex: 1;
-  padding-top: 32px;
-  padding-bottom: 32px;
-}
-
-.fleamarket-home {
-  display: grid;
-  gap: 32px;
-}
-
-.fleamarket-landing-hero {
-  position: relative;
-  overflow: hidden;
-  min-height: 264px;
-  border: 1px solid #e2e8f0;
-  border-radius: 28px;
-  background: #fff;
-  padding: 56px 44px;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-}
-
-.fleamarket-hero-glow {
-  position: absolute;
-  top: -80px;
-  right: -80px;
-  width: 384px;
-  height: 384px;
-  border-radius: 999px;
-  background: #eef2ff;
-  filter: blur(52px);
-  opacity: 0.62;
-}
-
-.fleamarket-hero-copy {
-  position: relative;
-  max-width: 672px;
-}
-
-.fleamarket-hero-copy h1 {
-  margin: 0 0 18px;
-  color: #0f172a;
-  font-size: 48px;
-  line-height: 1.08;
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
-.fleamarket-hero-copy p {
-  margin: 0 0 30px;
-  color: #64748b;
-  font-size: 18px;
-  line-height: 1.7;
-}
-
-.fleamarket-hero-actions,
-.fleamarket-modal-actions,
-.fleamarket-row-actions,
-.fleamarket-trade-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.fleamarket-button {
-  display: inline-flex;
-  min-height: 48px;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  padding: 12px 22px;
-  font: inherit;
-  font-weight: 700;
-  color: #334155;
-  cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-}
-
-.fleamarket-button svg {
-  width: 18px;
-  height: 18px;
-}
-
-.fleamarket-button--primary {
-  border-color: #0f172a;
-  background: #0f172a;
-  color: #fff;
-  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.18);
-}
-
-.fleamarket-button--primary:hover {
-  background: #1e293b;
-}
-
-.fleamarket-button--secondary {
-  border-color: #e2e8f0;
-  background: #fff;
-  color: #334155;
-}
-
-.fleamarket-button--secondary:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
-.fleamarket-button:disabled,
-.fleamarket-send-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-  transform: none;
-}
-
-.fleamarket-wide-button {
-  width: 100%;
-  min-height: 56px;
-  font-size: 17px;
-}
-
-.fleamarket-market-toolbar {
-  position: sticky;
-  top: 64px;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 32px;
-  background: rgba(248, 250, 252, 0.9);
-  padding: 16px 0;
-  backdrop-filter: blur(12px);
-}
-
-.fleamarket-category-row {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: none;
-}
-
-.fleamarket-category-row::-webkit-scrollbar {
-  display: none;
-}
-
-.fleamarket-category {
-  display: inline-flex;
-  min-height: 46px;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #fff;
-  color: #475569;
-  padding: 10px 16px;
-  white-space: nowrap;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.fleamarket-category svg {
-  width: 18px;
-  height: 18px;
-  color: #94a3b8;
-}
-
-.fleamarket-category:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
-.fleamarket-category.is-active {
-  border-color: #0f172a;
-  background: #0f172a;
-  color: #fff;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16);
-}
-
-.fleamarket-category.is-active svg {
-  color: #c7d2fe;
-}
-
-.fleamarket-sort {
-  height: 46px;
-  min-width: 150px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #fff;
-  color: #334155;
-  padding: 0 12px;
-  font: inherit;
-  font-size: 14px;
-  outline: none;
-}
-
-.fleamarket-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 24px;
-}
-
-.fleamarket-item-card {
-  min-width: 0;
-}
-
-.fleamarket-item-card-link {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  background: #fff;
-  padding: 0;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: box-shadow 0.3s ease, transform 0.3s ease;
-}
-
-.fleamarket-item-card-link:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 18px 36px rgba(148, 163, 184, 0.24);
-}
-
-.fleamarket-item-image {
-  position: relative;
-  display: grid;
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  place-items: center;
-  overflow: hidden;
-  background: #f1f5f9;
-  color: #94a3b8;
-}
-
-.fleamarket-item-image img,
-.fleamarket-detail-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.fleamarket-item-image svg,
-.fleamarket-detail-image > svg,
-.fleamarket-trade-summary-card > svg,
-.fleamarket-not-connected > svg {
-  width: 52px;
-  height: 52px;
-}
-
-.fleamarket-item-card-link:hover .fleamarket-item-image img {
-  transform: scale(1.05);
-}
-
-.fleamarket-item-image img {
-  transition: transform 0.7s ease;
-}
-
-.fleamarket-condition-badge {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.96);
-  padding: 5px 8px;
-  color: #334155;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
-}
-
-.fleamarket-item-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  padding: 16px;
-}
-
-.fleamarket-item-body h3 {
-  display: -webkit-box;
-  min-height: 44px;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  margin: 0 0 10px;
-  color: #0f172a;
-  font-size: 15px;
-  line-height: 1.35;
-  font-weight: 700;
-}
-
-.fleamarket-item-card-link:hover h3 {
-  color: #4f46e5;
-}
-
-.fleamarket-item-price {
-  margin-bottom: 14px;
-  color: #0f172a;
-  font-size: 20px;
-  line-height: 1.2;
-  font-weight: 800;
-}
-
-.fleamarket-item-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border-top: 1px solid #f1f5f9;
-  margin-top: auto;
-  padding-top: 12px;
-  color: #94a3b8;
-  font-size: 10px;
-}
-
-.fleamarket-seller-mini {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-  color: #475569;
-}
-
-.fleamarket-seller-mini span,
-.fleamarket-chat-avatar,
-.fleamarket-seller-avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: #f1f5f9;
-  color: #475569;
-  font-weight: 800;
-}
-
-.fleamarket-seller-mini span {
-  width: 20px;
-  height: 20px;
-  border: 1px solid #e2e8f0;
-  font-size: 10px;
-}
-
-.fleamarket-seller-mini strong {
-  max-width: 86px;
-  overflow: hidden;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.fleamarket-empty-grid {
-  grid-column: 1 / -1;
-  display: grid;
-  min-height: 220px;
-  place-items: center;
-  border: 2px dashed #e2e8f0;
-  border-radius: 28px;
-  background: #fff;
-  color: #64748b;
-  font-weight: 650;
-}
-
-.fleamarket-alert {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 18px;
-  border-radius: 14px;
-  padding: 12px 14px;
-  font-size: 14px;
-}
-
-.fleamarket-alert svg {
-  width: 18px;
-  height: 18px;
-  flex: none;
-}
-
-.fleamarket-alert button {
-  display: inline-flex;
-  margin-left: auto;
-  border: 0;
-  background: transparent;
-  color: currentColor;
-  cursor: pointer;
-}
-
-.fleamarket-alert--error {
-  border: 1px solid #fecdd3;
-  background: #fff1f2;
-  color: #9f1239;
-}
-
-.fleamarket-alert--success {
-  border: 1px solid #bbf7d0;
-  background: #f0fdf4;
-  color: #166534;
-}
-
-.fleamarket-detail-page,
-.fleamarket-management-page,
-.fleamarket-compose-page {
-  max-width: 1152px;
-  margin: 0 auto;
-}
-
-.fleamarket-back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 0;
-  background: transparent;
-  color: #64748b;
-  padding: 0 0 24px;
-  font: inherit;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.fleamarket-back-link:hover {
-  color: #0f172a;
-}
-
-.fleamarket-back-link svg {
-  width: 16px;
-  height: 16px;
-}
-
-.fleamarket-detail-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
-  gap: 32px;
-}
-
-.fleamarket-detail-left,
-.fleamarket-detail-right {
-  display: grid;
-  gap: 24px;
-  align-content: start;
-}
-
-.fleamarket-detail-image {
-  display: grid;
-  aspect-ratio: 16 / 10;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid #e2e8f0;
-  border-radius: 28px;
-  background: #f1f5f9;
-  color: #94a3b8;
-}
-
-.fleamarket-detail-card,
-.fleamarket-purchase-card,
-.fleamarket-seller-card,
-.fleamarket-list-card,
-.fleamarket-compose-card {
-  border: 1px solid #e2e8f0;
-  border-radius: 28px;
-  background: #fff;
-}
-
-.fleamarket-detail-card {
-  padding: 32px;
-}
-
-.fleamarket-detail-card h2 {
-  border-bottom: 1px solid #f1f5f9;
-  margin: 0 0 18px;
-  padding-bottom: 16px;
-  color: #0f172a;
-  font-size: 18px;
-}
-
-.fleamarket-detail-card p {
-  margin: 0;
-  color: #334155;
-  line-height: 1.7;
-  white-space: pre-wrap;
-}
-
-.fleamarket-detail-facts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-  font-size: 14px;
-}
-
-.fleamarket-detail-facts span {
-  display: block;
-  margin-bottom: 4px;
-  color: #64748b;
-}
-
-.fleamarket-detail-facts strong {
-  color: #0f172a;
-  font-weight: 700;
-}
-
-.fleamarket-tag-row,
-.fleamarket-link-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 18px;
-}
-
-.fleamarket-tag-row span {
-  border-radius: 999px;
-  background: #eef2ff;
-  color: #4338ca;
-  padding: 6px 10px;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.fleamarket-link-list a {
-  color: #4f46e5;
-  overflow-wrap: anywhere;
-}
-
-.fleamarket-purchase-card {
-  position: sticky;
-  top: 96px;
-  padding: 28px;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-}
-
-.fleamarket-purchase-card h1,
-.fleamarket-compose-card h1,
-.fleamarket-list-card h1 {
-  margin: 0 0 12px;
-  color: #0f172a;
-  font-size: 26px;
-  line-height: 1.22;
-  font-weight: 700;
-}
-
-.fleamarket-detail-price {
-  margin: 24px 0;
-  color: #0f172a;
-  font-size: 34px;
-  line-height: 1;
-  font-weight: 850;
-}
-
-.fleamarket-trust-note {
-  display: flex;
-  gap: 10px;
-  border: 1px solid #fde68a;
-  border-radius: 12px;
-  background: #fffbeb;
-  margin-bottom: 12px;
-  padding: 12px;
-  color: #92400e;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.fleamarket-trust-note svg {
-  width: 20px;
-  height: 20px;
-  flex: none;
-  color: #f59e0b;
-}
-
-.fleamarket-trust-note p {
-  margin: 0;
-}
-
-.fleamarket-route-box {
-  display: grid;
-  gap: 8px;
-  border: 1px solid #f1f5f9;
-  border-radius: 12px;
-  background: #f8fafc;
-  margin-bottom: 24px;
-  padding: 16px;
-}
-
-.fleamarket-route-box span {
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.fleamarket-route-box p {
-  margin: 0;
-  color: #334155;
-  line-height: 1.55;
-}
-
-.fleamarket-purchase-field {
-  display: grid;
-  gap: 7px;
-  margin-bottom: 14px;
-  color: #334155;
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.fleamarket-purchase-field input,
-.fleamarket-purchase-field textarea {
-  width: 100%;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #f8fafc;
-  color: #0f172a;
-  padding: 11px 12px;
-  font: inherit;
-  outline: none;
-}
-
-.fleamarket-purchase-field textarea {
-  min-height: 92px;
-  resize: vertical;
-}
-
-.fleamarket-report-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: 0;
-  background: transparent;
-  color: #94a3b8;
-  padding: 10px;
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.fleamarket-report-link:hover {
-  color: #e11d48;
-}
-
-.fleamarket-report-link svg {
-  width: 16px;
-  height: 16px;
-}
-
-.fleamarket-seller-card {
-  padding: 24px;
-}
-
-.fleamarket-seller-card h3 {
-  margin: 0 0 18px;
-  color: #0f172a;
-  font-size: 13px;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.fleamarket-seller-profile {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.fleamarket-seller-avatar {
-  width: 48px;
-  height: 48px;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.1);
-}
-
-.fleamarket-seller-profile div:last-child {
-  min-width: 0;
-}
-
-.fleamarket-seller-profile strong {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #0f172a;
-}
-
-.fleamarket-seller-profile strong svg,
-.fleamarket-seller-mini svg {
-  width: 16px;
-  height: 16px;
-  color: #3b82f6;
-}
-
-.fleamarket-seller-profile span {
-  display: block;
-  max-width: 220px;
-  overflow: hidden;
-  color: #64748b;
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.fleamarket-seller-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.fleamarket-seller-stats div {
-  border: 1px solid #f1f5f9;
-  border-radius: 12px;
-  background: #f8fafc;
-  padding: 12px;
-  text-align: center;
-}
-
-.fleamarket-seller-stats strong {
-  display: block;
-  color: #0f172a;
-  font-size: 18px;
-}
-
-.fleamarket-seller-stats span {
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.fleamarket-review-list {
-  display: grid;
-  gap: 10px;
-}
-
-.fleamarket-review-list article {
-  border: 1px solid #f1f5f9;
-  border-radius: 12px;
-  background: #f8fafc;
-  padding: 12px;
-}
-
-.fleamarket-review-list strong {
-  font-size: 13px;
-}
-
-.fleamarket-review-list p {
-  margin: 6px 0 0;
-  color: #64748b;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.fleamarket-chat-page {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 24px;
-  max-width: 1152px;
-  min-height: calc(100vh - 140px);
-  margin: 0 auto;
-}
-
-.fleamarket-chat-window {
-  display: flex;
-  min-height: 620px;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid #e2e8f0;
-  border-radius: 28px;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-}
-
-.fleamarket-chat-header {
-  height: 64px;
-  border-bottom: 1px solid #e2e8f0;
-  background: rgba(248, 250, 252, 0.54);
-  padding: 0 24px;
-}
-
-.fleamarket-chat-title {
-  display: flex;
-  height: 100%;
-  align-items: center;
-  gap: 16px;
-}
-
-.fleamarket-chat-back {
-  display: inline-flex;
-  width: 36px;
-  height: 36px;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: #94a3b8;
-  cursor: pointer;
-}
-
-.fleamarket-chat-back:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.fleamarket-chat-back svg {
-  width: 20px;
-  height: 20px;
-}
-
-.fleamarket-chat-avatar {
-  width: 32px;
-  height: 32px;
-  font-size: 13px;
-}
-
-.fleamarket-chat-title strong {
-  display: block;
-  color: #0f172a;
-  font-size: 14px;
-}
-
-.fleamarket-chat-title span {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #64748b;
-  font-size: 12px;
-}
-
-.fleamarket-chat-title i {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: #10b981;
-}
-
-.fleamarket-chat-messages {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 16px;
-  overflow-y: auto;
-  background: rgba(248, 250, 252, 0.48);
-  padding: 24px;
-}
-
-.fleamarket-load-earlier {
-  align-self: center;
-  border: 1px solid #e2e8f0;
-  border-radius: 999px;
-  background: #fff;
-  color: #475569;
-  padding: 8px 14px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.fleamarket-load-earlier:hover {
-  background: #f8fafc;
-}
-
-.fleamarket-system-pill {
-  align-self: center;
-  max-width: 80%;
-  border-radius: 999px;
-  background: #f1f5f9;
-  color: #64748b;
-  padding: 8px 12px;
-  font-size: 12px;
-  text-align: center;
-}
-
-.fleamarket-chat-message {
-  display: flex;
-  max-width: 75%;
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.fleamarket-chat-message.is-mine {
-  align-self: flex-end;
-  align-items: flex-end;
-}
-
-.fleamarket-message-bubble {
-  border: 1px solid #e2e8f0;
-  border-radius: 18px 18px 18px 5px;
-  background: #fff;
-  color: #1e293b;
-  padding: 10px 14px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-}
-
-.fleamarket-chat-message.is-mine .fleamarket-message-bubble {
-  border-color: #0f172a;
-  border-radius: 18px 18px 5px;
-  background: #0f172a;
-  color: #fff;
-}
-
-.fleamarket-message-bubble p {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.55;
-}
-
-.fleamarket-message-bubble button {
-  display: block;
-  border: 0;
-  background: transparent;
-  color: #e11d48;
-  margin-top: 8px;
-  padding: 0;
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.fleamarket-chat-message.is-mine .fleamarket-message-bubble button {
-  color: #fecdd3;
-}
-
-.fleamarket-chat-message > span {
-  color: #94a3b8;
-  margin-top: 4px;
-  padding: 0 4px;
-  font-size: 10px;
-}
-
-.fleamarket-chat-composer {
-  display: flex;
-  gap: 8px;
-  border-top: 1px solid #e2e8f0;
-  background: #fff;
-  padding: 16px;
-}
-
-.fleamarket-chat-composer textarea {
-  min-height: 48px;
-  max-height: 120px;
-  flex: 1;
-  resize: vertical;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  background: #f1f5f9;
-  color: #0f172a;
-  padding: 12px 14px;
-  font: inherit;
-  font-size: 14px;
-  outline: none;
-}
-
-.fleamarket-chat-composer textarea:focus {
-  border-color: #cbd5e1;
-  background: #fff;
-  box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.16);
-}
-
-.fleamarket-send-button {
-  display: inline-flex;
-  min-width: 52px;
-  height: 48px;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 12px;
-  background: #0f172a;
-  color: #fff;
-  padding: 0 16px;
-  cursor: pointer;
-}
-
-.fleamarket-send-button svg {
-  width: 20px;
-  height: 20px;
-}
-
-.fleamarket-send-button span {
-  margin-left: 8px;
-  font-weight: 700;
-}
-
-.fleamarket-trade-sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.fleamarket-trade-summary-card,
-.fleamarket-trade-status-card {
-  border: 1px solid #e2e8f0;
-  border-radius: 28px;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-}
-
-.fleamarket-trade-summary-card {
-  display: flex;
-  gap: 16px;
-  overflow: hidden;
-  padding: 16px;
-}
-
-.fleamarket-trade-summary-card img {
-  width: 80px;
-  height: 80px;
-  border-radius: 12px;
-  object-fit: cover;
-}
-
-.fleamarket-trade-summary-card h4 {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  margin: 0 0 8px;
-  color: #0f172a;
-  font-size: 14px;
-  line-height: 1.35;
-}
-
-.fleamarket-trade-summary-card strong {
-  color: #0f172a;
-  font-size: 18px;
-}
-
-.fleamarket-trade-status-card {
-  flex: 1;
-  padding: 24px;
-}
-
-.fleamarket-trade-status-card h3 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 24px;
-  color: #0f172a;
-  font-size: 16px;
-}
-
-.fleamarket-trade-status-card h3 svg {
-  width: 18px;
-  height: 18px;
-  color: #94a3b8;
-}
-
-.fleamarket-status-steps {
-  position: relative;
-  display: grid;
-  gap: 24px;
-  margin-bottom: 24px;
-  padding-left: 24px;
-}
-
-.fleamarket-status-steps::before {
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: 8px;
-  width: 2px;
-  background: #f1f5f9;
-  content: "";
-}
-
-.fleamarket-status-step {
-  position: relative;
-}
-
-.fleamarket-status-step > span {
-  position: absolute;
-  top: 0;
-  left: -25px;
-  width: 20px;
-  height: 20px;
-  border: 4px solid #fff;
-  border-radius: 999px;
-  background: #e2e8f0;
-  box-shadow: 0 0 0 1px #e2e8f0;
-}
-
-.fleamarket-status-step.is-active > span {
-  background: #6366f1;
-}
-
-.fleamarket-status-step.is-done > span {
-  background: #10b981;
-}
-
-.fleamarket-status-step h4 {
-  margin: 0 0 4px;
-  color: #64748b;
-  font-size: 14px;
-}
-
-.fleamarket-status-step.is-active h4 {
-  color: #4f46e5;
-}
-
-.fleamarket-status-step.is-done h4 {
-  color: #059669;
-}
-
-.fleamarket-status-step p {
-  margin: 0;
-  color: #94a3b8;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.fleamarket-trade-actions {
-  border-top: 1px solid #f1f5f9;
-  padding-top: 16px;
-}
-
-.fleamarket-review-form {
-  display: grid;
-  gap: 10px;
-  border-top: 1px solid #f1f5f9;
-  margin-top: 18px;
-  padding-top: 16px;
-}
-
-.fleamarket-review-form h4 {
-  margin: 0;
-}
-
-.fleamarket-rating-control {
-  display: flex;
-  gap: 8px;
-}
-
-.fleamarket-rating-control button {
-  display: inline-flex;
-  width: 36px;
-  height: 36px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #e2e8f0;
-  border-radius: 999px;
-  background: #fff;
-  color: #475569;
-  font: inherit;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.fleamarket-rating-control button.is-active {
-  border-color: #0f172a;
-  background: #0f172a;
-  color: #fff;
-}
-
-.fleamarket-review-form input,
-.fleamarket-review-form textarea,
-.fleamarket-modal input,
-.fleamarket-modal textarea,
-.fleamarket-compose-card input,
-.fleamarket-compose-card select,
-.fleamarket-compose-card textarea {
-  width: 100%;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #f8fafc;
-  color: #0f172a;
-  padding: 11px 12px;
-  font: inherit;
-  outline: none;
-}
-
-.fleamarket-review-form textarea,
-.fleamarket-modal textarea,
-.fleamarket-compose-card textarea {
-  min-height: 100px;
-  resize: vertical;
-}
-
-.fleamarket-compose-card {
-  padding: 32px;
-}
-
-.fleamarket-compose-card > p {
-  margin: 0;
-  color: #64748b;
-  line-height: 1.6;
-}
-
-.fleamarket-form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin: 24px 0;
-}
-
-.fleamarket-compose-card label,
-.fleamarket-modal label {
-  display: grid;
-  gap: 7px;
-  color: #334155;
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.fleamarket-field-wide,
-.fleamarket-file-box {
-  grid-column: 1 / -1;
-}
-
-.fleamarket-file-box {
-  position: relative;
-  min-height: 96px;
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed #cbd5e1;
-  border-radius: 16px;
-  background: #f8fafc;
-  color: #475569;
-  cursor: pointer;
-}
-
-.fleamarket-file-box svg {
-  width: 20px;
-  height: 20px;
-}
-
-.fleamarket-file-box input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.fleamarket-existing-images {
-  display: grid;
-  gap: 10px;
-  color: #334155;
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.fleamarket-existing-images > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.fleamarket-existing-images figure {
-  position: relative;
-  overflow: hidden;
-  width: 112px;
-  height: 84px;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  background: #f8fafc;
-  margin: 0;
-}
-
-.fleamarket-existing-images img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.fleamarket-existing-images button {
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.86);
-  color: #fff;
-  padding: 5px 8px;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.fleamarket-management-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.fleamarket-list-card {
-  padding: 28px;
-}
-
-.fleamarket-list-card-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
-}
-
-.fleamarket-list-card-title h1 {
-  margin-bottom: 0;
-}
-
-.fleamarket-list-card-title select {
-  min-width: 152px;
-  height: 42px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #fff;
-  color: #334155;
-  padding: 0 12px;
-  font: inherit;
-  outline: none;
-}
-
-.fleamarket-row-list {
-  display: grid;
-  gap: 12px;
-}
-
-.fleamarket-management-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  border: 1px solid #f1f5f9;
-  border-radius: 14px;
-  background: #fff;
-  padding: 14px;
-}
-
-.fleamarket-management-row div:first-child {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.fleamarket-management-row strong {
-  color: #0f172a;
-}
-
-.fleamarket-management-row span {
-  color: #64748b;
-  font-size: 13px;
-}
-
-.fleamarket-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  display: grid;
-  place-items: center;
-  background: rgba(15, 23, 42, 0.45);
-  padding: 20px;
-}
-
-.fleamarket-modal {
-  position: relative;
-  display: grid;
-  gap: 14px;
-  width: min(520px, 100%);
-  border: 1px solid #e2e8f0;
-  border-radius: 22px;
-  background: #fff;
-  padding: 24px;
-  box-shadow: 0 26px 80px rgba(15, 23, 42, 0.28);
-}
-
-.fleamarket-modal h2 {
-  margin: 0;
-}
-
-.fleamarket-modal p {
-  margin: 0;
-  color: #64748b;
-}
-
-.fleamarket-modal-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  display: inline-flex;
-  width: 34px;
-  height: 34px;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 999px;
-  background: #f1f5f9;
-  color: #334155;
-  cursor: pointer;
-}
-
-.fleamarket-load-more {
-  display: flex;
-  justify-content: center;
-  margin-top: 24px;
-}
-
-.fleamarket-not-connected {
-  display: grid;
-  min-height: 300px;
-  place-items: center;
-  border: 1px solid #e2e8f0;
-  border-radius: 28px;
-  background: #fff;
-  color: #64748b;
-  text-align: center;
-}
-
-.fleamarket-not-connected h1 {
-  margin: 0;
-  color: #0f172a;
-}
-
-.fleamarket-not-connected p {
-  margin: 8px 0 0;
-}
-
-.fleamarket-footer {
-  border-top: 1px solid #e2e8f0;
-  background: #fff;
-  padding: 48px 0;
-}
-
-.fleamarket-footer-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-}
-
-.fleamarket-footer-brand,
-.fleamarket-footer-links {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  color: #64748b;
-  font-size: 14px;
-}
-
-.fleamarket-footer-brand {
-  gap: 8px;
-  color: #94a3b8;
-}
-
-.fleamarket-footer-brand svg {
-  width: 20px;
-  height: 20px;
-}
-
-.fleamarket-spin {
-  animation: fleamarket-spin 0.8s linear infinite;
-}
-
-@keyframes fleamarket-spin {
-  to {
-    transform: rotate(360deg);
+/*! tailwindcss v4.2.4 | MIT License | https://tailwindcss.com */
+@layer properties {
+  @supports (((-webkit-hyphens: none)) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color: rgb(from red r g b)))) {
+    *, :before, :after, ::backdrop {
+      --tw-rotate-x: initial;
+      --tw-rotate-y: initial;
+      --tw-rotate-z: initial;
+      --tw-skew-x: initial;
+      --tw-skew-y: initial;
+      --tw-space-y-reverse: 0;
+      --tw-border-style: solid;
+      --tw-leading: initial;
+      --tw-font-weight: initial;
+      --tw-tracking: initial;
+      --tw-shadow: 0 0 #0000;
+      --tw-shadow-color: initial;
+      --tw-shadow-alpha: 100%;
+      --tw-inset-shadow: 0 0 #0000;
+      --tw-inset-shadow-color: initial;
+      --tw-inset-shadow-alpha: 100%;
+      --tw-ring-color: initial;
+      --tw-ring-shadow: 0 0 #0000;
+      --tw-inset-ring-color: initial;
+      --tw-inset-ring-shadow: 0 0 #0000;
+      --tw-ring-inset: initial;
+      --tw-ring-offset-width: 0px;
+      --tw-ring-offset-color: #fff;
+      --tw-ring-offset-shadow: 0 0 #0000;
+      --tw-blur: initial;
+      --tw-brightness: initial;
+      --tw-contrast: initial;
+      --tw-grayscale: initial;
+      --tw-hue-rotate: initial;
+      --tw-invert: initial;
+      --tw-opacity: initial;
+      --tw-saturate: initial;
+      --tw-sepia: initial;
+      --tw-drop-shadow: initial;
+      --tw-drop-shadow-color: initial;
+      --tw-drop-shadow-alpha: 100%;
+      --tw-drop-shadow-size: initial;
+      --tw-backdrop-blur: initial;
+      --tw-backdrop-brightness: initial;
+      --tw-backdrop-contrast: initial;
+      --tw-backdrop-grayscale: initial;
+      --tw-backdrop-hue-rotate: initial;
+      --tw-backdrop-invert: initial;
+      --tw-backdrop-opacity: initial;
+      --tw-backdrop-saturate: initial;
+      --tw-backdrop-sepia: initial;
+      --tw-duration: initial;
+      --tw-ease: initial;
+      --tw-translate-x: 0;
+      --tw-translate-y: 0;
+      --tw-translate-z: 0;
+      --tw-scale-x: 1;
+      --tw-scale-y: 1;
+      --tw-scale-z: 1;
+      --tw-content: "";
+      --tw-animation-delay: 0s;
+      --tw-animation-direction: normal;
+      --tw-animation-duration: initial;
+      --tw-animation-fill-mode: none;
+      --tw-animation-iteration-count: 1;
+      --tw-enter-blur: 0;
+      --tw-enter-opacity: 1;
+      --tw-enter-rotate: 0;
+      --tw-enter-scale: 1;
+      --tw-enter-translate-x: 0;
+      --tw-enter-translate-y: 0;
+      --tw-exit-blur: 0;
+      --tw-exit-opacity: 1;
+      --tw-exit-rotate: 0;
+      --tw-exit-scale: 1;
+      --tw-exit-translate-x: 0;
+      --tw-exit-translate-y: 0;
+    }
   }
 }
 
-@media (min-width: 640px) {
-  .fleamarket-topbar-inner,
-  .fleamarket-main,
-  .fleamarket-footer-inner {
-    padding-left: 24px;
-    padding-right: 24px;
+@layer theme {
+  :root, :host {
+    --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+      "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+      "Courier New", monospace;
+    --color-amber-50: oklch(98.7% .022 95.277);
+    --color-amber-100: oklch(96.2% .059 95.617);
+    --color-amber-500: oklch(76.9% .188 70.08);
+    --color-emerald-50: oklch(97.9% .021 166.113);
+    --color-emerald-100: oklch(95% .052 163.051);
+    --color-emerald-400: oklch(76.5% .177 163.223);
+    --color-emerald-500: oklch(69.6% .17 162.48);
+    --color-emerald-600: oklch(59.6% .145 163.225);
+    --color-emerald-700: oklch(50.8% .118 165.612);
+    --color-blue-500: oklch(62.3% .214 259.815);
+    --color-indigo-50: oklch(96.2% .018 272.314);
+    --color-indigo-100: oklch(93% .034 272.788);
+    --color-indigo-200: oklch(87% .065 274.039);
+    --color-indigo-500: oklch(58.5% .233 277.117);
+    --color-indigo-600: oklch(51.1% .262 276.966);
+    --color-indigo-700: oklch(45.7% .24 277.023);
+    --color-rose-50: oklch(96.9% .015 12.422);
+    --color-rose-100: oklch(94.1% .03 12.58);
+    --color-rose-400: oklch(71.2% .194 13.428);
+    --color-rose-500: oklch(64.5% .246 16.439);
+    --color-rose-700: oklch(51.4% .222 16.935);
+    --color-slate-50: oklch(98.4% .003 247.858);
+    --color-slate-100: oklch(96.8% .007 247.896);
+    --color-slate-200: oklch(92.9% .013 255.508);
+    --color-slate-300: oklch(86.9% .022 252.894);
+    --color-slate-400: oklch(70.4% .04 256.788);
+    --color-slate-500: oklch(55.4% .046 257.417);
+    --color-slate-600: oklch(44.6% .043 257.281);
+    --color-slate-700: oklch(37.2% .044 257.287);
+    --color-slate-800: oklch(27.9% .041 260.031);
+    --color-slate-900: oklch(20.8% .042 265.755);
+    --color-white: #fff;
+    --spacing: .25rem;
+    --container-lg: 32rem;
+    --container-xl: 36rem;
+    --container-2xl: 42rem;
+    --container-4xl: 56rem;
+    --container-5xl: 64rem;
+    --container-6xl: 72rem;
+    --container-7xl: 80rem;
+    --text-xs: .75rem;
+    --text-xs--line-height: calc(1 / .75);
+    --text-sm: .875rem;
+    --text-sm--line-height: calc(1.25 / .875);
+    --text-base: 1rem;
+    --text-lg: 1.125rem;
+    --text-lg--line-height: calc(1.75 / 1.125);
+    --text-xl: 1.25rem;
+    --text-xl--line-height: calc(1.75 / 1.25);
+    --text-2xl: 1.5rem;
+    --text-2xl--line-height: calc(2 / 1.5);
+    --text-3xl: 1.875rem;
+    --text-3xl--line-height: calc(2.25 / 1.875);
+    --text-4xl: 2.25rem;
+    --text-4xl--line-height: calc(2.5 / 2.25);
+    --text-5xl: 3rem;
+    --text-5xl--line-height: 1;
+    --font-weight-light: 300;
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+    --tracking-tight: -.025em;
+    --tracking-wide: .025em;
+    --tracking-wider: .05em;
+    --leading-tight: 1.25;
+    --leading-relaxed: 1.625;
+    --radius-2xl: 1rem;
+    --radius-3xl: 1.5rem;
+    --ease-out: cubic-bezier(0, 0, .2, 1);
+    --animate-spin: spin 1s linear infinite;
+    --blur-sm: 8px;
+    --blur-md: 12px;
+    --blur-3xl: 64px;
+    --default-transition-duration: .15s;
+    --default-transition-timing-function: cubic-bezier(.4, 0, .2, 1);
+    --default-font-family: var(--font-sans);
+    --default-mono-font-family: var(--font-mono);
   }
 }
 
-@media (min-width: 1024px) {
-  .fleamarket-topbar-inner,
-  .fleamarket-main,
-  .fleamarket-footer-inner {
-    padding-left: 32px;
-    padding-right: 32px;
-  }
-}
-
-@media (max-width: 1120px) {
-  .fleamarket-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 900px) {
-  .fleamarket-top-search {
-    display: none;
+@layer base {
+  *, :after, :before, ::backdrop {
+    box-sizing: border-box;
+    border: 0 solid;
+    margin: 0;
+    padding: 0;
   }
 
-  .fleamarket-mobile-menu {
+  ::file-selector-button {
+    box-sizing: border-box;
+    border: 0 solid;
+    margin: 0;
+    padding: 0;
+  }
+
+  html, :host {
+    -webkit-text-size-adjust: 100%;
+    tab-size: 4;
+    line-height: 1.5;
+    font-family: var(--default-font-family, ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji");
+    font-feature-settings: var(--default-font-feature-settings, normal);
+    font-variation-settings: var(--default-font-variation-settings, normal);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  hr {
+    height: 0;
+    color: inherit;
+    border-top-width: 1px;
+  }
+
+  abbr:where([title]) {
+    -webkit-text-decoration: underline dotted;
+    text-decoration: underline dotted;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-size: inherit;
+    font-weight: inherit;
+  }
+
+  a {
+    color: inherit;
+    -webkit-text-decoration: inherit;
+    -webkit-text-decoration: inherit;
+    -webkit-text-decoration: inherit;
+    text-decoration: inherit;
+  }
+
+  b, strong {
+    font-weight: bolder;
+  }
+
+  code, kbd, samp, pre {
+    font-family: var(--default-mono-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+    font-feature-settings: var(--default-mono-font-feature-settings, normal);
+    font-variation-settings: var(--default-mono-font-variation-settings, normal);
+    font-size: 1em;
+  }
+
+  small {
+    font-size: 80%;
+  }
+
+  sub, sup {
+    vertical-align: baseline;
+    font-size: 75%;
+    line-height: 0;
+    position: relative;
+  }
+
+  sub {
+    bottom: -.25em;
+  }
+
+  sup {
+    top: -.5em;
+  }
+
+  table {
+    text-indent: 0;
+    border-color: inherit;
+    border-collapse: collapse;
+  }
+
+  :-moz-focusring {
+    outline: auto;
+  }
+
+  progress {
+    vertical-align: baseline;
+  }
+
+  summary {
+    display: list-item;
+  }
+
+  ol, ul, menu {
+    list-style: none;
+  }
+
+  img, svg, video, canvas, audio, iframe, embed, object {
+    vertical-align: middle;
+    display: block;
+  }
+
+  img, video {
+    max-width: 100%;
+    height: auto;
+  }
+
+  button, input, select, optgroup, textarea {
+    font: inherit;
+    font-feature-settings: inherit;
+    font-variation-settings: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    opacity: 1;
+    background-color: #0000;
+    border-radius: 0;
+  }
+
+  ::file-selector-button {
+    font: inherit;
+    font-feature-settings: inherit;
+    font-variation-settings: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    opacity: 1;
+    background-color: #0000;
+    border-radius: 0;
+  }
+
+  :where(select:is([multiple], [size])) optgroup {
+    font-weight: bolder;
+  }
+
+  :where(select:is([multiple], [size])) optgroup option {
+    padding-inline-start: 20px;
+  }
+
+  ::file-selector-button {
+    margin-inline-end: 4px;
+  }
+
+  ::placeholder {
+    opacity: 1;
+  }
+
+  @supports (not ((-webkit-appearance: -apple-pay-button))) or (contain-intrinsic-size: 1px) {
+    ::placeholder {
+      color: currentColor;
+    }
+
+    @supports (color: color-mix(in lab, red, red)) {
+      ::placeholder {
+        color: color-mix(in oklab, currentcolor 50%, transparent);
+      }
+    }
+  }
+
+  textarea {
+    resize: vertical;
+  }
+
+  ::-webkit-search-decoration {
+    -webkit-appearance: none;
+  }
+
+  ::-webkit-date-and-time-value {
+    min-height: 1lh;
+    text-align: inherit;
+  }
+
+  ::-webkit-datetime-edit {
     display: inline-flex;
   }
 
-  .fleamarket-detail-grid,
-  .fleamarket-chat-page {
-    grid-template-columns: 1fr;
+  ::-webkit-datetime-edit-fields-wrapper {
+    padding: 0;
   }
 
-  .fleamarket-purchase-card {
-    position: static;
+  ::-webkit-datetime-edit {
+    padding-block: 0;
   }
 
-  .fleamarket-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  ::-webkit-datetime-edit-year-field {
+    padding-block: 0;
   }
 
-  .fleamarket-market-toolbar {
-    align-items: stretch;
-    flex-direction: column;
+  ::-webkit-datetime-edit-month-field {
+    padding-block: 0;
   }
 
-  .fleamarket-sort {
-    width: 100%;
+  ::-webkit-datetime-edit-day-field {
+    padding-block: 0;
+  }
+
+  ::-webkit-datetime-edit-hour-field {
+    padding-block: 0;
+  }
+
+  ::-webkit-datetime-edit-minute-field {
+    padding-block: 0;
+  }
+
+  ::-webkit-datetime-edit-second-field {
+    padding-block: 0;
+  }
+
+  ::-webkit-datetime-edit-millisecond-field {
+    padding-block: 0;
+  }
+
+  ::-webkit-datetime-edit-meridiem-field {
+    padding-block: 0;
+  }
+
+  ::-webkit-calendar-picker-indicator {
+    line-height: 1;
+  }
+
+  :-moz-ui-invalid {
+    box-shadow: none;
+  }
+
+  button, input:where([type="button"], [type="reset"], [type="submit"]) {
+    appearance: button;
+  }
+
+  ::file-selector-button {
+    appearance: button;
+  }
+
+  ::-webkit-inner-spin-button {
+    height: auto;
+  }
+
+  ::-webkit-outer-spin-button {
+    height: auto;
+  }
+
+  [hidden]:where(:not([hidden="until-found"])) {
+    display: none !important;
+  }
+
+  * {
+    border-color: var(--border);
+    outline-color: var(--ring);
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    * {
+      outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
+    }
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+
+  html {
+    font-size: var(--font-size);
+  }
+
+  h1 {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h3 {
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h4, label, button {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  input {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
   }
 }
 
-@media (max-width: 640px) {
-  .fleamarket-main {
-    padding-top: 20px;
+@layer components;
+
+@layer utilities {
+  .pointer-events-none {
+    pointer-events: none;
   }
 
-  .fleamarket-brand span {
-    font-size: 17px;
+  .sr-only {
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border-width: 0;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    position: absolute;
+    overflow: hidden;
   }
 
-  .fleamarket-top-actions {
-    gap: 8px;
+  .absolute {
+    position: absolute;
   }
 
-  .fleamarket-landing-hero {
-    border-radius: 22px;
-    padding: 36px 24px;
+  .fixed {
+    position: fixed;
   }
 
-  .fleamarket-hero-copy h1 {
-    font-size: 34px;
+  .relative {
+    position: relative;
   }
 
-  .fleamarket-hero-copy p {
-    font-size: 16px;
+  .sticky {
+    position: sticky;
   }
 
-  .fleamarket-grid,
-  .fleamarket-form-grid,
-  .fleamarket-detail-facts,
-  .fleamarket-seller-stats {
-    grid-template-columns: 1fr;
+  .inset-0 {
+    inset: calc(var(--spacing) * 0);
   }
 
-  .fleamarket-chat-message,
-  .fleamarket-system-pill {
-    max-width: 92%;
+  .inset-y-0 {
+    inset-block: calc(var(--spacing) * 0);
   }
 
-  .fleamarket-chat-composer {
-    align-items: stretch;
-    flex-direction: column;
+  .-top-20 {
+    top: calc(var(--spacing) * -20);
   }
 
-  .fleamarket-send-button {
+  .top-0 {
+    top: calc(var(--spacing) * 0);
+  }
+
+  .top-2 {
+    top: calc(var(--spacing) * 2);
+  }
+
+  .top-3 {
+    top: calc(var(--spacing) * 3);
+  }
+
+  .top-4 {
+    top: calc(var(--spacing) * 4);
+  }
+
+  .top-16 {
+    top: calc(var(--spacing) * 16);
+  }
+
+  .top-24 {
+    top: calc(var(--spacing) * 24);
+  }
+
+  .-right-20 {
+    right: calc(var(--spacing) * -20);
+  }
+
+  .right-0 {
+    right: calc(var(--spacing) * 0);
+  }
+
+  .right-2 {
+    right: calc(var(--spacing) * 2);
+  }
+
+  .right-4 {
+    right: calc(var(--spacing) * 4);
+  }
+
+  .-left-\[29px\] {
+    left: -29px;
+  }
+
+  .left-0 {
+    left: calc(var(--spacing) * 0);
+  }
+
+  .left-3 {
+    left: calc(var(--spacing) * 3);
+  }
+
+  .z-40 {
+    z-index: 40;
+  }
+
+  .z-50 {
+    z-index: 50;
+  }
+
+  .z-\[100\] {
+    z-index: 100;
+  }
+
+  .col-span-full {
+    grid-column: 1 / -1;
+  }
+
+  .mx-8 {
+    margin-inline: calc(var(--spacing) * 8);
+  }
+
+  .mx-auto {
+    margin-inline: auto;
+  }
+
+  .my-2 {
+    margin-block: calc(var(--spacing) * 2);
+  }
+
+  .my-6 {
+    margin-block: calc(var(--spacing) * 6);
+  }
+
+  .mt-0\.5 {
+    margin-top: calc(var(--spacing) * .5);
+  }
+
+  .mt-1 {
+    margin-top: calc(var(--spacing) * 1);
+  }
+
+  .mt-2 {
+    margin-top: calc(var(--spacing) * 2);
+  }
+
+  .mt-3 {
+    margin-top: calc(var(--spacing) * 3);
+  }
+
+  .mt-4 {
+    margin-top: calc(var(--spacing) * 4);
+  }
+
+  .mt-6 {
+    margin-top: calc(var(--spacing) * 6);
+  }
+
+  .mt-8 {
+    margin-top: calc(var(--spacing) * 8);
+  }
+
+  .mt-auto {
+    margin-top: auto;
+  }
+
+  .mb-1 {
+    margin-bottom: calc(var(--spacing) * 1);
+  }
+
+  .mb-2 {
+    margin-bottom: calc(var(--spacing) * 2);
+  }
+
+  .mb-3 {
+    margin-bottom: calc(var(--spacing) * 3);
+  }
+
+  .mb-4 {
+    margin-bottom: calc(var(--spacing) * 4);
+  }
+
+  .mb-6 {
+    margin-bottom: calc(var(--spacing) * 6);
+  }
+
+  .mb-8 {
+    margin-bottom: calc(var(--spacing) * 8);
+  }
+
+  .-ml-2 {
+    margin-left: calc(var(--spacing) * -2);
+  }
+
+  .line-clamp-2 {
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    display: -webkit-box;
+    overflow: hidden;
+  }
+
+  .block {
+    display: block;
+  }
+
+  .flex {
+    display: flex;
+  }
+
+  .grid {
+    display: grid;
+  }
+
+  .hidden {
+    display: none;
+  }
+
+  .inline-flex {
+    display: inline-flex;
+  }
+
+  .aspect-\[4\/3\] {
+    aspect-ratio: 4 / 3;
+  }
+
+  .h-1\.5 {
+    height: calc(var(--spacing) * 1.5);
+  }
+
+  .h-2 {
+    height: calc(var(--spacing) * 2);
+  }
+
+  .h-3\.5 {
+    height: calc(var(--spacing) * 3.5);
+  }
+
+  .h-4 {
+    height: calc(var(--spacing) * 4);
+  }
+
+  .h-5 {
+    height: calc(var(--spacing) * 5);
+  }
+
+  .h-6 {
+    height: calc(var(--spacing) * 6);
+  }
+
+  .h-7 {
+    height: calc(var(--spacing) * 7);
+  }
+
+  .h-8 {
+    height: calc(var(--spacing) * 8);
+  }
+
+  .h-9 {
+    height: calc(var(--spacing) * 9);
+  }
+
+  .h-10 {
+    height: calc(var(--spacing) * 10);
+  }
+
+  .h-12 {
+    height: calc(var(--spacing) * 12);
+  }
+
+  .h-14 {
+    height: calc(var(--spacing) * 14);
+  }
+
+  .h-16 {
+    height: calc(var(--spacing) * 16);
+  }
+
+  .h-20 {
+    height: calc(var(--spacing) * 20);
+  }
+
+  .h-96 {
+    height: calc(var(--spacing) * 96);
+  }
+
+  .h-\[calc\(100vh-140px\)\] {
+    height: calc(100vh - 140px);
+  }
+
+  .h-full {
+    height: 100%;
+  }
+
+  .min-h-20 {
+    min-height: calc(var(--spacing) * 20);
+  }
+
+  .min-h-24 {
+    min-height: calc(var(--spacing) * 24);
+  }
+
+  .min-h-28 {
+    min-height: calc(var(--spacing) * 28);
+  }
+
+  .min-h-32 {
+    min-height: calc(var(--spacing) * 32);
+  }
+
+  .min-h-screen {
+    min-height: 100vh;
+  }
+
+  .w-1\.5 {
+    width: calc(var(--spacing) * 1.5);
+  }
+
+  .w-2 {
+    width: calc(var(--spacing) * 2);
+  }
+
+  .w-3\.5 {
+    width: calc(var(--spacing) * 3.5);
+  }
+
+  .w-4 {
+    width: calc(var(--spacing) * 4);
+  }
+
+  .w-5 {
+    width: calc(var(--spacing) * 5);
+  }
+
+  .w-6 {
+    width: calc(var(--spacing) * 6);
+  }
+
+  .w-7 {
+    width: calc(var(--spacing) * 7);
+  }
+
+  .w-8 {
+    width: calc(var(--spacing) * 8);
+  }
+
+  .w-9 {
+    width: calc(var(--spacing) * 9);
+  }
+
+  .w-10 {
+    width: calc(var(--spacing) * 10);
+  }
+
+  .w-12 {
+    width: calc(var(--spacing) * 12);
+  }
+
+  .w-14 {
+    width: calc(var(--spacing) * 14);
+  }
+
+  .w-20 {
+    width: calc(var(--spacing) * 20);
+  }
+
+  .w-72 {
+    width: calc(var(--spacing) * 72);
+  }
+
+  .w-80 {
+    width: calc(var(--spacing) * 80);
+  }
+
+  .w-96 {
+    width: calc(var(--spacing) * 96);
+  }
+
+  .w-full {
     width: 100%;
   }
 
-  .fleamarket-footer-inner,
-  .fleamarket-footer-links {
-    align-items: flex-start;
+  .max-w-2xl {
+    max-width: var(--container-2xl);
+  }
+
+  .max-w-4xl {
+    max-width: var(--container-4xl);
+  }
+
+  .max-w-5xl {
+    max-width: var(--container-5xl);
+  }
+
+  .max-w-6xl {
+    max-width: var(--container-6xl);
+  }
+
+  .max-w-7xl {
+    max-width: var(--container-7xl);
+  }
+
+  .max-w-\[75\%\] {
+    max-width: 75%;
+  }
+
+  .max-w-\[80px\] {
+    max-width: 80px;
+  }
+
+  .max-w-lg {
+    max-width: var(--container-lg);
+  }
+
+  .max-w-none {
+    max-width: none;
+  }
+
+  .max-w-xl {
+    max-width: var(--container-xl);
+  }
+
+  .min-w-0 {
+    min-width: calc(var(--spacing) * 0);
+  }
+
+  .flex-1 {
+    flex: 1;
+  }
+
+  .shrink-0 {
+    flex-shrink: 0;
+  }
+
+  .transform {
+    transform: var(--tw-rotate-x, ) var(--tw-rotate-y, ) var(--tw-rotate-z, ) var(--tw-skew-x, ) var(--tw-skew-y, );
+  }
+
+  .animate-spin {
+    animation: var(--animate-spin);
+  }
+
+  .cursor-pointer {
+    cursor: pointer;
+  }
+
+  .resize-none {
+    resize: none;
+  }
+
+  .grid-cols-1 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  .grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .flex-col {
     flex-direction: column;
+  }
+
+  .flex-wrap {
+    flex-wrap: wrap;
+  }
+
+  .items-center {
+    align-items: center;
+  }
+
+  .items-end {
+    align-items: flex-end;
+  }
+
+  .items-start {
+    align-items: flex-start;
+  }
+
+  .justify-between {
+    justify-content: space-between;
+  }
+
+  .justify-center {
+    justify-content: center;
+  }
+
+  .justify-end {
+    justify-content: flex-end;
+  }
+
+  .gap-1 {
+    gap: calc(var(--spacing) * 1);
+  }
+
+  .gap-1\.5 {
+    gap: calc(var(--spacing) * 1.5);
+  }
+
+  .gap-2 {
+    gap: calc(var(--spacing) * 2);
+  }
+
+  .gap-3 {
+    gap: calc(var(--spacing) * 3);
+  }
+
+  .gap-4 {
+    gap: calc(var(--spacing) * 4);
+  }
+
+  .gap-5 {
+    gap: calc(var(--spacing) * 5);
+  }
+
+  .gap-6 {
+    gap: calc(var(--spacing) * 6);
+  }
+
+  .gap-8 {
+    gap: calc(var(--spacing) * 8);
+  }
+
+  :where(.space-y-2 > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 2) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 2) * calc(1 - var(--tw-space-y-reverse)));
+  }
+
+  :where(.space-y-3 > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 3) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 3) * calc(1 - var(--tw-space-y-reverse)));
+  }
+
+  :where(.space-y-4 > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 4) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 4) * calc(1 - var(--tw-space-y-reverse)));
+  }
+
+  :where(.space-y-6 > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 6) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 6) * calc(1 - var(--tw-space-y-reverse)));
+  }
+
+  :where(.space-y-8 > :not(:last-child)) {
+    --tw-space-y-reverse: 0;
+    margin-block-start: calc(calc(var(--spacing) * 8) * var(--tw-space-y-reverse));
+    margin-block-end: calc(calc(var(--spacing) * 8) * calc(1 - var(--tw-space-y-reverse)));
+  }
+
+  .truncate {
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .overflow-hidden {
+    overflow: hidden;
+  }
+
+  .overflow-x-auto {
+    overflow-x: auto;
+  }
+
+  .overflow-y-auto {
+    overflow-y: auto;
+  }
+
+  .rounded {
+    border-radius: .25rem;
+  }
+
+  .rounded-2xl {
+    border-radius: var(--radius-2xl);
+  }
+
+  .rounded-3xl {
+    border-radius: var(--radius-3xl);
+  }
+
+  .rounded-full {
+    border-radius: 3.40282e38px;
+  }
+
+  .rounded-md {
+    border-radius: calc(var(--radius) - 2px);
+  }
+
+  .rounded-xl {
+    border-radius: calc(var(--radius) + 4px);
+  }
+
+  .rounded-br-sm {
+    border-bottom-right-radius: calc(var(--radius) - 4px);
+  }
+
+  .rounded-bl-sm {
+    border-bottom-left-radius: calc(var(--radius) - 4px);
+  }
+
+  .border {
+    border-style: var(--tw-border-style);
+    border-width: 1px;
+  }
+
+  .border-2 {
+    border-style: var(--tw-border-style);
+    border-width: 2px;
+  }
+
+  .border-4 {
+    border-style: var(--tw-border-style);
+    border-width: 4px;
+  }
+
+  .border-t {
+    border-top-style: var(--tw-border-style);
+    border-top-width: 1px;
+  }
+
+  .border-b {
+    border-bottom-style: var(--tw-border-style);
+    border-bottom-width: 1px;
+  }
+
+  .border-dashed {
+    --tw-border-style: dashed;
+    border-style: dashed;
+  }
+
+  .border-amber-100 {
+    border-color: var(--color-amber-100);
+  }
+
+  .border-emerald-100 {
+    border-color: var(--color-emerald-100);
+  }
+
+  .border-indigo-200 {
+    border-color: var(--color-indigo-200);
+  }
+
+  .border-rose-100 {
+    border-color: var(--color-rose-100);
+  }
+
+  .border-slate-100 {
+    border-color: var(--color-slate-100);
+  }
+
+  .border-slate-200 {
+    border-color: var(--color-slate-200);
+  }
+
+  .border-slate-900 {
+    border-color: var(--color-slate-900);
+  }
+
+  .border-transparent {
+    border-color: #0000;
+  }
+
+  .border-white {
+    border-color: var(--color-white);
+  }
+
+  .bg-amber-50 {
+    background-color: var(--color-amber-50);
+  }
+
+  .bg-emerald-50 {
+    background-color: var(--color-emerald-50);
+  }
+
+  .bg-emerald-500 {
+    background-color: var(--color-emerald-500);
+  }
+
+  .bg-indigo-50 {
+    background-color: var(--color-indigo-50);
+  }
+
+  .bg-indigo-100 {
+    background-color: var(--color-indigo-100);
+  }
+
+  .bg-indigo-500 {
+    background-color: var(--color-indigo-500);
+  }
+
+  .bg-rose-50 {
+    background-color: var(--color-rose-50);
+  }
+
+  .bg-rose-500 {
+    background-color: var(--color-rose-500);
+  }
+
+  .bg-slate-50 {
+    background-color: var(--color-slate-50);
+  }
+
+  .bg-slate-50\/30 {
+    background-color: #f8fafc4d;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-slate-50\/30 {
+      background-color: color-mix(in oklab, var(--color-slate-50) 30%, transparent);
+    }
+  }
+
+  .bg-slate-50\/50 {
+    background-color: #f8fafc80;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-slate-50\/50 {
+      background-color: color-mix(in oklab, var(--color-slate-50) 50%, transparent);
+    }
+  }
+
+  .bg-slate-50\/90 {
+    background-color: #f8fafce6;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-slate-50\/90 {
+      background-color: color-mix(in oklab, var(--color-slate-50) 90%, transparent);
+    }
+  }
+
+  .bg-slate-100 {
+    background-color: var(--color-slate-100);
+  }
+
+  .bg-slate-100\/50 {
+    background-color: #f1f5f980;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-slate-100\/50 {
+      background-color: color-mix(in oklab, var(--color-slate-100) 50%, transparent);
+    }
+  }
+
+  .bg-slate-200 {
+    background-color: var(--color-slate-200);
+  }
+
+  .bg-slate-900 {
+    background-color: var(--color-slate-900);
+  }
+
+  .bg-slate-900\/30 {
+    background-color: #0f172b4d;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-slate-900\/30 {
+      background-color: color-mix(in oklab, var(--color-slate-900) 30%, transparent);
+    }
+  }
+
+  .bg-white {
+    background-color: var(--color-white);
+  }
+
+  .bg-white\/80 {
+    background-color: #fffc;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-white\/80 {
+      background-color: color-mix(in oklab, var(--color-white) 80%, transparent);
+    }
+  }
+
+  .bg-white\/90 {
+    background-color: #ffffffe6;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-white\/90 {
+      background-color: color-mix(in oklab, var(--color-white) 90%, transparent);
+    }
+  }
+
+  .bg-white\/95 {
+    background-color: #fffffff2;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-white\/95 {
+      background-color: color-mix(in oklab, var(--color-white) 95%, transparent);
+    }
+  }
+
+  .fill-indigo-600\/20 {
+    fill: #4f39f633;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .fill-indigo-600\/20 {
+      fill: color-mix(in oklab, var(--color-indigo-600) 20%, transparent);
+    }
+  }
+
+  .object-cover {
+    object-fit: cover;
+  }
+
+  .p-2 {
+    padding: calc(var(--spacing) * 2);
+  }
+
+  .p-3 {
+    padding: calc(var(--spacing) * 3);
+  }
+
+  .p-4 {
+    padding: calc(var(--spacing) * 4);
+  }
+
+  .p-6 {
+    padding: calc(var(--spacing) * 6);
+  }
+
+  .p-8 {
+    padding: calc(var(--spacing) * 8);
+  }
+
+  .px-1 {
+    padding-inline: calc(var(--spacing) * 1);
+  }
+
+  .px-2 {
+    padding-inline: calc(var(--spacing) * 2);
+  }
+
+  .px-2\.5 {
+    padding-inline: calc(var(--spacing) * 2.5);
+  }
+
+  .px-3 {
+    padding-inline: calc(var(--spacing) * 3);
+  }
+
+  .px-4 {
+    padding-inline: calc(var(--spacing) * 4);
+  }
+
+  .px-6 {
+    padding-inline: calc(var(--spacing) * 6);
+  }
+
+  .py-1 {
+    padding-block: calc(var(--spacing) * 1);
+  }
+
+  .py-2 {
+    padding-block: calc(var(--spacing) * 2);
+  }
+
+  .py-2\.5 {
+    padding-block: calc(var(--spacing) * 2.5);
+  }
+
+  .py-3 {
+    padding-block: calc(var(--spacing) * 3);
+  }
+
+  .py-4 {
+    padding-block: calc(var(--spacing) * 4);
+  }
+
+  .py-8 {
+    padding-block: calc(var(--spacing) * 8);
+  }
+
+  .py-12 {
+    padding-block: calc(var(--spacing) * 12);
+  }
+
+  .py-20 {
+    padding-block: calc(var(--spacing) * 20);
+  }
+
+  .pt-2 {
+    padding-top: calc(var(--spacing) * 2);
+  }
+
+  .pt-3 {
+    padding-top: calc(var(--spacing) * 3);
+  }
+
+  .pt-4 {
+    padding-top: calc(var(--spacing) * 4);
+  }
+
+  .pr-3 {
+    padding-right: calc(var(--spacing) * 3);
+  }
+
+  .pb-4 {
+    padding-bottom: calc(var(--spacing) * 4);
+  }
+
+  .pl-3 {
+    padding-left: calc(var(--spacing) * 3);
+  }
+
+  .pl-6 {
+    padding-left: calc(var(--spacing) * 6);
+  }
+
+  .pl-10 {
+    padding-left: calc(var(--spacing) * 10);
+  }
+
+  .text-center {
+    text-align: center;
+  }
+
+  .text-left {
+    text-align: left;
+  }
+
+  .font-sans {
+    font-family: var(--font-sans);
+  }
+
+  .text-2xl {
+    font-size: var(--text-2xl);
+    line-height: var(--tw-leading, var(--text-2xl--line-height));
+  }
+
+  .text-3xl {
+    font-size: var(--text-3xl);
+    line-height: var(--tw-leading, var(--text-3xl--line-height));
+  }
+
+  .text-4xl {
+    font-size: var(--text-4xl);
+    line-height: var(--tw-leading, var(--text-4xl--line-height));
+  }
+
+  .text-lg {
+    font-size: var(--text-lg);
+    line-height: var(--tw-leading, var(--text-lg--line-height));
+  }
+
+  .text-sm {
+    font-size: var(--text-sm);
+    line-height: var(--tw-leading, var(--text-sm--line-height));
+  }
+
+  .text-xl {
+    font-size: var(--text-xl);
+    line-height: var(--tw-leading, var(--text-xl--line-height));
+  }
+
+  .text-xs {
+    font-size: var(--text-xs);
+    line-height: var(--tw-leading, var(--text-xs--line-height));
+  }
+
+  .text-\[10px\] {
+    font-size: 10px;
+  }
+
+  .leading-relaxed {
+    --tw-leading: var(--leading-relaxed);
+    line-height: var(--leading-relaxed);
+  }
+
+  .leading-tight {
+    --tw-leading: var(--leading-tight);
+    line-height: var(--leading-tight);
+  }
+
+  .font-bold {
+    --tw-font-weight: var(--font-weight-bold);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .font-light {
+    --tw-font-weight: var(--font-weight-light);
+    font-weight: var(--font-weight-light);
+  }
+
+  .font-medium {
+    --tw-font-weight: var(--font-weight-medium);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .font-semibold {
+    --tw-font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .tracking-tight {
+    --tw-tracking: var(--tracking-tight);
+    letter-spacing: var(--tracking-tight);
+  }
+
+  .tracking-wide {
+    --tw-tracking: var(--tracking-wide);
+    letter-spacing: var(--tracking-wide);
+  }
+
+  .tracking-wider {
+    --tw-tracking: var(--tracking-wider);
+    letter-spacing: var(--tracking-wider);
+  }
+
+  .whitespace-nowrap {
+    white-space: nowrap;
+  }
+
+  .whitespace-pre-wrap {
+    white-space: pre-wrap;
+  }
+
+  .text-amber-500 {
+    color: var(--color-amber-500);
+  }
+
+  .text-blue-500 {
+    color: var(--color-blue-500);
+  }
+
+  .text-emerald-400 {
+    color: var(--color-emerald-400);
+  }
+
+  .text-emerald-500 {
+    color: var(--color-emerald-500);
+  }
+
+  .text-emerald-600 {
+    color: var(--color-emerald-600);
+  }
+
+  .text-emerald-700 {
+    color: var(--color-emerald-700);
+  }
+
+  .text-indigo-200 {
+    color: var(--color-indigo-200);
+  }
+
+  .text-indigo-600 {
+    color: var(--color-indigo-600);
+  }
+
+  .text-indigo-700 {
+    color: var(--color-indigo-700);
+  }
+
+  .text-rose-400 {
+    color: var(--color-rose-400);
+  }
+
+  .text-rose-700 {
+    color: var(--color-rose-700);
+  }
+
+  .text-slate-300 {
+    color: var(--color-slate-300);
+  }
+
+  .text-slate-400 {
+    color: var(--color-slate-400);
+  }
+
+  .text-slate-500 {
+    color: var(--color-slate-500);
+  }
+
+  .text-slate-600 {
+    color: var(--color-slate-600);
+  }
+
+  .text-slate-700 {
+    color: var(--color-slate-700);
+  }
+
+  .text-slate-800 {
+    color: var(--color-slate-800);
+  }
+
+  .text-slate-900 {
+    color: var(--color-slate-900);
+  }
+
+  .text-white {
+    color: var(--color-white);
+  }
+
+  .capitalize {
+    text-transform: capitalize;
+  }
+
+  .uppercase {
+    text-transform: uppercase;
+  }
+
+  .placeholder-slate-400::placeholder {
+    color: var(--color-slate-400);
+  }
+
+  .opacity-50 {
+    opacity: .5;
+  }
+
+  .shadow-md {
+    --tw-shadow: 0 4px 6px -1px var(--tw-shadow-color, #0000001a), 0 2px 4px -2px var(--tw-shadow-color, #0000001a);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+
+  .shadow-sm {
+    --tw-shadow: 0 1px 3px 0 var(--tw-shadow-color, #0000001a), 0 1px 2px -1px var(--tw-shadow-color, #0000001a);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+
+  .shadow-xl {
+    --tw-shadow: 0 20px 25px -5px var(--tw-shadow-color, #0000001a), 0 8px 10px -6px var(--tw-shadow-color, #0000001a);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+
+  .shadow-slate-200\/60 {
+    --tw-shadow-color: #e2e8f099;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .shadow-slate-200\/60 {
+      --tw-shadow-color: color-mix(in oklab, color-mix(in oklab, var(--color-slate-200) 60%, transparent) var(--tw-shadow-alpha), transparent);
+    }
+  }
+
+  .ring-indigo-500\/20 {
+    --tw-ring-color: #625fff33;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .ring-indigo-500\/20 {
+      --tw-ring-color: color-mix(in oklab, var(--color-indigo-500) 20%, transparent);
+    }
+  }
+
+  .blur-3xl {
+    --tw-blur: blur(var(--blur-3xl));
+    filter: var(--tw-blur, ) var(--tw-brightness, ) var(--tw-contrast, ) var(--tw-grayscale, ) var(--tw-hue-rotate, ) var(--tw-invert, ) var(--tw-saturate, ) var(--tw-sepia, ) var(--tw-drop-shadow, );
+  }
+
+  .backdrop-blur {
+    --tw-backdrop-blur: blur(8px);
+    -webkit-backdrop-filter: var(--tw-backdrop-blur, ) var(--tw-backdrop-brightness, ) var(--tw-backdrop-contrast, ) var(--tw-backdrop-grayscale, ) var(--tw-backdrop-hue-rotate, ) var(--tw-backdrop-invert, ) var(--tw-backdrop-opacity, ) var(--tw-backdrop-saturate, ) var(--tw-backdrop-sepia, );
+    backdrop-filter: var(--tw-backdrop-blur, ) var(--tw-backdrop-brightness, ) var(--tw-backdrop-contrast, ) var(--tw-backdrop-grayscale, ) var(--tw-backdrop-hue-rotate, ) var(--tw-backdrop-invert, ) var(--tw-backdrop-opacity, ) var(--tw-backdrop-saturate, ) var(--tw-backdrop-sepia, );
+  }
+
+  .backdrop-blur-md {
+    --tw-backdrop-blur: blur(var(--blur-md));
+    -webkit-backdrop-filter: var(--tw-backdrop-blur, ) var(--tw-backdrop-brightness, ) var(--tw-backdrop-contrast, ) var(--tw-backdrop-grayscale, ) var(--tw-backdrop-hue-rotate, ) var(--tw-backdrop-invert, ) var(--tw-backdrop-opacity, ) var(--tw-backdrop-saturate, ) var(--tw-backdrop-sepia, );
+    backdrop-filter: var(--tw-backdrop-blur, ) var(--tw-backdrop-brightness, ) var(--tw-backdrop-contrast, ) var(--tw-backdrop-grayscale, ) var(--tw-backdrop-hue-rotate, ) var(--tw-backdrop-invert, ) var(--tw-backdrop-opacity, ) var(--tw-backdrop-saturate, ) var(--tw-backdrop-sepia, );
+  }
+
+  .backdrop-blur-sm {
+    --tw-backdrop-blur: blur(var(--blur-sm));
+    -webkit-backdrop-filter: var(--tw-backdrop-blur, ) var(--tw-backdrop-brightness, ) var(--tw-backdrop-contrast, ) var(--tw-backdrop-grayscale, ) var(--tw-backdrop-hue-rotate, ) var(--tw-backdrop-invert, ) var(--tw-backdrop-opacity, ) var(--tw-backdrop-saturate, ) var(--tw-backdrop-sepia, );
+    backdrop-filter: var(--tw-backdrop-blur, ) var(--tw-backdrop-brightness, ) var(--tw-backdrop-contrast, ) var(--tw-backdrop-grayscale, ) var(--tw-backdrop-hue-rotate, ) var(--tw-backdrop-invert, ) var(--tw-backdrop-opacity, ) var(--tw-backdrop-saturate, ) var(--tw-backdrop-sepia, );
+  }
+
+  .transition-all {
+    transition-property: all;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+  }
+
+  .transition-colors {
+    transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+  }
+
+  .transition-transform {
+    transition-property: transform, translate, scale, rotate;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+  }
+
+  .duration-300 {
+    --tw-duration: .3s;
+    transition-duration: .3s;
+  }
+
+  .duration-700 {
+    --tw-duration: .7s;
+    transition-duration: .7s;
+  }
+
+  .ease-out {
+    --tw-ease: var(--ease-out);
+    transition-timing-function: var(--ease-out);
+  }
+
+  .outline-none {
+    --tw-outline-style: none;
+    outline-style: none;
+  }
+
+  .paused {
+    animation-play-state: paused;
+  }
+
+  .group-focus-within\:text-indigo-500:is(:where(.group):focus-within *) {
+    color: var(--color-indigo-500);
+  }
+
+  @media (hover: hover) {
+    .group-hover\:-translate-y-1:is(:where(.group):hover *) {
+      --tw-translate-y: calc(var(--spacing) * -1);
+      translate: var(--tw-translate-x) var(--tw-translate-y);
+    }
+
+    .group-hover\:scale-105:is(:where(.group):hover *) {
+      --tw-scale-x: 105%;
+      --tw-scale-y: 105%;
+      --tw-scale-z: 105%;
+      scale: var(--tw-scale-x) var(--tw-scale-y);
+    }
+
+    .group-hover\:text-indigo-600:is(:where(.group):hover *) {
+      color: var(--color-indigo-600);
+    }
+  }
+
+  .before\:absolute:before {
+    content: var(--tw-content);
+    position: absolute;
+  }
+
+  .before\:inset-y-2:before {
+    content: var(--tw-content);
+    inset-block: calc(var(--spacing) * 2);
+  }
+
+  .before\:left-2:before {
+    content: var(--tw-content);
+    left: calc(var(--spacing) * 2);
+  }
+
+  .before\:w-0\.5:before {
+    content: var(--tw-content);
+    width: calc(var(--spacing) * .5);
+  }
+
+  .before\:bg-slate-100:before {
+    content: var(--tw-content);
+    background-color: var(--color-slate-100);
+  }
+
+  @media (hover: hover) {
+    .hover\:border-slate-300:hover {
+      border-color: var(--color-slate-300);
+    }
+
+    .hover\:bg-slate-50:hover {
+      background-color: var(--color-slate-50);
+    }
+
+    .hover\:bg-slate-100:hover {
+      background-color: var(--color-slate-100);
+    }
+
+    .hover\:bg-slate-800:hover {
+      background-color: var(--color-slate-800);
+    }
+
+    .hover\:text-emerald-700:hover {
+      color: var(--color-emerald-700);
+    }
+
+    .hover\:text-rose-500:hover {
+      color: var(--color-rose-500);
+    }
+
+    .hover\:text-rose-700:hover {
+      color: var(--color-rose-700);
+    }
+
+    .hover\:text-slate-600:hover {
+      color: var(--color-slate-600);
+    }
+
+    .hover\:text-slate-700:hover {
+      color: var(--color-slate-700);
+    }
+
+    .hover\:text-slate-900:hover {
+      color: var(--color-slate-900);
+    }
+
+    .hover\:underline:hover {
+      text-decoration-line: underline;
+    }
+
+    .hover\:shadow-lg:hover {
+      --tw-shadow: 0 10px 15px -3px var(--tw-shadow-color, #0000001a), 0 4px 6px -4px var(--tw-shadow-color, #0000001a);
+      box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+    }
+
+    .hover\:ring-2:hover {
+      --tw-ring-shadow: var(--tw-ring-inset, ) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+      box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+    }
+
+    .hover\:shadow-slate-200\/50:hover {
+      --tw-shadow-color: #e2e8f080;
+    }
+
+    @supports (color: color-mix(in lab, red, red)) {
+      .hover\:shadow-slate-200\/50:hover {
+        --tw-shadow-color: color-mix(in oklab, color-mix(in oklab, var(--color-slate-200) 50%, transparent) var(--tw-shadow-alpha), transparent);
+      }
+    }
+  }
+
+  .focus\:border-indigo-500:focus {
+    border-color: var(--color-indigo-500);
+  }
+
+  .focus\:border-slate-300:focus {
+    border-color: var(--color-slate-300);
+  }
+
+  .focus\:bg-white:focus {
+    background-color: var(--color-white);
+  }
+
+  .focus\:ring-2:focus {
+    --tw-ring-shadow: var(--tw-ring-inset, ) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+
+  .focus\:ring-indigo-500\/20:focus {
+    --tw-ring-color: #625fff33;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .focus\:ring-indigo-500\/20:focus {
+      --tw-ring-color: color-mix(in oklab, var(--color-indigo-500) 20%, transparent);
+    }
+  }
+
+  .focus\:ring-slate-200:focus {
+    --tw-ring-color: var(--color-slate-200);
+  }
+
+  .focus\:outline-none:focus {
+    --tw-outline-style: none;
+    outline-style: none;
+  }
+
+  .disabled\:opacity-50:disabled {
+    opacity: .5;
+  }
+
+  @media (min-width: 40rem) {
+    .sm\:grid-cols-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .sm\:px-6 {
+      padding-inline: calc(var(--spacing) * 6);
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .md\:col-span-2 {
+      grid-column: span 2 / span 2;
+    }
+
+    .md\:flex {
+      display: flex;
+    }
+
+    .md\:hidden {
+      display: none;
+    }
+
+    .md\:aspect-\[16\/10\] {
+      aspect-ratio: 16 / 10;
+    }
+
+    .md\:w-80 {
+      width: calc(var(--spacing) * 80);
+    }
+
+    .md\:w-auto {
+      width: auto;
+    }
+
+    .md\:grid-cols-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .md\:grid-cols-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .md\:flex-row {
+      flex-direction: row;
+    }
+
+    .md\:items-center {
+      align-items: center;
+    }
+
+    .md\:p-8 {
+      padding: calc(var(--spacing) * 8);
+    }
+
+    .md\:p-12 {
+      padding: calc(var(--spacing) * 12);
+    }
+
+    .md\:text-5xl {
+      font-size: var(--text-5xl);
+      line-height: var(--tw-leading, var(--text-5xl--line-height));
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .lg\:col-span-2 {
+      grid-column: span 2 / span 2;
+    }
+
+    .lg\:grid-cols-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .lg\:px-8 {
+      padding-inline: calc(var(--spacing) * 8);
+    }
+  }
+
+  @media (min-width: 80rem) {
+    .xl\:grid-cols-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+}
+
+@property --tw-animation-delay {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0s;
+}
+
+@property --tw-animation-direction {
+  syntax: "*";
+  inherits: false;
+  initial-value: normal;
+}
+
+@property --tw-animation-duration {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-animation-fill-mode {
+  syntax: "*";
+  inherits: false;
+  initial-value: none;
+}
+
+@property --tw-animation-iteration-count {
+  syntax: "*";
+  inherits: false;
+  initial-value: 1;
+}
+
+@property --tw-enter-blur {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-enter-opacity {
+  syntax: "*";
+  inherits: false;
+  initial-value: 1;
+}
+
+@property --tw-enter-rotate {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-enter-scale {
+  syntax: "*";
+  inherits: false;
+  initial-value: 1;
+}
+
+@property --tw-enter-translate-x {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-enter-translate-y {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-exit-blur {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-exit-opacity {
+  syntax: "*";
+  inherits: false;
+  initial-value: 1;
+}
+
+@property --tw-exit-rotate {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-exit-scale {
+  syntax: "*";
+  inherits: false;
+  initial-value: 1;
+}
+
+@property --tw-exit-translate-x {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-exit-translate-y {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+:root {
+  --font-size: 16px;
+  --background: #fff;
+  --foreground: oklch(14.5% 0 0);
+  --card: #fff;
+  --card-foreground: oklch(14.5% 0 0);
+  --popover: oklch(100% 0 0);
+  --popover-foreground: oklch(14.5% 0 0);
+  --primary: #030213;
+  --primary-foreground: oklch(100% 0 0);
+  --secondary: oklch(95% .0058 264.53);
+  --secondary-foreground: #030213;
+  --muted: #ececf0;
+  --muted-foreground: #717182;
+  --accent: #e9ebef;
+  --accent-foreground: #030213;
+  --destructive: #d4183d;
+  --destructive-foreground: #fff;
+  --border: #0000001a;
+  --input: transparent;
+  --input-background: #f3f3f5;
+  --switch-background: #cbced4;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: oklch(70.8% 0 0);
+  --chart-1: oklch(64.6% .222 41.116);
+  --chart-2: oklch(60% .118 184.704);
+  --chart-3: oklch(39.8% .07 227.392);
+  --chart-4: oklch(82.8% .189 84.429);
+  --chart-5: oklch(76.9% .188 70.08);
+  --radius: .625rem;
+  --sidebar: oklch(98.5% 0 0);
+  --sidebar-foreground: oklch(14.5% 0 0);
+  --sidebar-primary: #030213;
+  --sidebar-primary-foreground: oklch(98.5% 0 0);
+  --sidebar-accent: oklch(97% 0 0);
+  --sidebar-accent-foreground: oklch(20.5% 0 0);
+  --sidebar-border: oklch(92.2% 0 0);
+  --sidebar-ring: oklch(70.8% 0 0);
+}
+
+.dark {
+  --background: oklch(14.5% 0 0);
+  --foreground: oklch(98.5% 0 0);
+  --card: oklch(14.5% 0 0);
+  --card-foreground: oklch(98.5% 0 0);
+  --popover: oklch(14.5% 0 0);
+  --popover-foreground: oklch(98.5% 0 0);
+  --primary: oklch(98.5% 0 0);
+  --primary-foreground: oklch(20.5% 0 0);
+  --secondary: oklch(26.9% 0 0);
+  --secondary-foreground: oklch(98.5% 0 0);
+  --muted: oklch(26.9% 0 0);
+  --muted-foreground: oklch(70.8% 0 0);
+  --accent: oklch(26.9% 0 0);
+  --accent-foreground: oklch(98.5% 0 0);
+  --destructive: oklch(39.6% .141 25.723);
+  --destructive-foreground: oklch(63.7% .237 25.331);
+  --border: oklch(26.9% 0 0);
+  --input: oklch(26.9% 0 0);
+  --ring: oklch(43.9% 0 0);
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: oklch(48.8% .243 264.376);
+  --chart-2: oklch(69.6% .17 162.48);
+  --chart-3: oklch(76.9% .188 70.08);
+  --chart-4: oklch(62.7% .265 303.9);
+  --chart-5: oklch(64.5% .246 16.439);
+  --sidebar: oklch(20.5% 0 0);
+  --sidebar-foreground: oklch(98.5% 0 0);
+  --sidebar-primary: oklch(48.8% .243 264.376);
+  --sidebar-primary-foreground: oklch(98.5% 0 0);
+  --sidebar-accent: oklch(26.9% 0 0);
+  --sidebar-accent-foreground: oklch(98.5% 0 0);
+  --sidebar-border: oklch(26.9% 0 0);
+  --sidebar-ring: oklch(43.9% 0 0);
+}
+
+@property --tw-rotate-x {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-rotate-y {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-rotate-z {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-skew-x {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-skew-y {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-space-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+
+@property --tw-leading {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-tracking {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+
+@property --tw-shadow-color {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-shadow-alpha {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}
+
+@property --tw-inset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+
+@property --tw-inset-shadow-color {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-inset-shadow-alpha {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}
+
+@property --tw-ring-color {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+
+@property --tw-inset-ring-color {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-inset-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+
+@property --tw-ring-inset {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-ring-offset-width {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-ring-offset-color {
+  syntax: "*";
+  inherits: false;
+  initial-value: #fff;
+}
+
+@property --tw-ring-offset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+
+@property --tw-blur {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-brightness {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-contrast {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-grayscale {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-hue-rotate {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-invert {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-opacity {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-saturate {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-sepia {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-drop-shadow {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-drop-shadow-color {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-drop-shadow-alpha {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}
+
+@property --tw-drop-shadow-size {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-backdrop-blur {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-backdrop-brightness {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-backdrop-contrast {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-backdrop-grayscale {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-backdrop-hue-rotate {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-backdrop-invert {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-backdrop-opacity {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-backdrop-saturate {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-backdrop-sepia {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-duration {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-ease {
+  syntax: "*";
+  inherits: false
+}
+
+@property --tw-translate-x {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-translate-y {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-translate-z {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --tw-scale-x {
+  syntax: "*";
+  inherits: false;
+  initial-value: 1;
+}
+
+@property --tw-scale-y {
+  syntax: "*";
+  inherits: false;
+  initial-value: 1;
+}
+
+@property --tw-scale-z {
+  syntax: "*";
+  inherits: false;
+  initial-value: 1;
+}
+
+@property --tw-content {
+  syntax: "*";
+  inherits: false;
+  initial-value: "";
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }

@@ -1,11 +1,11 @@
 import { isPluginCommandError } from '@uruc/plugin-sdk/frontend';
-import { Briefcase, Coffee, Laptop, LayoutGrid, Package, Sparkles, type LucideIcon } from 'lucide-react';
+import { Boxes, Cpu, Database, LayoutGrid, Package, Wrench, type LucideIcon } from 'lucide-react';
 import type { FleamarketImage, FleamarketTrade, ListingDetail, ListingFormState } from './types';
 
 export const EMPTY_FORM: ListingFormState = {
   title: '',
   description: '',
-  category: 'physical',
+  category: 'compute',
   tags: '',
   priceText: '',
   priceAmount: '',
@@ -17,11 +17,11 @@ export const EMPTY_FORM: ListingFormState = {
 
 export const MARKET_CATEGORIES: Array<{ id: string; name: string; icon: LucideIcon; backendCategory?: string }> = [
   { id: 'all', name: 'All Listings', icon: LayoutGrid },
-  { id: 'electronics', name: 'Electronics', icon: Laptop, backendCategory: 'electronics' },
-  { id: 'physical', name: 'Physical Goods', icon: Package, backendCategory: 'physical' },
-  { id: 'virtual', name: 'Virtual Assets', icon: Sparkles, backendCategory: 'virtual' },
-  { id: 'services', name: 'Services', icon: Briefcase, backendCategory: 'services' },
-  { id: 'daily', name: 'Daily Life', icon: Coffee, backendCategory: 'daily' },
+  { id: 'compute', name: 'Compute', icon: Cpu, backendCategory: 'compute' },
+  { id: 'data', name: 'Data', icon: Database, backendCategory: 'data' },
+  { id: 'tool', name: 'Tools', icon: Wrench, backendCategory: 'tool' },
+  { id: 'service', name: 'Services', icon: Boxes, backendCategory: 'service' },
+  { id: 'artifact', name: 'Artifacts', icon: Package, backendCategory: 'artifact' },
 ];
 
 export const CATEGORY_OPTIONS = MARKET_CATEGORIES.map((category) => category.id);

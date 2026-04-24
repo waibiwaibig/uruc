@@ -7,28 +7,23 @@ import {
 import { usePluginAgent, usePluginRuntime } from '@uruc/plugin-sdk/frontend-react';
 import {
   AlertTriangle,
-  Bell,
   CheckCircle2,
-  Hexagon,
-  Menu,
-  Plus,
-  Search,
   Store,
-  User,
   X,
 } from 'lucide-react';
 import { FLEAMARKET_COMMAND, FleamarketApi } from './api';
+import { Chat } from './Chat';
 import {
   ComposeView,
-  DetailView,
-  ListingCard,
   MyListingsView,
   ReportModal,
   ReportsView,
   TradeListView,
-  TradeView,
   type ListingFormMode,
 } from './FleamarketViews';
+import { Home, type SortMode } from './Home';
+import { ItemDetail } from './ItemDetail';
+import { MainLayout, type FleamarketNotice } from './MainLayout';
 import type {
   FleamarketMessage,
   FleamarketReport,
@@ -54,19 +49,15 @@ import {
   backendCategoryFor,
   formFromListing,
   getErrorText,
+  heroImage,
+  initials,
   parseCommaList,
 } from './ui';
+import type { MarketItem } from './viewTypes';
 
 type ViewMode = 'home' | 'detail' | 'compose' | 'trades' | 'trade' | 'listings' | 'reports';
 type ManagedView = Extract<ViewMode, 'trades' | 'listings' | 'reports'>;
-type SortMode = 'latest' | 'title' | 'priceLow' | 'priceHigh';
 type BackendSortMode = 'latest' | 'price_asc' | 'price_desc' | 'title';
-type FleamarketNotice = {
-  id: string;
-  tradeId: string;
-  summary: string;
-  status?: string;
-};
 
 const SORT_TO_BACKEND: Record<SortMode, BackendSortMode> = {
   latest: 'latest',
@@ -91,6 +82,25 @@ function buildListingPayload(form: ListingFormState, imageAssetIds: string[]) {
     tradeRoute: form.tradeRoute.trim(),
     mediaUrls: parseCommaList(form.mediaUrls),
     imageAssetIds,
+  };
+}
+
+function marketItemFromListing(listing: ListingSummary): MarketItem {
+  return {
+    id: listing.listingId,
+    title: listing.title,
+    description: '',
+    priceText: listing.priceText,
+    seller: listing.sellerAgentName,
+    sellerAvatar: initials(listing.sellerAgentName),
+    sellerRating: 0,
+    completedTrades: 0,
+    category: listing.category,
+    tags: listing.tags,
+    imageUrl: heroImage(listing.images),
+    condition: listing.condition,
+    quantity: listing.quantity,
+    status: listing.status,
   };
 }
 
@@ -564,105 +574,29 @@ export function FleamarketHomePage() {
   const renderAlerts = () => (
     <>
       {errorText ? (
-        <div className="fleamarket-alert fleamarket-alert--error">
-          <AlertTriangle aria-hidden="true" />
-          {errorText}
-          <button type="button" onClick={() => setErrorText('')} aria-label="Dismiss error"><X aria-hidden="true" /></button>
+        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
+          <span className="flex-1">{errorText}</span>
+          <button type="button" onClick={() => setErrorText('')} aria-label="Dismiss error" className="text-rose-400 hover:text-rose-700"><X className="w-4 h-4" aria-hidden="true" /></button>
         </div>
       ) : null}
       {successText ? (
-        <div className="fleamarket-alert fleamarket-alert--success">
-          <CheckCircle2 aria-hidden="true" />
-          {successText}
-          <button type="button" onClick={() => setSuccessText('')} aria-label="Dismiss success"><X aria-hidden="true" /></button>
+        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+          <span className="flex-1">{successText}</span>
+          <button type="button" onClick={() => setSuccessText('')} aria-label="Dismiss success" className="text-emerald-400 hover:text-emerald-700"><X className="w-4 h-4" aria-hidden="true" /></button>
         </div>
       ) : null}
     </>
   );
 
-  const renderHome = () => (
-    <div className="fleamarket-home">
-      <section className="fleamarket-landing-hero">
-        <div className="fleamarket-hero-glow" aria-hidden="true" />
-        <div className="fleamarket-hero-copy">
-          <h1>Discover, trade, and connect.</h1>
-          <p>
-            The open flea market of Uruc. Trade electronics, virtual assets, or services directly with others.
-            Payment and delivery happen outside the platform.
-          </p>
-          <div className="fleamarket-hero-actions">
-            <button type="button" className="fleamarket-button fleamarket-button--primary" onClick={openCreateListing} disabled={!canWrite}>
-              <Plus aria-hidden="true" />
-              Post an Item
-            </button>
-            <button type="button" className="fleamarket-button fleamarket-button--secondary" onClick={() => setShowNoticeMenu(true)}>
-              How C2C Works
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section className="fleamarket-market-section" aria-label="Listings">
-        <div className="fleamarket-market-toolbar">
-          <div className="fleamarket-category-row" role="list" aria-label="Listing categories">
-            {MARKET_CATEGORIES.map((item) => {
-              const Icon = item.icon;
-              const isActive = category === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={isActive ? 'fleamarket-category is-active' : 'fleamarket-category'}
-                  onClick={() => selectCategory(item.id)}
-                >
-                  <Icon aria-hidden="true" />
-                  {item.name}
-                </button>
-              );
-            })}
-          </div>
-          <select
-            className="fleamarket-sort"
-            value={sortMode}
-            onChange={(event) => setSortMode(event.target.value as SortMode)}
-            aria-label="Sort listings"
-          >
-            <option value="latest">Latest</option>
-            <option value="title">Title</option>
-            <option value="priceLow">Price: Low to High</option>
-            <option value="priceHigh">Price: High to Low</option>
-          </select>
-        </div>
-
-        <div className="fleamarket-grid" data-testid="fleamarket-listing-grid">
-          {listings.map((listing) => (
-            <ListingCard key={listing.listingId} listing={listing} onOpen={openListing} />
-          ))}
-          {listings.length === 0 && !busy ? (
-            <div className="fleamarket-empty-grid">
-              <p>No listings found in this category.</p>
-            </div>
-          ) : null}
-        </div>
-
-        {hasMore ? (
-          <div className="fleamarket-load-more">
-            <button type="button" className="fleamarket-button fleamarket-button--secondary" disabled={busy} onClick={() => void loadListings({ append: true, cursor: nextCursor })}>
-              Load more
-            </button>
-          </div>
-        ) : null}
-      </section>
-    </div>
-  );
-
   const mainContent = () => {
     if (!canUseCommands) {
       return (
-        <section className="fleamarket-not-connected">
-          <Store aria-hidden="true" />
-          <h1>Fleamarket needs a connected agent</h1>
-          <p>Connect an agent to browse listings and coordinate trades.</p>
+        <section className="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl bg-white">
+          <Store className="w-10 h-10 mx-auto text-slate-300 mb-4" aria-hidden="true" />
+          <h1 className="text-2xl font-semibold text-slate-900 mb-2">Fleamarket needs a connected agent</h1>
+          <p className="text-slate-500">Connect an agent to browse listings and coordinate trades.</p>
         </section>
       );
     }
@@ -687,8 +621,8 @@ export function FleamarketHomePage() {
 
     if (view === 'detail' && selectedListing) {
       return (
-        <DetailView
-          listing={selectedListing}
+        <ItemDetail
+          item={selectedListing}
           reputation={sellerReputation}
           reviews={sellerReviews}
           activeAgentId={activeAgentId}
@@ -723,7 +657,7 @@ export function FleamarketHomePage() {
 
     if (view === 'trade' && trade) {
       return (
-        <TradeView
+        <Chat
           trade={trade}
           listing={selectedListing}
           messages={messages}
@@ -778,106 +712,45 @@ export function FleamarketHomePage() {
       );
     }
 
-    return renderHome();
+    return (
+      <Home
+        categories={MARKET_CATEGORIES}
+        items={listings.map(marketItemFromListing)}
+        activeCategory={category}
+        sortMode={sortMode}
+        busy={busy}
+        hasMore={hasMore}
+        canWrite={canWrite}
+        onCategoryChange={selectCategory}
+        onSortChange={setSortMode}
+        onOpenItem={openListing}
+        onPostItem={openCreateListing}
+        onShowC2CInfo={() => setShowNoticeMenu(true)}
+        onLoadMore={() => void loadListings({ append: true, cursor: nextCursor })}
+      />
+    );
   };
 
   return (
-    <div className="fleamarket-app">
-      <header className="fleamarket-topbar">
-        <div className="fleamarket-topbar-inner">
-          <button type="button" className="fleamarket-brand" onClick={() => setView('home')} aria-label="Open Fleamarket home">
-            <Hexagon aria-hidden="true" />
-            <span>uruc <em>| fleamarket</em></span>
-          </button>
-
-          <form className="fleamarket-top-search" onSubmit={submitSearch}>
-            <Search aria-hidden="true" />
-            <input
-              type="text"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search datasets, models, compute..."
-              aria-label="Search listings"
-            />
-          </form>
-
-          <div className="fleamarket-top-actions">
-            <div className="fleamarket-menu-wrap">
-              <button
-                type="button"
-                className="fleamarket-icon-button"
-                onClick={() => setShowNoticeMenu((current) => !current)}
-                aria-label="Fleamarket notifications"
-                aria-expanded={showNoticeMenu}
-              >
-                <Bell aria-hidden="true" />
-                {eventNotices.length > 0 ? <span className="fleamarket-notice-dot" /> : null}
-              </button>
-              {showNoticeMenu ? (
-                <div className="fleamarket-popover fleamarket-popover--notice">
-                  <h3>How C2C Works</h3>
-                  <p>Fleamarket records listings, negotiation messages, reviews, and bilateral completion.</p>
-                  <p>Payment, delivery, and handoff happen outside the platform. Both buyer and seller confirm completion.</p>
-                  {eventNotices.map((notice) => (
-                    <button key={notice.id} type="button" className="fleamarket-popover-notice" onClick={() => openManagedView('trades')}>
-                      {notice.summary} {notice.tradeId}{notice.status ? ` is ${notice.status}` : ''}.
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="fleamarket-menu-wrap">
-              <button
-                type="button"
-                className="fleamarket-user-button"
-                onClick={() => setShowUserMenu((current) => !current)}
-                aria-label="Open Fleamarket account menu"
-                aria-expanded={showUserMenu}
-              >
-                <User aria-hidden="true" />
-              </button>
-              {showUserMenu ? (
-                <div className="fleamarket-popover fleamarket-user-menu">
-                  <div className="fleamarket-user-summary">
-                    <strong>{activeAgentName}</strong>
-                    <span>{activeAgentId ?? 'No agent connected'}</span>
-                    <span>{runtime.isController ? 'Controller mode' : 'Read only'}</span>
-                  </div>
-                  <button type="button" onClick={() => openManagedView('trades')}>{eventNotices.length > 0 ? 'My trades *' : 'My trades'}</button>
-                  <button type="button" onClick={() => openManagedView('listings')}>My listings</button>
-                  <button type="button" onClick={() => openManagedView('reports')}>My reports</button>
-                  <button type="button" onClick={openCreateListing} disabled={!canWrite}>Post an Item</button>
-                </div>
-              ) : null}
-            </div>
-
-            <button type="button" className="fleamarket-mobile-menu" aria-label="Fleamarket menu" onClick={() => setShowUserMenu((current) => !current)}>
-              <Menu aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="fleamarket-main">
+    <MainLayout
+      query={query}
+      activeAgentName={activeAgentName}
+      activeAgentId={activeAgentId}
+      isController={runtime.isController}
+      canWrite={canWrite}
+      notices={eventNotices}
+      showNoticeMenu={showNoticeMenu}
+      showUserMenu={showUserMenu}
+      onHome={() => setView('home')}
+      onQueryChange={setQuery}
+      onSearchSubmit={submitSearch}
+      onToggleNoticeMenu={() => setShowNoticeMenu((current) => !current)}
+      onToggleUserMenu={() => setShowUserMenu((current) => !current)}
+      onOpenManagedView={openManagedView}
+      onPostItem={openCreateListing}
+    >
         {renderAlerts()}
         {mainContent()}
-      </main>
-
-      <footer className="fleamarket-footer">
-        <div className="fleamarket-footer-inner">
-          <div className="fleamarket-footer-brand">
-            <Hexagon aria-hidden="true" />
-            <span>© 2026 Uruc City Systems.</span>
-          </div>
-          <div className="fleamarket-footer-links">
-            <span>Protocol Status</span>
-            <span>Exchange Rules</span>
-            <span>Agent API</span>
-          </div>
-        </div>
-      </footer>
-
       {reportTarget ? (
         <ReportModal
           target={reportTarget}
@@ -890,6 +763,6 @@ export function FleamarketHomePage() {
           onSubmit={createReport}
         />
       ) : null}
-    </div>
+    </MainLayout>
   );
 }

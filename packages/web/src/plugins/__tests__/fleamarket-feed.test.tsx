@@ -496,15 +496,18 @@ describe('FleamarketHomePage', () => {
     const mounted = await mountPluginPageDom(createPageData(runtime), <FleamarketHomePage />);
 
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.search_listings@v1', { limit: 20, sortBy: 'latest' });
-    expect(mounted.container.querySelector('.fleamarket-topbar')).toBeTruthy();
+    expect(mounted.container.querySelector('header.sticky')).toBeTruthy();
     expect(mounted.container.textContent).toContain('uruc | fleamarket');
     expect(mounted.container.textContent).toContain('Discover, trade, and connect.');
     expect(mounted.container.textContent).toContain('All Listings');
-    expect(mounted.container.textContent).toContain('Electronics');
-    expect(mounted.container.textContent).toContain('Physical Goods');
+    expect(mounted.container.textContent).toContain('Compute');
+    expect(mounted.container.textContent).toContain('Data');
+    expect(mounted.container.textContent).toContain('Tools');
+    expect(mounted.container.querySelector('section.bg-white.rounded-3xl')).toBeTruthy();
     expect(mounted.container.querySelector('[data-testid="fleamarket-listing-grid"]')).toBeTruthy();
     expect(mounted.container.querySelector('.fleamarket-tabs')).toBeFalsy();
     expect(mounted.container.querySelector('.fleamarket-hero__stats')).toBeFalsy();
+    expect(mounted.container.querySelector('.fleamarket-topbar')).toBeFalsy();
     expect(mounted.container.textContent).not.toContain('coordinate offline settlement');
     expect(mounted.container.textContent).toContain('Vector Search Compute Window');
 
@@ -531,17 +534,17 @@ describe('FleamarketHomePage', () => {
     const { runtime } = createRuntime({ sendCommand: sendCommandMock });
     const mounted = await mountPluginPageDom(createPageData(runtime), <FleamarketHomePage />);
 
-    await clickElement(findButtonByText(mounted.container, 'Electronics') as Element);
+    await clickElement(findButtonByText(mounted.container, 'Compute') as Element);
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.search_listings@v1', {
       limit: 20,
-      category: 'electronics',
+      category: 'compute',
       sortBy: 'latest',
     });
 
     await selectValue(mounted.container.querySelector('select[aria-label="Sort listings"]') as HTMLSelectElement, 'priceLow');
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.search_listings@v1', {
       limit: 20,
-      category: 'electronics',
+      category: 'compute',
       sortBy: 'price_asc',
     });
 
@@ -574,9 +577,9 @@ describe('FleamarketHomePage', () => {
     });
     expect(mounted.container.textContent).toContain('Earlier route question.');
 
-    const messageInput = mounted.container.querySelector('textarea[aria-label="Trade message"]') as HTMLTextAreaElement;
+    const messageInput = mounted.container.querySelector('input[aria-label="Trade message"]') as HTMLInputElement;
     await inputText(messageInput, 'Can we start at 20:00?');
-    await clickElement(findButtonByText(mounted.container, 'Send') as Element);
+    await clickElement(mounted.container.querySelector('button[aria-label="Send"]') as Element);
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.send_trade_message@v1', { tradeId: 'trade-1', body: 'Can we start at 20:00?' });
     expect(mounted.container.textContent).toContain('Can we start at 20:00?');
 
@@ -747,7 +750,7 @@ describe('FleamarketHomePage', () => {
     const mounted = await mountPluginPageDom(createPageData(runtime), <FleamarketHomePage />);
 
     await clickElement(mounted.container.querySelector('[data-testid="fleamarket-open-listing-1"]') as Element);
-    await clickElement(findButtonByText(mounted.container, 'Report listing') as Element);
+    await clickElement(findButtonByText(mounted.container, 'Report Listing') as Element);
     await inputText(mounted.container.querySelector('input[aria-label="Report reason code"]') as HTMLInputElement, 'safety_review');
     await inputText(mounted.container.querySelector('textarea[aria-label="Report detail"]') as HTMLTextAreaElement, 'Needs review.');
     await clickElement(findButtonByText(mounted.container, 'Submit report') as Element);

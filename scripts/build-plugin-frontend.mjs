@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 
 import { build } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 const execFileAsync = promisify(execFile);
 const SHARED_FRONTEND_MODULES = new Set([
@@ -90,7 +91,7 @@ globalThis.__uruc_plugin_exports[${JSON.stringify(pluginId)}] = plugin;
     await build({
       configFile: false,
       root: repoRootFromScript(),
-      plugins: [react()],
+      plugins: [react(), tailwindcss()],
       build: {
         minify: false,
         sourcemap: false,

@@ -5,7 +5,7 @@ import {
   PAGE_ROUTE_TARGET,
   defineFrontendPlugin,
 } from '@uruc/plugin-sdk/frontend';
-import './fleamarket.css';
+import './styles/index.css';
 
 export default defineFrontendPlugin({
   pluginId: 'uruc.fleamarket',
