@@ -1,78 +1,64 @@
 [English](plugin-development.md) | [中文](plugin-development.zh-CN.md)
 
-# Uruc 插件开发
+# Uruc 插件开发 Guidebook
 
-本指南说明如何基于当前公开版 Uruc 仓库开发插件。
-本文档以当前仓库中的以下代码为准：
+本文面向为当前公开版 Uruc 仓库开发 V2 插件的人类工程师和 AI coding agent。目标是只读本文件也能做出可运行插件，不需要翻 Uruc 源码。如果你在维护平台并需要解决文档与实现的冲突，以代码为准：`packages/server/src/core/plugin-platform`、`packages/plugin-sdk`、`packages/web/src/plugins`、`packages/plugins/social`。
 
-- `packages/server/src/core/plugin-platform`
-- `packages/plugin-sdk`
-- `packages/web/src/plugins`
-- `packages/plugins/social`
+Uruc 仍是 pre-1.0。插件平台今天已经端到端可用，但契约和工作流仍可能变化。
 
-如果文档与实现不一致，以代码为准。
+## 1. 心智模型
 
-本文档同时面向人类开发者和 AI 编码 agent。
+Uruc 是面向人类和 AI agent 的实时城市运行时。核心城市负责身份、认证、WebSocket 传输、HTTP 传输、命令发现、城市移动和插件加载。插件负责扩展城市生活：社交系统、游戏、场所、工具、工作流、市场、审核，以及其他遵守协议的能力。
 
-## 1. 这个仓库里的插件到底是什么
+Agent 开始使用插件时，并不是先读你的前端。Agent 会通过城市 WebSocket 协议连接、认证，然后询问：
 
-在当前代码库里，一个插件就是一个普通的 ESM 包，包含：
+- `what_state_am_i`：当前连接、城市、地点和 controller 状态。
+- `where_can_i_go`：当前位置和可达地点。
+- `what_can_i_do`：命令组，以及拉取命令 schema 的 detail query。
 
-- `package.json#urucPlugin` 里的后端 manifest
-- 一个可被 server 导入的后端入口文件
-- 可选的 `package.json#urucFrontend` 前端包元数据
-- 可选的 `frontend/plugin.ts` 或 `frontend/plugin.tsx` 前端入口
-- 可选的已发布前端构建产物 `frontend-dist/`
+如果插件 id 是 `acme.echo`，注册命令 id `ping`，公开命令就是 `acme.echo.ping@v1`。如果注册地点 id `echo-hub`，公开地点就是 `acme.echo.echo-hub`。代码里注册短 id；调用命令、写 policy、绑定前端元数据时使用完整 id。
 
-这里有两条前端加载路径：
+OpenClaw 是一个典型目标。它的官方文档描述了一个 self-hosted Gateway，用 WebSocket JSON 控制面把消息渠道连接到 AI coding agents。它的 agent loop 会把输入转成上下文组装、模型推理、工具执行、流式回复和持久化。这意味着每个冗长命令结果或主动 push 都可能进入模型上下文，所以插件输出必须让 agent 低成本理解。参考：[OpenClaw overview](https://docs.openclaw.ai/)、[Gateway protocol](https://docs.openclaw.ai/gateway/protocol)、[Agent loop](https://docs.openclaw.ai/concepts/agent-loop)、[Messages](https://docs.openclaw.ai/concepts/messages)。
 
-- 后端插件加载是动态的，并且按城市配置生效。
-  - server 会从 `uruc.city.json` 和 `uruc.city.lock.json` 解析并加载插件。
-  - 后端插件可以来自本地路径，也可以来自已配置的 source registry。
-- 仓库内开发用的前端插件发现仍然是静态的，发生在当前仓库自带的 web app 构建阶段。
-  - `packages/web` 会从 `packages/plugins/*/package.json` 以及 `packages/plugins/*/frontend/plugin.ts(x)` 里发现前端插件。
-- 官方 marketplace / source-backed 安装的前端插件现在走运行时加载。
-  - `packages/server` 会从 materialized plugin revision 里暴露 `frontend-dist/` 资源。
-  - `packages/web` 会通过 `/api/frontend-plugins` 拉取已安装插件的前端 manifest，并在运行时装载。
+## 2. 插件原则
 
-当前树内最主要的真实示例是：
+- **后端优先。** 先做命令、存储、错误、路由和测试，再做 UI。后端是插件本体；前端是人类壳。
+- **Agent 优先。** 为通过对话、工具调用和有限上下文工作的 agent 设计。不要要求 agent 读 UI 或源码才能理解基本用法。
+- **上下文节省。** 先返回摘要，列表分页，按 id 拉详情，避免重复静态规则，不在 push 中塞大段历史。
+- **引导优先。** 每个命令需要一句简短 `description`；每个输入字段需要 metadata；每个插件必须提供一个 `<feature>_intro` 命令。
+- **发现优先。** `what_can_i_do` 加 intro 命令必须足够让陌生 agent 判断下一步。
+- **稳定契约。** 命令 id、字段名、错误 code 要稳定。扩展时新增字段或命令，不要改变旧含义。
+- **城市原生。** 只有当插件创建 agent 要进入的场所时才注册 location。社交、通知、导出、后台自动化这类能力层可以是 locationless。
+- **读写分离。** 安全读命令通常使用 `controlPolicy: { controllerRequired: false }`；写命令按需要要求控制权、确认或权限。
+- **Push 克制，详情拉取。** Push 只说明发生了什么、影响谁、哪个命令可拉详情。
+- **插件边界自洽。** 业务逻辑留在插件包内部，不要 import `packages/server/src/core/*`。
+- **前端后置。** 只有 agent-facing contract 成熟后才添加 UI。
+- **黑盒验收。** 另一个工程师或 AI agent 应能不读 Uruc 源码，只靠本文创建并验证简单插件。
 
-- `packages/plugins/social`
+## 3. 后端优先的最快路径
 
-## 2. 最短可行路径
+创建后端插件：
 
-最快得到一个可工作的插件，应该从内置脚手架开始。
+```bash
+./uruc plugin create acme.echo
+```
 
-### 创建新插件
+只有已经确定需要 UI 时，才使用 `--frontend`：
 
 ```bash
 ./uruc plugin create acme.echo --frontend
 ```
 
-默认输出目录：
+默认后端目录：
 
-- `packages/plugins/acme-echo`
+```text
+packages/plugins/acme-echo/
+├── package.json
+├── index.mjs
+└── README.md
+```
 
-生成的文件包括：
-
-- `package.json`
-- `index.mjs`
-- `README.md`
-- 使用 `--frontend` 时生成 `frontend/plugin.ts`
-- 使用 `--frontend` 时生成 `frontend/PluginPage.tsx`
-
-### 必要时先批准 publisher
-
-当前插件解析器会检查城市配置中的 `approvedPublishers`。
-
-例如你的插件 id 是 `acme.echo`，那么 publisher 就是 `acme`。
-如果当前城市配置只批准了 `uruc`，那么本地 link 或 source-backed install 都会失败，必须先把 `acme` 加进去。
-
-当前示例城市配置文件：
-
-- `packages/server/uruc.city.json`
-
-示例修改：
+必要时在当前城市配置里批准 publisher。对 `acme.echo` 来说，publisher 是 `acme`。
 
 ```json
 {
@@ -80,7 +66,13 @@
 }
 ```
 
-### 本地开发时的校验、link 和运行
+默认城市配置：
+
+```text
+packages/server/uruc.city.json
+```
+
+本地开发循环：
 
 ```bash
 ./uruc plugin validate packages/plugins/acme-echo
@@ -91,78 +83,11 @@
 ./uruc doctor
 ```
 
-这条路径里建议用下面三个层次理解插件：
+如果 server 已在运行，用 `./uruc restart`。`link` 会把本地 override 写入城市配置并更新 lock；当前没有文档化的 dry-run 模式。在共享或 dirty 工作区里，请在一次性 branch、worktree 或副本里执行 link/start 验证。`start` 会把运行时 revision 物化到 `.uruc/plugins/<pluginId>/<revision>`。
 
-- `packages/plugins/acme-echo` 是 workspace 源码包
-- `uruc plugin link ...` 会把本地覆盖写进城市配置
-- `uruc start` 会在启动前把 linked 插件物化到 `.uruc/plugins/*`
+## 4. Package Manifest
 
-如果你是在一个已经运行的受管实例上开发后端代码，修改后使用 `./uruc restart`。
-当前 `start` 和 `restart` 路径会在启动前自动重建陈旧的 server 和 web 构建产物。
-
-### 为官方 marketplace 打包
-
-如果你希望插件通过 `uruc plugin install <pluginId|alias>` / source-backed 安装正常工作，就不要直接上传源码目录，而是先打包发布物：
-
-```bash
-./uruc plugin pack packages/plugins/acme-echo --out dist/plugins
-```
-
-这个命令会：
-
-- 把插件包复制到临时 staging 目录
-- 当存在 `urucFrontend` 时构建 `frontend-dist/`
-- 执行 `npm pack`
-- 输出 tarball 路径和 `sha512-...` integrity 摘要
-
-把这个 tarball 上传到 `uruk.life`，并把输出的 integrity 写进 source registry 条目。
-
-## 3. 推荐目录结构
-
-### 仅后端插件
-
-```text
-packages/plugins/acme-echo/
-├── package.json
-├── index.mjs
-└── README.md
-```
-
-### 后端 + 前端插件
-
-```text
-packages/plugins/acme-echo/
-├── package.json
-├── index.mjs
-├── README.md
-└── frontend/
-    ├── plugin.ts
-    └── PluginPage.tsx
-```
-
-### 已打包的 marketplace 发布物
-
-```text
-package/
-├── package.json
-├── index.mjs
-├── README.md
-├── frontend/
-│   ├── plugin.ts
-│   └── PluginPage.tsx
-└── frontend-dist/
-    ├── manifest.json
-    ├── plugin.js
-    └── plugin.css
-```
-
-如果插件只需要命令、路由、存储或事件，使用仅后端结构即可。
-如果你需要在 web app 里增加页面、导航入口、介绍卡片或 runtime slice，再加前端文件。
-如果你要走 marketplace 分发，发布物里必须带上 `frontend-dist/`。
-
-## 4. `package.json`
-
-脚手架生成的包大致如下：
+后端插件是带 `package.json#urucPlugin` 的 ESM 包：
 
 ```json
 {
@@ -180,102 +105,62 @@ package/
     "entry": "./index.mjs",
     "publisher": "acme",
     "displayName": "Echo",
-    "description": "Echo plugin generated by uruc plugin create.",
+    "description": "Echo command plugin for Uruc agents.",
     "permissions": [],
     "dependencies": [],
     "activation": ["startup"]
-  },
-  "urucFrontend": {
-    "apiVersion": 1,
-    "entry": "./frontend/plugin.ts"
   }
 }
 ```
 
-### 必填后端字段
+必填字段：
 
 | 字段 | 含义 |
 | --- | --- |
-| `urucPlugin.pluginId` | 小写、带命名空间的插件 id，例如 `acme.echo` |
-| `urucPlugin.apiVersion` | 当前必须为 `2` |
-| `urucPlugin.kind` | 当前必须为 `"backend"` |
-| `urucPlugin.entry` | server 要导入的后端入口文件 |
-| `urucPlugin.publisher` | 会被城市配置 `approvedPublishers` 检查的发布者名 |
-| `urucPlugin.displayName` | 面向人类的插件显示名 |
+| `pluginId` | 小写 namespaced id，例如 `acme.echo` |
+| `apiVersion` | 当前必须是 `2` |
+| `kind` | 当前必须是 `"backend"` |
+| `entry` | server 导入的后端入口 |
+| `publisher` | 会被城市 `approvedPublishers` 检查 |
+| `displayName` | 面向人类的名称 |
 
-### 可选后端字段
+常用可选字段：
 
 | 字段 | 当前行为 |
 | --- | --- |
-| `permissions` | 会被解析，并与城市配置里的 granted permissions 做一致性检查 |
-| `dependencies` | 当依赖插件也处于启用状态时，用于排序插件启动顺序 |
-| `activation` | 会写入 lock 文件，但当前 host 在 `startAll()` 时仍会启动所有 enabled 插件 |
-| `migrations` | 当前会从 manifest 里解析出来，但 host 不会执行它 |
-| `healthcheck` | 当前会被解析并写入 lock 文件，但 host 不会主动执行它 |
+| `description` | 作为 metadata 存储 |
+| `permissions` | 解析并与城市 granted permissions 检查 |
+| `dependencies` | 当依赖插件启用时用于排序启动顺序 |
+| `activation` | 写入 lock；当前 host 仍在启动时加载所有 enabled 插件 |
+| `migrations` | 会解析，但当前 host 不执行 |
+| `healthcheck` | 会解析并存储，但当前 host 不主动运行 |
 
-### 前端元数据
+不要把 `@uruc/plugin-sdk` 放进插件 `dependencies`；host 会在运行时桥接它。
 
-`urucFrontend` 是可选的。
+## 5. 后端入口
 
-`urucFrontend` 描述的是开发期和打包期使用的源码前端入口。
+除非你添加并验证了构建步骤，否则使用 `index.mjs`。下面完整例子创建：
 
-当前规则：
-
-- `apiVersion` 当前必须为 `1`
-- `entry` 目前应当指向 `./frontend/plugin.ts` 或 `./frontend/plugin.tsx`
-- 当前静态前端 registry 只扫描 `packages/plugins/*/frontend/plugin.ts(x)`
-- 前端插件里的 `pluginId` 必须和 `package.json#urucPlugin.pluginId` 一致
-- `package.json dependencies` 里不能声明 `@uruc/plugin-sdk`；这部分由 host 在运行时桥接提供
-
-### 已发布前端构建 manifest
-
-带前端 UI 的 marketplace 发布物还必须包含 `frontend-dist/manifest.json`。
-
-当前 manifest 结构：
-
-```json
-{
-  "apiVersion": 1,
-  "pluginId": "acme.echo",
-  "version": "0.1.0",
-  "format": "global-script",
-  "entry": "./plugin.js",
-  "css": ["./plugin.css"],
-  "exportKey": "acme.echo"
-}
-```
-
-当前运行时要求：
-
-- `entry` 和 `css` 都相对于 `frontend-dist/`
-- `format` 必须是 `"global-script"`
-- 构建后的脚本必须把 frontend plugin 对象写到 `window.__uruc_plugin_exports[exportKey]`
-- 必须复用宿主提供的 React / plugin-sdk 共享 runtime，而不是在插件里再打进一份
-
-当前宿主会共享的前端模块包括：
-
-- `react`
-- `react-dom`
-- `react/jsx-runtime`
-- `react/jsx-dev-runtime`
-- `@uruc/plugin-sdk/frontend`
-- `@uruc/plugin-sdk/frontend-react`
-- `@uruc/plugin-sdk/frontend-http`
-- `i18next`
-- `react-i18next`
-- `react-router-dom`
-- `lucide-react`
-
-## 5. 后端插件开发
-
-### 最简单的有效后端入口
+- intro 命令：`acme.echo.echo_intro@v1`
+- 业务命令：`acme.echo.ping@v1`
+- 存储命令：`acme.echo.save_note@v1`、`acme.echo.list_notes@v1`
+- HTTP route：`/api/plugins/acme.echo/v1/status`
+- 地点：`acme.echo.echo-hub`
 
 ```js
 import { defineBackendPlugin } from '@uruc/plugin-sdk/backend';
 
 const PLUGIN_ID = 'acme.echo';
+const FEATURE = 'echo';
 const LOCATION_ID = 'echo-hub';
-const FULL_LOCATION_ID = `${PLUGIN_ID}.${LOCATION_ID}`;
+
+function field(type, description, required = false) {
+  return { type, description, ...(required ? { required: true } : {}) };
+}
+
+function fail(message, code, action, details) {
+  return Object.assign(new Error(message), { code, action, details, statusCode: 400 });
+}
 
 export default defineBackendPlugin({
   pluginId: PLUGIN_ID,
@@ -283,32 +168,88 @@ export default defineBackendPlugin({
     await ctx.locations.register({
       id: LOCATION_ID,
       name: 'Echo Hub',
-      description: 'A simple example location.',
+      description: 'A small venue for trying the Echo plugin.',
+    });
+
+    await ctx.commands.register({
+      id: `${FEATURE}_intro`,
+      description: 'Explain what Echo does and which commands an agent should call first.',
+      inputSchema: {},
+      locationPolicy: { scope: 'any' },
+      controlPolicy: { controllerRequired: false },
+      handler: async () => ({
+        pluginId: PLUGIN_ID,
+        summary: 'Echo is a small example plugin for testing Uruc commands.',
+        useFor: ['Check plugin health.', 'Save short notes in plugin-owned storage.'],
+        rules: ['Use ping for health.', 'Use list_notes before assuming saved state.'],
+        firstCommands: [
+          `${PLUGIN_ID}.ping@v1`,
+          `${PLUGIN_ID}.list_notes@v1`,
+          `${PLUGIN_ID}.save_note@v1`,
+        ],
+        fields: [
+          { field: 'text', meaning: 'Short text to echo or save.' },
+          { field: 'limit', meaning: 'Maximum notes to return.' },
+        ],
+      }),
     });
 
     await ctx.commands.register({
       id: 'ping',
-      description: 'Return a small status payload.',
+      description: 'Return a tiny status payload from Echo.',
       inputSchema: {
-        text: {
-          type: 'string',
-          description: 'Optional text to echo back.',
-          required: false,
-        },
+        text: field('string', 'Optional text to echo back.'),
       },
-      locationPolicy: {
-        scope: 'location',
-        locations: [FULL_LOCATION_ID],
-      },
-      controlPolicy: {
-        controllerRequired: false,
-      },
+      locationPolicy: { scope: 'any' },
+      controlPolicy: { controllerRequired: false },
       handler: async (input, runtimeCtx) => ({
         ok: true,
         pluginId: PLUGIN_ID,
-        text: typeof input?.text === 'string' ? input.text : null,
+        text: typeof input?.text === 'string' ? input.text.slice(0, 120) : null,
         currentLocation: runtimeCtx.currentLocation ?? null,
       }),
+    });
+
+    await ctx.commands.register({
+      id: 'save_note',
+      description: 'Save one short Echo note for the current agent.',
+      inputSchema: {
+        text: field('string', 'Note text. Keep it short.', true),
+      },
+      locationPolicy: { scope: 'any' },
+      handler: async (input, runtimeCtx) => {
+        const agentId = runtimeCtx.session?.agentId;
+        if (!agentId) throw fail('Authenticate your agent first.', 'NOT_AUTHENTICATED', 'auth');
+
+        const text = typeof input?.text === 'string' ? input.text.trim() : '';
+        if (!text) throw fail('text is required.', 'INVALID_PARAMS', 'retry', { field: 'text' });
+        if (text.length > 240) throw fail('text is too long.', 'INVALID_PARAMS', 'shorten', { maxLength: 240 });
+
+        const noteId = `${Date.now()}`;
+        await ctx.storage.put('notes', `${agentId}:${noteId}`, { noteId, agentId, text, createdAt: Date.now() });
+        return { ok: true, noteId, next: `${PLUGIN_ID}.list_notes@v1` };
+      },
+    });
+
+    await ctx.commands.register({
+      id: 'list_notes',
+      description: 'List recent Echo notes for the current agent.',
+      inputSchema: {
+        limit: field('number', 'Maximum notes to return. Defaults to 10 and is capped at 20.'),
+      },
+      locationPolicy: { scope: 'any' },
+      controlPolicy: { controllerRequired: false },
+      handler: async (input, runtimeCtx) => {
+        const agentId = runtimeCtx.session?.agentId;
+        if (!agentId) throw fail('Authenticate your agent first.', 'NOT_AUTHENTICATED', 'auth');
+
+        const limit = Math.min(20, Math.max(1, Number(input?.limit ?? 10) || 10));
+        const notes = (await ctx.storage.list('notes'))
+          .map((row) => row.value)
+          .filter((note) => note?.agentId === agentId)
+          .slice(0, limit);
+        return { count: notes.length, notes };
+      },
     });
 
     await ctx.http.registerRoute({
@@ -316,217 +257,212 @@ export default defineBackendPlugin({
       method: 'GET',
       path: '/status',
       authPolicy: 'public',
-      handler: async () => ({
-        ok: true,
-        pluginId: PLUGIN_ID,
-      }),
+      handler: async () => ({ ok: true, pluginId: PLUGIN_ID }),
     });
   },
 });
 ```
 
-这一份文件会创建三个公开面：
+命名规则：
 
-- WebSocket 命令：`acme.echo.ping@v1`
-- HTTP 路由：`/api/plugins/acme.echo/v1/status`
-- 地点 id：`acme.echo.echo-hub`
-
-### 一个重要命名规则
-
-注册后端命令和地点时，写短 id，不要写全名 id。
-
-应该这样写：
-
-- 命令注册 id：`ping`
-- 地点注册 id：`echo-hub`
-
-host 会自动帮你加上插件命名空间。
-
-只有在你引用已经公开出去的表面时，才使用全名：
-
-- 调命令：`acme.echo.ping@v1`
-- 在 policy 或 frontend metadata 里引用地点：`acme.echo.echo-hub`
-
-### `setup(ctx)` 里能做什么
-
-当前 setup 上下文暴露的主要能力：
-
-| API | 用途 |
+| 代码内 | 公开表面 |
 | --- | --- |
-| `ctx.commands.register(...)` | 注册 WebSocket 命令 |
-| `ctx.http.registerRoute(...)` | 注册插件 HTTP 路由 |
-| `ctx.locations.register(...)` | 注册可进入的地点 |
-| `ctx.policies.register(...)` | 注册横切命令策略或地点策略 |
-| `ctx.events.subscribe(...)` | 订阅插件宿主提供的事件 |
-| `ctx.messaging` | 给 agent / owner 推送消息，或广播 |
-| `ctx.storage` | 在插件自有 collection 中保存 JSON 记录 |
-| `ctx.logging` | 写插件日志 |
-| `ctx.diagnostics` | 输出插件诊断信息 |
-| `ctx.lifecycle.onStop(...)` | 注册清理逻辑 |
-| `ctx.config.get()` | 读取城市配置中的插件 config 对象 |
+| command `ping` | `acme.echo.ping@v1` |
+| command `echo_intro` | `acme.echo.echo_intro@v1` |
+| location `echo-hub` | `acme.echo.echo-hub` |
 
-当前还存在一些辅助入口：
+`locationPolicy.locations` 和前端 `locationId` 必须使用完整地点 id。
 
-- `ctx.agents.invoke(...)`
-- `ctx.identity.invoke(...)`
-- `ctx.presence.invoke(...)`
-- `ctx.assets.invoke(...)`
-- `ctx.moderation.invoke(...)`
-- `ctx.scheduler.invoke(...)`
+## 6. Agent Contract 规则
 
-当前实现里的真实情况：
+### 必需 intro 命令
 
-- `ctx.agents.invoke(...)` 今天已经有实际辅助能力。
-- 其他这些 helper surface 当前虽然存在，但除非后续运行时补充实现，否则大多返回 `undefined`。
+每个插件必须注册一个主要 intro 命令，命名为 `<feature>_intro`。对 `acme.echo` 来说，`<feature>` 通常是 plugin id 最后一段，所以命令是 `echo_intro`。如果 feature 段包含 hyphen，把 hyphen 转成 underscore 作为命令 id：`acme.guide-test` 应注册 `guide_test_intro`，发布为 `acme.guide-test.guide_test_intro@v1`。
 
-### 命令
+intro 命令应只读、稳定、默认 locationless，并且足够短。返回普通 JSON：
 
-后端命令通过 `ctx.commands.register(...)` 注册。
+```json
+{
+  "pluginId": "acme.echo",
+  "summary": "一句话说明。",
+  "useFor": ["插件能帮忙做什么。"],
+  "rules": ["重要约束。"],
+  "firstCommands": ["acme.echo.ping@v1"],
+  "fields": [{ "field": "text", "meaning": "短文本输入。" }]
+}
+```
+
+复杂已有插件可以保留 `get_usage_guide` 这类旧名，但新插件应暴露 `<feature>_intro`。
+
+### Commands
+
+每个命令必须有短注册 `id`、一句话 `description`、明确 `inputSchema`、小 JSON result 和结构化错误。
 
 当前运行时事实：
 
-- host 不会替你做后端命令输入的运行时校验。
-- `inputSchema` 当前主要用于命令可发现性和文档元数据。
-- `resultSchema` 会挂在命令 schema 上，但不会在运行时强制校验。
-- 你的 handler 会直接收到 `msg.payload`。
-- 所以输入校验应该由你自己在 handler 或辅助函数里完成。
+- `inputSchema` 是发现 metadata，不是 runtime validation。
+- handler 内必须自己校验。
+- `resultSchema` 是 metadata，当前不强制执行。
+- 默认值：`authPolicy: "agent"`、`locationPolicy: { scope: "any" }`、`controlPolicy: { controllerRequired: true }`、`confirmationPolicy: { required: false }`。
 
-当前默认值：
-
-| 字段 | 默认值 |
-| --- | --- |
-| `authPolicy` | `agent` |
-| `locationPolicy` | `{ scope: "any" }` |
-| `controlPolicy` | `{ controllerRequired: true }` |
-| `confirmationPolicy` | `{ required: false }` |
-
-地点相关规则：
-
-- 如果是无地点插件命令，使用 `locationPolicy: { scope: 'any' }`
-- 如果是场馆内命令，使用 `scope: 'location'`，并在 `locations` 中写完整地点 id，例如 `acme.echo.echo-hub`
-
-### HTTP 路由
-
-插件 HTTP 路由通过 `ctx.http.registerRoute(...)` 注册。
-
-当前路由基路径：
-
-- `/api/plugins/<pluginId>/v1`
-
-例子：
-
-- 注册路径 `/status`
-- 公开路径 `/api/plugins/acme.echo/v1/status`
-
-当前支持的 authPolicy：
-
-- `public`
-- `user`
-- `admin`
-
-当前输入行为：
-
-- `GET` 路由会收到解析后的 query 参数
-- JSON 请求会收到解析后的 JSON body
-- 非 JSON 请求可以从 `runtimeCtx.request.rawBody` 读取原始字节
-
-这也是 social 插件当前处理认证文件上传的方式。
-
-### 地点
-
-通过 `ctx.locations.register(...)` 注册插件地点。
-
-当前行为：
-
-- host 会把公开地点 id 命名成 `<pluginId>.<locationId>`
-- 注册时的 `name` 和 `description` 会进入共享城市地点列表
-
-很重要的一条规则：
-
-- `ctx.locations.register({ id: 'echo-hub', ... })` 最终公开的是 `acme.echo.echo-hub`
-- `locationPolicy.locations` 必须写完整公开 id
-
-### 事件
-
-当前 `ctx.events.subscribe(...)` 支持的事件名：
-
-- `agent.authenticated`
-- `connection.close`
-- `location.entered`
-- `location.left`
-
-当插件需要对运行时状态变化做反应，而不是只等待显式命令时，就用这些事件。
-
-### 存储
-
-插件存储底层使用主数据库中的 `plugin_storage_records` 表。
-
-当前行为：
-
-- 值会按 JSON 存储
-- 记录会按插件 id 和 collection 名自动隔离
-- `list(collection)` 返回按最近更新时间排序的记录
-
-当前 migration 的真实情况：
-
-- `ctx.storage.migrate(version, handler)` 这个 API 存在
-- 当前 host 不会持久化 migration state
-- 它只是直接执行 handler
-
-所以如果你今天要做“一次性迁移”，需要自己在 storage 里写防重记录。
-
-### 配置
-
-`ctx.config.get()` 返回当前城市配置里该插件的 `config` 对象。
-
-当前真实情况：
-
-- CLI 今天没有单独的“插件配置编辑器”
-- 插件配置要直接改 city config 文件
-- 改完之后要重启 server，让插件用新的 lock / runtime 状态重新加载
-
-### 结构化错误
-
-对 WebSocket 命令和 HTTP 路由来说，当前 host 会把你抛出的结构化错误字段透传出去。
-
-当前有用的字段包括：
-
-- `message` 或错误文本
-- `code`
-- `action`
-- `details`
-- HTTP 路由使用的 `statusCode`
-
-例子：
+安全读命令使用：
 
 ```js
-throw Object.assign(new Error('Missing text.'), {
-  code: 'BAD_INPUT',
+controlPolicy: { controllerRequired: false }
+```
+
+仅 venue 内可用命令使用：
+
+```js
+locationPolicy: {
+  scope: 'location',
+  locations: ['acme.echo.echo-hub'],
+}
+```
+
+### Errors
+
+抛出结构化错误：
+
+```js
+throw Object.assign(new Error('text is required.'), {
+  code: 'INVALID_PARAMS',
   action: 'retry',
   details: { field: 'text' },
   statusCode: 400,
 });
 ```
 
-## 6. 前端插件开发
+host 会转发 `error`、`code`、`action`、`details` 和 HTTP `statusCode`。好的 action 很短：`auth`、`retry`、`shorten`、`claim_control`、`enter_city`、`enter_location`、`fetch_detail`。
 
-### 当前的发现模型
+### Storage、events、push、lifecycle
 
-当前仓库自带的 web app 会静态扫描：
+插件 storage 保存 JSON 记录，并按 plugin id 和 collection 隔离：
 
-- `packages/plugins/*/package.json`
-- `packages/plugins/*/frontend/plugin.ts`
-- `packages/plugins/*/frontend/plugin.tsx`
+```js
+await ctx.storage.get('notes', noteId);
+await ctx.storage.put('notes', noteId, value);
+await ctx.storage.delete('notes', noteId);
+await ctx.storage.list('notes');
+```
 
-这意味着：
+`ctx.storage.migrate(version, handler)` 存在，但当前 host 不持久化 migration 状态；一次性 migration 请自己写 guard record。
 
-- 如果你想让当前仓库里的 web app 发现前端插件，入口必须放在 `packages/plugins/<dir>/frontend/plugin.ts(x)`
-- 把后端插件从任意外部路径或 registry 安装进城市，并不会自动把它的前端代码打进 web app
+支持的事件：`agent.authenticated`、`connection.close`、`location.entered`、`location.left`。
 
-### 最小前端入口
+Push 要克制：
+
+```js
+ctx.messaging.sendToAgent(agentId, 'echo_note_saved', {
+  targetAgentId: agentId,
+  summary: 'A new Echo note was saved.',
+  detailCommand: 'acme.echo.list_notes@v1',
+});
+```
+
+用 `ctx.lifecycle.onStop(...)` 清理 timer、文件句柄、队列或外部资源。
+
+## 7. Runtime 表面
+
+后端 `setup(ctx)` 表面：
+
+| API | 用途 |
+| --- | --- |
+| `ctx.commands.register(...)` | WebSocket commands |
+| `ctx.http.registerRoute(...)` | 插件 HTTP routes |
+| `ctx.locations.register(...)` | 可进入的 locations |
+| `ctx.policies.register(...)` | 横切 command/location policies |
+| `ctx.events.subscribe(...)` | runtime event hooks |
+| `ctx.messaging` | push 给 agents、owners 或 broadcast |
+| `ctx.storage` | 插件作用域 JSON storage |
+| `ctx.config.get()` | 城市配置里的插件 config |
+| `ctx.logging`、`ctx.diagnostics` | 日志和诊断 |
+| `ctx.lifecycle.onStop(...)` | 清理 |
+
+HTTP route 基路径：
+
+```text
+/api/plugins/<pluginId>/v1
+```
+
+支持的 HTTP auth policy：
+
+| Policy | 含义 |
+| --- | --- |
+| `public` | 不需要 owner session |
+| `user` | 需要登录 owner/user |
+| `admin` | 需要 admin user |
+
+HTTP 输入行为：
+
+- `GET` 收到解析后的 query。
+- JSON 请求收到解析后的 body。
+- 非 JSON 请求可读 `runtimeCtx.request.rawBody`。
+
+Config 行为：
+
+- 插件 config 位于 city config 文件中
+- `ctx.config.get()` 返回插件 `config` 对象
+- 修改 config 后需要 restart
+
+## 8. 像 Agent 一样验证
+
+link 并启动后先看 runtime health：
+
+```bash
+./uruc plugin inspect acme.echo
+./uruc plugin doctor
+./uruc doctor
+```
+
+然后通过 agent 协议验证。使用 `skills/uruc-skill`：
+
+```bash
+node skills/uruc-skill/scripts/uruc-agent.mjs bootstrap --json
+node skills/uruc-skill/scripts/uruc-agent.mjs what_state_am_i --json
+node skills/uruc-skill/scripts/uruc-agent.mjs where_can_i_go --json
+node skills/uruc-skill/scripts/uruc-agent.mjs what_can_i_do --json
+node skills/uruc-skill/scripts/uruc-agent.mjs what_can_i_do --scope plugin --plugin-id acme.echo --json
+node skills/uruc-skill/scripts/uruc-agent.mjs exec acme.echo.echo_intro@v1 --json
+node skills/uruc-skill/scripts/uruc-agent.mjs exec acme.echo.ping@v1 --payload '{"text":"hello"}' --json
+```
+
+如果命令需要 controller：
+
+```bash
+node skills/uruc-skill/scripts/uruc-agent.mjs claim --json
+```
+
+不要猜命令名或字段。使用 `what_can_i_do` 返回的实时 schema。
+
+## 9. 可选前端
+
+后端成熟后再添加前端。前端 contribution：
+
+| Target | 用途 |
+| --- | --- |
+| `PAGE_ROUTE_TARGET` | 插件页面路由 |
+| `LOCATION_PAGE_TARGET` | 把地点绑定到页面 |
+| `NAV_ENTRY_TARGET` | 导航入口 |
+| `INTRO_CARD_TARGET` | 发现卡片 |
+| `RUNTIME_SLICE_TARGET` | 后台 runtime 订阅 |
+
+添加 package metadata：
+
+```json
+{
+  "urucFrontend": {
+    "apiVersion": 1,
+    "entry": "./frontend/plugin.ts"
+  }
+}
+```
+
+最小 `frontend/plugin.ts`：
 
 ```ts
 import {
+  INTRO_CARD_TARGET,
   LOCATION_PAGE_TARGET,
   NAV_ENTRY_TARGET,
   PAGE_ROUTE_TARGET,
@@ -566,208 +502,142 @@ export default defineFrontendPlugin({
         icon: 'landmark',
       },
     },
+    {
+      target: INTRO_CARD_TARGET,
+      payload: {
+        id: 'intro',
+        titleKey: 'echo:intro.title',
+        bodyKey: 'echo:intro.body',
+        icon: 'landmark',
+      },
+    },
   ],
   translations: {
     en: {
       echo: {
+        venue: { title: 'Echo Hub', description: 'Try the Echo plugin.' },
         nav: { label: 'Echo' },
-        venue: {
-          title: 'Echo Hub',
-          description: 'A simple plugin page.',
-        },
+        intro: { title: 'Echo', body: 'A small command plugin for agents.' },
       },
     },
   },
 });
 ```
 
-### 前端 contribution 类型
+React 页面通过 SDK helper 调用公开后端表面：
 
-| Target | 作用 |
-| --- | --- |
-| `PAGE_ROUTE_TARGET` | 注册插件页面路由 |
-| `LOCATION_PAGE_TARGET` | 把地点 id 绑定到某个页面路由的元数据 |
-| `NAV_ENTRY_TARGET` | 注册导航入口 |
-| `INTRO_CARD_TARGET` | 注册介绍卡片 |
-| `RUNTIME_SLICE_TARGET` | 注册后台运行时挂载点 |
+```tsx
+import { usePluginRuntime } from '@uruc/plugin-sdk/frontend-react';
 
-### 标准路由路径
-
-当前前端 registry 会根据以下信息生成页面标准路径：
-
-- plugin id
-- route id 或 `pathSegment`
-- shell
-
-当前 shell 到路径前缀的映射：
-
-| Shell | 标准基路径 |
-| --- | --- |
-| `public` | `/plugins` |
-| `app` | `/app/plugins` |
-| `standalone` | `/play/plugins` |
-
-例子：
-
-- plugin id：`acme.echo`
-- route id：`home`
-- shell：`app`
-- 标准路径：`/app/plugins/acme.echo/home`
-
-### 前端校验规则
-
-当前 frontend registry 会拒绝或报告以下问题：
-
-- 非法 package metadata
-- 缺失 frontend entry
-- frontend `pluginId` 不匹配
-- 不支持的 extension target
-- 非法 payload
-- 重复的标准路由
-- 重复的 alias
-- 重复的 location id
-- location page 引用了不存在的 route id
-
-### React helper
-
-当前公开的 React helper 有：
-
-- `usePluginPage()`
-- `usePluginRuntime()`
-- `usePluginAgent()`
-- `usePluginShell()`
-
-当页面需要做这些事情时，优先用 `usePluginRuntime()`：
-
-- 发送 WebSocket 命令
-- 查看连接状态和地点状态
-- 进城 / 离城
-- 进入 / 离开地点
-
-### 在前端调用后端命令
-
-前端调用时要使用完整公开命令 id：
-
-```ts
-const runtime = usePluginRuntime();
-const result = await runtime.sendCommand('acme.echo.ping@v1', { text: 'hello' });
-```
-
-### 当前 runtime state 和发现接口
-
-当前前端插件 runtime 会刻意保持 session state 简洁。
-
-`runtime.refreshSessionState()` 返回：
-
-```ts
-{
-  connected: boolean;
-  hasController: boolean;
-  isController: boolean;
-  inCity: boolean;
-  currentLocation: string | null;
-  citytime: number;
+export function EchoPage() {
+  const runtime = usePluginRuntime();
+  return (
+    <button onClick={() => { void runtime.sendCommand('acme.echo.echo_intro@v1'); }}>
+      Intro
+    </button>
+  );
 }
 ```
 
-当前需要注意：
-
-- Session state 不再包含 `availableCommands` 或 `availableLocations`。
-- Core 时间字段现在是 `citytime`，不是 `serverTimestamp`。
-- 如果前端插件需要命令发现，使用 `runtime.refreshCommands()`。
-- 如果前端插件需要地点发现，通过 `runtime.sendCommand(...)` 调用 core 命令 `where_can_i_go`。
-
-`runtime.refreshCommands()` 现在遵循分层 discovery 模型：
-
-- 不传参数时，返回按 `city` 和各个插件分组的摘要
-- `{ scope: 'city' }` 返回 city 和协议内建命令的详细 schema
-- `{ scope: 'plugin', pluginId: 'acme.echo' }` 返回单个插件的详细命令 schema
-
-这意味着前端插件不应该再假设“一次 state 刷新就会带回当前所有可用命令的扁平列表”。
-
-### 在前端调用插件 HTTP 路由
-
-用 HTTP helper，并传入插件基路径：
+HTTP helper：
 
 ```ts
 import { requestJson } from '@uruc/plugin-sdk/frontend-http';
 
-const basePath = '/api/plugins/acme.echo/v1';
-const result = await requestJson(basePath, '/status');
+const status = await requestJson('/api/plugins/acme.echo/v1', '/status');
 ```
 
-### 前端启用条件
+当前前端事实：
 
-当前 app 只会在后端健康检查报告该插件已经成功启动时，才真正启用这个插件的 UI。
+- 仓库内发现扫描 `packages/plugins/*/package.json` 和 `packages/plugins/*/frontend/plugin.ts(x)`
+- 已安装 runtime frontend 从 `frontend-dist/` 经 `/api/frontend-plugins` 加载
+- package-backed frontend 插件必须包含 `frontend-dist/manifest.json`
+- 前端 plugin id 必须匹配后端 `urucPlugin.pluginId`
+- 前端代码不能 import host 内部模块，例如 `packages/web/src/lib/api`
+- 当前 app 把 canonical plugin page 放在 `/workspace/plugins/<pluginId>/<segment>`
+- `/app/plugins/...`、`/play/plugins/...`、`/plugins/...` 会 normalize 到 workspace route
 
-所以一种很常见的情况是：
+发布用 frontend build manifest：
 
-- 前端代码已经被正确打包了
-- 但因为后端插件没有成功启动，页面仍然会表现为不可用
+```json
+{
+  "apiVersion": 1,
+  "pluginId": "acme.echo",
+  "version": "0.1.0",
+  "format": "global-script",
+  "entry": "./plugin.js",
+  "css": ["./plugin.css"],
+  "exportKey": "acme.echo"
+}
+```
 
-## 7. 当前开发中的真实限制
+## 10. 打包、限制、调试
 
-以下是当前开发时真正会影响你的事实：
+为 source-backed install 或 marketplace 分发打包：
 
-- 后端契约严格要求 `urucPlugin.apiVersion = 2` 和 `kind = "backend"`。
-- 前端包元数据严格要求 `urucFrontend.apiVersion = 1`。
-- 后端插件加载是动态的；当前仓库自带 web app 的前端插件发现是静态的。
-- 当前 host 会在启动时加载所有 enabled 的后端插件。
-- 当前 host 不会根据 `activation` 做延迟加载。
-- 当前 host 不会替你做命令或路由输入 schema 的运行时校验。
-- 当前 host 会记录 permissions、migrations、healthcheck 元数据，但这些字段并不意味着平台已经有完整执行语义。
-- 当前 host 不会在你改完配置文件后，对已运行中的 server 进程做热卸载。
+```bash
+./uruc plugin pack packages/plugins/acme-echo --out dist/plugins
+```
 
-## 8. 调试清单
+pack 命令会 stage 插件、在存在 `urucFrontend` 时构建 `frontend-dist/`、执行 `npm pack`，并输出 tarball 路径和 integrity digest。
 
-先用这些命令：
+当前限制：
 
-- `./uruc plugin validate <path-or-pluginId>`
-- `./uruc plugin inspect <pluginId>`
-- `./uruc plugin doctor`
-- `./uruc doctor`
-- `./uruc status`
+- 后端加载是动态的，并按城市配置生效
+- 当前 web app 的仓库内前端发现是静态的
+- runtime frontend 资源通过 `/api/frontend-plugins` 加载
+- 每个 enabled 后端插件都会在 startup 启动
+- `activation` 会存储，但今天不用于 lazy loading
+- command 和 route schema 不是 runtime validation
+- `permissions`、`migrations`、`healthcheck` metadata 存在，但不是所有执行模型都已实现
+- 修改 config 后需要 restart
 
-常见问题与原因：
+有用命令：
+
+```bash
+./uruc plugin validate <path-or-pluginId>
+./uruc plugin inspect <pluginId>
+./uruc plugin doctor
+./uruc doctor
+./uruc status
+```
+
+常见失败：
 
 | 现象 | 常见原因 |
 | --- | --- |
-| `Plugin id must be a lowercase namespaced id like acme.demo` | 插件 id 格式不合法 |
-| `publisher "... " is not approved` | 城市配置 `approvedPublishers` 没有包含你的 publisher |
-| `Config entry ... does not match manifest pluginId ...` | 城市配置中的 plugin id 与 manifest 中的不一致 |
-| frontend plugin id mismatch | `frontend/plugin.ts(x)` 里的 `pluginId` 与 `package.json` 不一致 |
-| location page 找不到 route | `LOCATION_PAGE_TARGET.payload.routeId` 指向了未注册的 route id |
-| route 或 alias 冲突 | 两个插件占用了相同的标准路由或 alias |
-| 前端调用命令总是找不到 | 前端用了短命令 id，而不是 `<pluginId>.<commandId>@v1` |
-| location policy 永远不生效 | 你写了短地点 id，而不是完整 namespaced 地点 id |
+| invalid namespaced id | plugin id 不是 `acme.demo` 这种小写 namespaced id |
+| publisher not approved | `approvedPublishers` 缺少 publisher |
+| config/manifest plugin id mismatch | city config 和 package manifest 不一致 |
+| frontend plugin id mismatch | `frontend/plugin.ts(x)` 与 package manifest 不同 |
+| command not found | 调用了短 id，而不是 `<pluginId>.<commandId>@v1` |
+| location policy never matches | 使用短 location id，而不是完整 namespaced id |
+| frontend page disabled | 后端插件未启用或启动失败 |
+| runtime frontend missing | package-backed frontend 缺少 `frontend-dist/manifest.json` |
+| command schema 看不懂 | 缺少或写坏了 `description` 和 input metadata |
+| agent 不知道如何开始 | 缺少 `<feature>_intro` |
 
-## 9. 面向 Agent 友好的插件规则
+## 11. 最终验收清单
 
-如果你想让插件既方便人类使用，也方便 AI agent 正确调用，建议遵循这些规则：
+声明插件 ready 前确认：
 
-- 注册时使用短命令 id，并长期保持稳定。
-- 每个命令都写完整的一句话描述。
-- 每个输入字段都写清 `type`、`description`、`required`。
-- 返回值保持为字段明确、可 JSON 序列化的普通对象。
-- 对只读命令使用 `controllerRequired: false`。
-- 优先设计显式的 set-state 命令，而不是含糊的 toggle 命令。
-- 抛出带 `code`、`action`、`details` 的结构化错误。
-- 使用清晰、插件自有的 storage collection 名。
-- 把插件逻辑留在插件包内部，不要去导入 `packages/server/src/core/*` 的 server 内部实现。
-- 对复杂插件，可以像 social 插件那样提供一个 `get_usage_guide` 风格的引导命令。
+- `package.json#urucPlugin` 合法。
+- Publisher 已批准。
+- 后端导出 `defineBackendPlugin(...)`。
+- 每个命令都有简短有用的 `description`。
+- 插件有一个主要 `<feature>_intro` 命令。
+- Intro 说明用途、规则、起步命令和关键字段。
+- 安全读命令使用 `controllerRequired: false`。
+- 写命令校验输入并返回结构化错误。
+- 列表分页或有上限。
+- Push 克制，并指向详情命令。
+- Storage 使用插件自有 collection 名。
+- 如果有前端，它是可选壳，并调用公开后端命令或 route。
+- `./uruc plugin validate <path>` 通过。
+- 在一次性验证工作区里，`./uruc plugin link <path>` 成功。
+- `./uruc plugin inspect <pluginId>` 显示插件。
+- `what_can_i_do --scope plugin --plugin-id <pluginId>` 返回有用 schema。
+- `<pluginId>.<feature>_intro@v1` 可调用。
+- 至少一个真实业务命令能通过 agent 协议调用。
 
-## 10. AI Agent 操作配方
-
-如果你是一个 AI 编码 agent，要在这个仓库里新建插件，请按这个顺序做：
-
-1. 先选一个小写、带命名空间的插件 id，例如 `acme.echo`。
-2. 除非确认完全不需要 UI，否则先运行 `./uruc plugin create acme.echo --frontend`。
-3. 在没有额外构建链并且已经验证通过之前，优先保留 `index.mjs` 作为最终后端入口。
-4. 注册命令和地点时只写短 id。
-5. 只有在前端代码、测试代码或 policy 里引用公开表面时，才使用完整 id。
-6. 如果 publisher 尚未被批准，先把它加进当前 city config 的 `approvedPublishers`。
-7. 如果想让当前仓库里的 web app 发现前端入口，把 frontend entry 保持在 `frontend/plugin.ts` 或 `frontend/plugin.tsx`。
-8. 用 `./uruc plugin validate <path>` 做校验。
-9. 本地开发时用 `./uruc plugin link <path>` 接入后端插件。
-10. 用 `./uruc plugin inspect <pluginId>` 和 `./uruc plugin doctor` 检查状态。
-11. 启动或重启 Uruc，并确认后端插件确实在健康检查里显示为已启动。
+如果另一个 AI agent 不能只靠本文、不读源码做出简单可工作的插件，那么 guide 或插件 README 还没完成。

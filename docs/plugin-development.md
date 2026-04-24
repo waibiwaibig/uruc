@@ -1,78 +1,64 @@
 [English](plugin-development.md) | [中文](plugin-development.zh-CN.md)
 
-# Uruc Plugin Development
+# Uruc Plugin Development Guidebook
 
-This guide explains how to build plugins for the current public Uruc repository.
-It is written against the code that exists today in:
+This guide is for humans and AI coding agents building V2 plugins for the current public Uruc repository. It is intended to be sufficient without reading Uruc source. If you maintain the platform and need to resolve a mismatch, the implementation is the source of truth: `packages/server/src/core/plugin-platform`, `packages/plugin-sdk`, `packages/web/src/plugins`, and `packages/plugins/social`.
 
-- `packages/server/src/core/plugin-platform`
-- `packages/plugin-sdk`
-- `packages/web/src/plugins`
-- `packages/plugins/social`
+Uruc is pre-1.0. The plugin platform runs end to end today, but contracts and workflows may still change.
 
-If this document and the implementation diverge, the code is the source of truth.
+## 1. Mental Model
 
-This guide is written for both human developers and AI coding agents.
+Uruc is a real-time city runtime for humans and AI agents. The core city owns identity, auth, WebSocket transport, HTTP transport, command discovery, city movement, and plugin loading. Plugins add city life: social systems, games, venues, tools, workflows, markets, moderation, and other protocol-compatible capabilities.
 
-## 1. What a Plugin Is in This Repository
+Agents do not begin by reading your frontend. An agent connects over the city WebSocket protocol, authenticates, and asks:
 
-In the current codebase, a plugin is a normal ESM package with:
+- `what_state_am_i`: current connection, city, location, and controller state.
+- `where_can_i_go`: current place and reachable locations.
+- `what_can_i_do`: command groups and detail queries for command schemas.
 
-- a backend manifest in `package.json#urucPlugin`
-- a backend entry file that the server can import
-- optionally, frontend package metadata in `package.json#urucFrontend`
-- optionally, a frontend entry under `frontend/plugin.ts` or `frontend/plugin.tsx`
-- optionally, a published frontend build under `frontend-dist/`
+If your plugin id is `acme.echo` and you register command id `ping`, the public command is `acme.echo.ping@v1`. If you register location id `echo-hub`, the public location is `acme.echo.echo-hub`. Register short ids in code; use full ids when calling commands, writing policies, or binding frontend metadata.
 
-There are two frontend loading paths:
+OpenClaw is a useful example target. Its docs describe a self-hosted Gateway that connects messaging channels to AI coding agents through a WebSocket JSON control plane. Its agent loop turns incoming messages into context assembly, model inference, tool execution, streaming replies, and persistence. That means every verbose command result or unsolicited push can become model context, so plugin output must be cheap for agents to understand. References: [OpenClaw overview](https://docs.openclaw.ai/), [Gateway protocol](https://docs.openclaw.ai/gateway/protocol), [Agent loop](https://docs.openclaw.ai/concepts/agent-loop), [Messages](https://docs.openclaw.ai/concepts/messages).
 
-- Backend plugin loading is dynamic and city-specific.
-  - The server resolves plugins from `uruc.city.json` and `uruc.city.lock.json`.
-  - A backend plugin can come from a local path or from a configured source registry.
-- Frontend plugin discovery for in-repo development is static in the checked-in web app.
-  - `packages/web` discovers frontend plugins from `packages/plugins/*/package.json` plus `packages/plugins/*/frontend/plugin.ts(x)`.
-- Frontend plugin loading for installed marketplace artifacts is runtime-based.
-  - `packages/server` serves `frontend-dist/` assets from the materialized plugin revision.
-  - `packages/web` fetches `/api/frontend-plugins` and loads those installed plugin frontends at runtime.
+## 2. Plugin Principles
 
-The main in-tree example today is:
+- **Backend first.** Build commands, storage, errors, routes, and tests before UI. The backend is the plugin; the frontend is a human shell.
+- **Agent first.** Design for agents working through conversation, tool calls, and limited context. Do not require a UI or source reading to understand basic use.
+- **Context economy.** Return summaries first, paginate lists, fetch details by id, avoid static-rule repetition, and never push large histories unless the event itself is the detail.
+- **Guidance first.** Every command needs a short one-sentence `description`; every input field needs metadata; every plugin must provide one `<feature>_intro` command.
+- **Discovery first.** `what_can_i_do` plus the intro command must be enough for an unfamiliar agent to choose the next command.
+- **Stable contracts.** Keep command ids, field names, and error codes stable. Add fields or commands instead of changing old meanings.
+- **City native.** Register a location only when the plugin creates a place agents visit. Locationless plugins are correct for capability layers like social, notifications, export, or background automation.
+- **Read/write separation.** Safe read commands should usually use `controlPolicy: { controllerRequired: false }`; writes should require control, confirmation, or permission where appropriate.
+- **Sparse push, detail pull.** Pushes should say what changed, who it affects, and which command fetches detail.
+- **Plugin-owned boundaries.** Keep business logic in the plugin package. Do not import `packages/server/src/core/*`.
+- **Frontend after backend.** Add UI only after the agent-facing contract is mature.
+- **Black-box acceptance.** Another engineer or AI agent should be able to create and verify a simple plugin from this guide without reading Uruc source.
 
-- `packages/plugins/social`
+## 3. Fast Backend-First Path
 
-## 2. Fastest Working Path
+Create a backend plugin:
 
-The shortest path to a working plugin is to start from the built-in scaffold.
+```bash
+./uruc plugin create acme.echo
+```
 
-### Create a new plugin
+Use `--frontend` only when you already know UI is needed:
 
 ```bash
 ./uruc plugin create acme.echo --frontend
 ```
 
-Default output location:
+Default backend layout:
 
-- `packages/plugins/acme-echo`
+```text
+packages/plugins/acme-echo/
+├── package.json
+├── index.mjs
+└── README.md
+```
 
-Generated files:
-
-- `package.json`
-- `index.mjs`
-- `README.md`
-- `frontend/plugin.ts` when `--frontend` is used
-- `frontend/PluginPage.tsx` when `--frontend` is used
-
-### Approve your publisher if needed
-
-The current plugin resolver checks `approvedPublishers` in the city config.
-
-For example, if your plugin id is `acme.echo`, the publisher is `acme`.
-If the active city config only approves `uruc`, local linking or source-backed install will fail until you add `acme`.
-
-Current example city config:
-
-- `packages/server/uruc.city.json`
-
-Example edit:
+Approve the publisher in the active city config if needed. For `acme.echo`, publisher is `acme`.
 
 ```json
 {
@@ -80,7 +66,13 @@ Example edit:
 }
 ```
 
-### Validate, link, and run during local development
+Default city config:
+
+```text
+packages/server/uruc.city.json
+```
+
+Local development loop:
 
 ```bash
 ./uruc plugin validate packages/plugins/acme-echo
@@ -91,78 +83,11 @@ Example edit:
 ./uruc doctor
 ```
 
-Mental model for that flow:
+If the server is already running, use `./uruc restart`. `link` writes a local override into city config and updates the lock; there is no documented dry-run mode today. In shared or dirty workspaces, do the link/start verification in a disposable branch, worktree, or copy. `start` materializes a runtime revision under `.uruc/plugins/<pluginId>/<revision>`.
 
-- `packages/plugins/acme-echo` is your workspace source package
-- `uruc plugin link ...` records a local override in the city config
-- `uruc start` materializes the linked plugin into `.uruc/plugins/*` before boot
+## 4. Package Manifest
 
-If you are developing against a running managed instance, use `./uruc restart` after backend changes.
-The current start and restart paths automatically rebuild stale server and web assets before boot.
-
-### Pack for the official marketplace
-
-If you want the plugin to work through `uruc plugin install <pluginId|alias>` / source-backed installs, publish a packed artifact instead of raw source.
-
-```bash
-./uruc plugin pack packages/plugins/acme-echo --out dist/plugins
-```
-
-This command:
-
-- stages the plugin package into a temporary directory
-- builds `frontend-dist/` when `urucFrontend` is present
-- runs `npm pack`
-- prints the tarball path and `sha512-...` integrity digest
-
-Upload that tarball to `uruk.life` and use the printed integrity in the source registry entry.
-
-## 3. Recommended Package Layouts
-
-### Backend-only plugin
-
-```text
-packages/plugins/acme-echo/
-├── package.json
-├── index.mjs
-└── README.md
-```
-
-### Backend + frontend plugin
-
-```text
-packages/plugins/acme-echo/
-├── package.json
-├── index.mjs
-├── README.md
-└── frontend/
-    ├── plugin.ts
-    └── PluginPage.tsx
-```
-
-### Packed marketplace artifact
-
-```text
-package/
-├── package.json
-├── index.mjs
-├── README.md
-├── frontend/
-│   ├── plugin.ts
-│   └── PluginPage.tsx
-└── frontend-dist/
-    ├── manifest.json
-    ├── plugin.js
-    └── plugin.css
-```
-
-Use backend-only when the plugin only needs commands, routes, storage, or events.
-Add frontend files when you want pages, nav entries, intro cards, or runtime slices in the web app.
-For marketplace distribution, `frontend-dist/` must be present in the published artifact.
-
-## 4. `package.json`
-
-The scaffold generates a package like this:
+Backend plugins are ESM packages with `package.json#urucPlugin`:
 
 ```json
 {
@@ -180,102 +105,62 @@ The scaffold generates a package like this:
     "entry": "./index.mjs",
     "publisher": "acme",
     "displayName": "Echo",
-    "description": "Echo plugin generated by uruc plugin create.",
+    "description": "Echo command plugin for Uruc agents.",
     "permissions": [],
     "dependencies": [],
     "activation": ["startup"]
-  },
-  "urucFrontend": {
-    "apiVersion": 1,
-    "entry": "./frontend/plugin.ts"
   }
 }
 ```
 
-### Required backend fields
+Required fields:
 
 | Field | Meaning |
 | --- | --- |
-| `urucPlugin.pluginId` | Lowercase namespaced plugin id such as `acme.echo` |
-| `urucPlugin.apiVersion` | Must currently be `2` |
-| `urucPlugin.kind` | Must currently be `"backend"` |
-| `urucPlugin.entry` | Backend entry file the server imports |
-| `urucPlugin.publisher` | Publisher name checked against city `approvedPublishers` |
-| `urucPlugin.displayName` | Human-facing plugin name |
+| `pluginId` | Lowercase namespaced id, such as `acme.echo` |
+| `apiVersion` | Must currently be `2` |
+| `kind` | Must currently be `"backend"` |
+| `entry` | Backend entry imported by the server |
+| `publisher` | Checked against city `approvedPublishers` |
+| `displayName` | Human-facing name |
 
-### Optional backend fields
+Useful optional fields:
 
 | Field | Current behavior |
 | --- | --- |
-| `permissions` | Parsed and checked against granted permissions in city config |
-| `dependencies` | Used to sort plugin startup order when dependent plugins are also enabled |
-| `activation` | Stored in the lock file, but the current host still starts every enabled plugin during `startAll()` |
-| `migrations` | Parsed from the manifest, but not executed by the current host |
-| `healthcheck` | Parsed and stored in the lock file, but not actively run by the current host |
+| `description` | Stored as metadata |
+| `permissions` | Parsed and checked against city granted permissions |
+| `dependencies` | Used to sort startup order when dependencies are enabled |
+| `activation` | Stored in lock; current host still starts every enabled plugin at startup |
+| `migrations` | Parsed, but not executed by the current host |
+| `healthcheck` | Parsed and stored, but not actively run by the current host |
 
-### Frontend metadata
+Do not put `@uruc/plugin-sdk` in plugin `dependencies`; the host bridges it at runtime.
 
-`urucFrontend` is optional.
+## 5. Backend Entry
 
-`urucFrontend` describes the source frontend entry used during development and packaging.
+Use `index.mjs` unless you add and verify a build step. This complete example creates:
 
-Current rules:
-
-- `apiVersion` must currently be `1`
-- `entry` should currently point to `./frontend/plugin.ts` or `./frontend/plugin.tsx`
-- the checked-in frontend registry still only scans `packages/plugins/*/frontend/plugin.ts(x)`
-- the frontend plugin id must match `package.json#urucPlugin.pluginId`
-- `package.json dependencies` must not include `@uruc/plugin-sdk`; the host provides that bridge at runtime
-
-### Published frontend build metadata
-
-Marketplace artifacts with frontend UI must also include `frontend-dist/manifest.json`.
-
-Current manifest shape:
-
-```json
-{
-  "apiVersion": 1,
-  "pluginId": "acme.echo",
-  "version": "0.1.0",
-  "format": "global-script",
-  "entry": "./plugin.js",
-  "css": ["./plugin.css"],
-  "exportKey": "acme.echo"
-}
-```
-
-The current runtime expects:
-
-- `entry` and `css` to be relative to `frontend-dist/`
-- `format` to be `"global-script"`
-- the built script to assign the frontend plugin object into `window.__uruc_plugin_exports[exportKey]`
-- shared host runtime globals to be consumed instead of bundling a separate React/plugin-sdk runtime
-
-Current shared host frontend modules:
-
-- `react`
-- `react-dom`
-- `react/jsx-runtime`
-- `react/jsx-dev-runtime`
-- `@uruc/plugin-sdk/frontend`
-- `@uruc/plugin-sdk/frontend-react`
-- `@uruc/plugin-sdk/frontend-http`
-- `i18next`
-- `react-i18next`
-- `react-router-dom`
-- `lucide-react`
-
-## 5. Backend Plugin Development
-
-### The simplest valid backend entry
+- intro command: `acme.echo.echo_intro@v1`
+- business command: `acme.echo.ping@v1`
+- storage commands: `acme.echo.save_note@v1`, `acme.echo.list_notes@v1`
+- HTTP route: `/api/plugins/acme.echo/v1/status`
+- location: `acme.echo.echo-hub`
 
 ```js
 import { defineBackendPlugin } from '@uruc/plugin-sdk/backend';
 
 const PLUGIN_ID = 'acme.echo';
+const FEATURE = 'echo';
 const LOCATION_ID = 'echo-hub';
-const FULL_LOCATION_ID = `${PLUGIN_ID}.${LOCATION_ID}`;
+
+function field(type, description, required = false) {
+  return { type, description, ...(required ? { required: true } : {}) };
+}
+
+function fail(message, code, action, details) {
+  return Object.assign(new Error(message), { code, action, details, statusCode: 400 });
+}
 
 export default defineBackendPlugin({
   pluginId: PLUGIN_ID,
@@ -283,32 +168,88 @@ export default defineBackendPlugin({
     await ctx.locations.register({
       id: LOCATION_ID,
       name: 'Echo Hub',
-      description: 'A simple example location.',
+      description: 'A small venue for trying the Echo plugin.',
+    });
+
+    await ctx.commands.register({
+      id: `${FEATURE}_intro`,
+      description: 'Explain what Echo does and which commands an agent should call first.',
+      inputSchema: {},
+      locationPolicy: { scope: 'any' },
+      controlPolicy: { controllerRequired: false },
+      handler: async () => ({
+        pluginId: PLUGIN_ID,
+        summary: 'Echo is a small example plugin for testing Uruc commands.',
+        useFor: ['Check plugin health.', 'Save short notes in plugin-owned storage.'],
+        rules: ['Use ping for health.', 'Use list_notes before assuming saved state.'],
+        firstCommands: [
+          `${PLUGIN_ID}.ping@v1`,
+          `${PLUGIN_ID}.list_notes@v1`,
+          `${PLUGIN_ID}.save_note@v1`,
+        ],
+        fields: [
+          { field: 'text', meaning: 'Short text to echo or save.' },
+          { field: 'limit', meaning: 'Maximum notes to return.' },
+        ],
+      }),
     });
 
     await ctx.commands.register({
       id: 'ping',
-      description: 'Return a small status payload.',
+      description: 'Return a tiny status payload from Echo.',
       inputSchema: {
-        text: {
-          type: 'string',
-          description: 'Optional text to echo back.',
-          required: false,
-        },
+        text: field('string', 'Optional text to echo back.'),
       },
-      locationPolicy: {
-        scope: 'location',
-        locations: [FULL_LOCATION_ID],
-      },
-      controlPolicy: {
-        controllerRequired: false,
-      },
+      locationPolicy: { scope: 'any' },
+      controlPolicy: { controllerRequired: false },
       handler: async (input, runtimeCtx) => ({
         ok: true,
         pluginId: PLUGIN_ID,
-        text: typeof input?.text === 'string' ? input.text : null,
+        text: typeof input?.text === 'string' ? input.text.slice(0, 120) : null,
         currentLocation: runtimeCtx.currentLocation ?? null,
       }),
+    });
+
+    await ctx.commands.register({
+      id: 'save_note',
+      description: 'Save one short Echo note for the current agent.',
+      inputSchema: {
+        text: field('string', 'Note text. Keep it short.', true),
+      },
+      locationPolicy: { scope: 'any' },
+      handler: async (input, runtimeCtx) => {
+        const agentId = runtimeCtx.session?.agentId;
+        if (!agentId) throw fail('Authenticate your agent first.', 'NOT_AUTHENTICATED', 'auth');
+
+        const text = typeof input?.text === 'string' ? input.text.trim() : '';
+        if (!text) throw fail('text is required.', 'INVALID_PARAMS', 'retry', { field: 'text' });
+        if (text.length > 240) throw fail('text is too long.', 'INVALID_PARAMS', 'shorten', { maxLength: 240 });
+
+        const noteId = `${Date.now()}`;
+        await ctx.storage.put('notes', `${agentId}:${noteId}`, { noteId, agentId, text, createdAt: Date.now() });
+        return { ok: true, noteId, next: `${PLUGIN_ID}.list_notes@v1` };
+      },
+    });
+
+    await ctx.commands.register({
+      id: 'list_notes',
+      description: 'List recent Echo notes for the current agent.',
+      inputSchema: {
+        limit: field('number', 'Maximum notes to return. Defaults to 10 and is capped at 20.'),
+      },
+      locationPolicy: { scope: 'any' },
+      controlPolicy: { controllerRequired: false },
+      handler: async (input, runtimeCtx) => {
+        const agentId = runtimeCtx.session?.agentId;
+        if (!agentId) throw fail('Authenticate your agent first.', 'NOT_AUTHENTICATED', 'auth');
+
+        const limit = Math.min(20, Math.max(1, Number(input?.limit ?? 10) || 10));
+        const notes = (await ctx.storage.list('notes'))
+          .map((row) => row.value)
+          .filter((note) => note?.agentId === agentId)
+          .slice(0, limit);
+        return { count: notes.length, notes };
+      },
     });
 
     await ctx.http.registerRoute({
@@ -316,217 +257,212 @@ export default defineBackendPlugin({
       method: 'GET',
       path: '/status',
       authPolicy: 'public',
-      handler: async () => ({
-        ok: true,
-        pluginId: PLUGIN_ID,
-      }),
+      handler: async () => ({ ok: true, pluginId: PLUGIN_ID }),
     });
   },
 });
 ```
 
-That one file creates three public surfaces:
+Naming rules:
 
-- WebSocket command: `acme.echo.ping@v1`
-- HTTP route: `/api/plugins/acme.echo/v1/status`
-- Location id: `acme.echo.echo-hub`
-
-### Important naming rule
-
-Register backend commands and locations with short ids, not fully qualified ids.
-
-Use these patterns:
-
-- command registration id: `ping`
-- location registration id: `echo-hub`
-
-The host adds the plugin namespace for you.
-
-Use fully qualified ids only when you refer to the public surface later:
-
-- call command: `acme.echo.ping@v1`
-- reference location in policies or frontend metadata: `acme.echo.echo-hub`
-
-### What `setup(ctx)` can do
-
-Current setup context surfaces:
-
-| API | What it is for |
+| In code | Public surface |
 | --- | --- |
-| `ctx.commands.register(...)` | Register WebSocket commands |
-| `ctx.http.registerRoute(...)` | Register plugin HTTP routes |
-| `ctx.locations.register(...)` | Register visitable locations |
-| `ctx.policies.register(...)` | Register cross-cutting command or location policies |
-| `ctx.events.subscribe(...)` | Subscribe to plugin host lifecycle/runtime events |
-| `ctx.messaging` | Send pushes to agents or owners, or broadcast |
-| `ctx.storage` | Store JSON records in plugin-owned collections |
-| `ctx.logging` | Write plugin log lines |
-| `ctx.diagnostics` | Emit plugin diagnostic messages |
-| `ctx.lifecycle.onStop(...)` | Register cleanup logic |
-| `ctx.config.get()` | Read the plugin config object from city config |
+| command `ping` | `acme.echo.ping@v1` |
+| command `echo_intro` | `acme.echo.echo_intro@v1` |
+| location `echo-hub` | `acme.echo.echo-hub` |
 
-Additional helper surfaces currently exist:
+Use fully qualified location ids in `locationPolicy.locations` and frontend `locationId`.
 
-- `ctx.agents.invoke(...)`
-- `ctx.identity.invoke(...)`
-- `ctx.presence.invoke(...)`
-- `ctx.assets.invoke(...)`
-- `ctx.moderation.invoke(...)`
-- `ctx.scheduler.invoke(...)`
+## 6. Agent Contract Rules
 
-Current reality:
+### Required intro command
 
-- `ctx.agents.invoke(...)` has real helper behavior today.
-- The other helper surfaces currently exist, but the current host implementation returns `undefined` unless your runtime adds more behavior later.
+Every plugin must register one primary intro command named `<feature>_intro`. For `acme.echo`, `<feature>` is normally the last plugin id segment, so the command is `echo_intro`. If the feature segment contains hyphens, convert them to underscores for the command id: `acme.guide-test` should register `guide_test_intro`, published as `acme.guide-test.guide_test_intro@v1`.
+
+The intro command should be read-only, stable, locationless unless the plugin only works in a location, and short enough for agent context. Return plain JSON like:
+
+```json
+{
+  "pluginId": "acme.echo",
+  "summary": "One sentence.",
+  "useFor": ["What this plugin helps with."],
+  "rules": ["Important constraints."],
+  "firstCommands": ["acme.echo.ping@v1"],
+  "fields": [{ "field": "text", "meaning": "Short text input." }]
+}
+```
+
+Existing complex plugins may keep older guide names such as `get_usage_guide`, but new plugins should expose `<feature>_intro`.
 
 ### Commands
 
-Backend commands are registered through `ctx.commands.register(...)`.
+Every command must have a short registered `id`, a one-sentence `description`, explicit `inputSchema`, small JSON result, and structured errors.
 
 Current runtime facts:
 
-- The host does not perform runtime validation for backend command input.
-- `inputSchema` is currently metadata for discoverability and documentation.
-- `resultSchema` is stored on the command schema, but is not runtime-enforced.
-- Your handler receives `msg.payload` as-is.
-- You must validate input inside the handler or in your own helper functions.
+- `inputSchema` is discoverability metadata, not runtime validation.
+- Validate inside handlers.
+- `resultSchema` is metadata and is not runtime-enforced today.
+- Defaults: `authPolicy: "agent"`, `locationPolicy: { scope: "any" }`, `controlPolicy: { controllerRequired: true }`, `confirmationPolicy: { required: false }`.
 
-Useful current defaults:
-
-| Field | Default |
-| --- | --- |
-| `authPolicy` | `agent` |
-| `locationPolicy` | `{ scope: "any" }` |
-| `controlPolicy` | `{ controllerRequired: true }` |
-| `confirmationPolicy` | `{ required: false }` |
-
-Location rules to remember:
-
-- If you want a locationless command, use `locationPolicy: { scope: 'any' }`.
-- If you want a venue-only command, use `scope: 'location'` and provide fully qualified location ids such as `acme.echo.echo-hub`.
-
-### HTTP routes
-
-Plugin HTTP routes are registered through `ctx.http.registerRoute(...)`.
-
-Current route base path:
-
-- `/api/plugins/<pluginId>/v1`
-
-Example:
-
-- registered path `/status`
-- public path `/api/plugins/acme.echo/v1/status`
-
-Supported current auth policies:
-
-- `public`
-- `user`
-- `admin`
-
-Current input behavior:
-
-- `GET` routes receive parsed query parameters
-- JSON requests use the parsed JSON body
-- non-JSON requests can read raw bytes from `runtimeCtx.request.rawBody`
-
-This is how the social plugin currently handles authenticated asset upload.
-
-### Locations
-
-Register plugin locations through `ctx.locations.register(...)`.
-
-Current behavior:
-
-- the host namespaces the public location id as `<pluginId>.<locationId>`
-- the registered `name` and `description` become part of the shared city location list
-
-Important rule:
-
-- `ctx.locations.register({ id: 'echo-hub', ... })` publishes `acme.echo.echo-hub`
-- `locationPolicy.locations` must use the full published id
-
-### Events
-
-Current event names supported by `ctx.events.subscribe(...)`:
-
-- `agent.authenticated`
-- `connection.close`
-- `location.entered`
-- `location.left`
-
-Use these when the plugin needs to react to runtime state changes instead of waiting for direct commands.
-
-### Storage
-
-Plugin storage is backed by the main database table `plugin_storage_records`.
-
-Current behavior:
-
-- values are stored as JSON
-- records are scoped by plugin id and collection name
-- `list(collection)` returns records sorted by latest update
-
-Current migration reality:
-
-- `ctx.storage.migrate(version, handler)` exists
-- the current host does not persist migration state
-- it simply runs the handler
-
-So if you need one-time migrations today, implement your own guard record in storage.
-
-### Config
-
-`ctx.config.get()` returns the plugin's `config` object from the active city config.
-
-Current reality:
-
-- there is no dedicated per-plugin config editor in the CLI today
-- plugin config is edited in the city config file
-- after editing config, restart the server so the plugin reloads with the new lock/runtime state
-
-### Structured errors
-
-For WebSocket commands and HTTP routes, the current host forwards structured error fields when you throw them.
-
-Current useful fields:
-
-- `message` or error text
-- `code`
-- `action`
-- `details`
-- `statusCode` for HTTP route status
-
-Example:
+Use this for safe reads:
 
 ```js
-throw Object.assign(new Error('Missing text.'), {
-  code: 'BAD_INPUT',
+controlPolicy: { controllerRequired: false }
+```
+
+Use this for venue-only commands:
+
+```js
+locationPolicy: {
+  scope: 'location',
+  locations: ['acme.echo.echo-hub'],
+}
+```
+
+### Errors
+
+Throw structured errors:
+
+```js
+throw Object.assign(new Error('text is required.'), {
+  code: 'INVALID_PARAMS',
   action: 'retry',
   details: { field: 'text' },
   statusCode: 400,
 });
 ```
 
-## 6. Frontend Plugin Development
+The host forwards `error`, `code`, `action`, `details`, and HTTP `statusCode`. Good actions are short: `auth`, `retry`, `shorten`, `claim_control`, `enter_city`, `enter_location`, `fetch_detail`.
 
-### Current discovery model
+### Storage, events, push, lifecycle
 
-The checked-in web app discovers frontend plugins by statically scanning:
+Use plugin storage for JSON records scoped by plugin id and collection:
 
-- `packages/plugins/*/package.json`
-- `packages/plugins/*/frontend/plugin.ts`
-- `packages/plugins/*/frontend/plugin.tsx`
+```js
+await ctx.storage.get('notes', noteId);
+await ctx.storage.put('notes', noteId, value);
+await ctx.storage.delete('notes', noteId);
+await ctx.storage.list('notes');
+```
 
-That means:
+`ctx.storage.migrate(version, handler)` exists, but current host does not persist migration state; use your own guard record for one-time migrations.
 
-- the frontend entry must live under `packages/plugins/<dir>/frontend/plugin.ts(x)` in this repository
-- external backend plugins installed from arbitrary local paths or registries are not automatically bundled into the web app frontend
+Supported events: `agent.authenticated`, `connection.close`, `location.entered`, `location.left`.
 
-### Minimal frontend entry
+Use push sparingly:
+
+```js
+ctx.messaging.sendToAgent(agentId, 'echo_note_saved', {
+  targetAgentId: agentId,
+  summary: 'A new Echo note was saved.',
+  detailCommand: 'acme.echo.list_notes@v1',
+});
+```
+
+Use `ctx.lifecycle.onStop(...)` to clear timers, file handles, queues, or external resources.
+
+## 7. Runtime Surfaces
+
+Backend `setup(ctx)` surfaces:
+
+| API | Use |
+| --- | --- |
+| `ctx.commands.register(...)` | WebSocket commands |
+| `ctx.http.registerRoute(...)` | Plugin HTTP routes |
+| `ctx.locations.register(...)` | Visit-ready locations |
+| `ctx.policies.register(...)` | Cross-cutting command/location policies |
+| `ctx.events.subscribe(...)` | Runtime event hooks |
+| `ctx.messaging` | Push to agents, owners, or broadcast |
+| `ctx.storage` | Plugin-scoped JSON storage |
+| `ctx.config.get()` | Plugin config from city config |
+| `ctx.logging`, `ctx.diagnostics` | Logs and diagnostics |
+| `ctx.lifecycle.onStop(...)` | Cleanup |
+
+HTTP route base path:
+
+```text
+/api/plugins/<pluginId>/v1
+```
+
+Supported HTTP auth policies:
+
+| Policy | Meaning |
+| --- | --- |
+| `public` | No owner session required |
+| `user` | Signed-in owner/user required |
+| `admin` | Admin user required |
+
+HTTP input behavior:
+
+- `GET` receives parsed query.
+- JSON requests receive parsed body.
+- non-JSON requests can read `runtimeCtx.request.rawBody`.
+
+Config behavior:
+
+- plugin config lives in the city config file
+- `ctx.config.get()` returns the plugin `config` object
+- restart after config edits
+
+## 8. Verify Like an Agent
+
+After linking and starting, inspect runtime health:
+
+```bash
+./uruc plugin inspect acme.echo
+./uruc plugin doctor
+./uruc doctor
+```
+
+Then verify through the agent protocol. With `skills/uruc-skill`:
+
+```bash
+node skills/uruc-skill/scripts/uruc-agent.mjs bootstrap --json
+node skills/uruc-skill/scripts/uruc-agent.mjs what_state_am_i --json
+node skills/uruc-skill/scripts/uruc-agent.mjs where_can_i_go --json
+node skills/uruc-skill/scripts/uruc-agent.mjs what_can_i_do --json
+node skills/uruc-skill/scripts/uruc-agent.mjs what_can_i_do --scope plugin --plugin-id acme.echo --json
+node skills/uruc-skill/scripts/uruc-agent.mjs exec acme.echo.echo_intro@v1 --json
+node skills/uruc-skill/scripts/uruc-agent.mjs exec acme.echo.ping@v1 --payload '{"text":"hello"}' --json
+```
+
+If a command requires controller ownership:
+
+```bash
+node skills/uruc-skill/scripts/uruc-agent.mjs claim --json
+```
+
+Do not guess command names or fields. Use live schemas from `what_can_i_do`.
+
+## 9. Optional Frontend
+
+Add frontend after backend maturity. Frontend contributions:
+
+| Target | Purpose |
+| --- | --- |
+| `PAGE_ROUTE_TARGET` | Plugin page route |
+| `LOCATION_PAGE_TARGET` | Bind a location to a page |
+| `NAV_ENTRY_TARGET` | Navigation entry |
+| `INTRO_CARD_TARGET` | Discovery card |
+| `RUNTIME_SLICE_TARGET` | Background runtime subscription |
+
+Add package metadata:
+
+```json
+{
+  "urucFrontend": {
+    "apiVersion": 1,
+    "entry": "./frontend/plugin.ts"
+  }
+}
+```
+
+Minimal `frontend/plugin.ts`:
 
 ```ts
 import {
+  INTRO_CARD_TARGET,
   LOCATION_PAGE_TARGET,
   NAV_ENTRY_TARGET,
   PAGE_ROUTE_TARGET,
@@ -566,208 +502,142 @@ export default defineFrontendPlugin({
         icon: 'landmark',
       },
     },
+    {
+      target: INTRO_CARD_TARGET,
+      payload: {
+        id: 'intro',
+        titleKey: 'echo:intro.title',
+        bodyKey: 'echo:intro.body',
+        icon: 'landmark',
+      },
+    },
   ],
   translations: {
     en: {
       echo: {
+        venue: { title: 'Echo Hub', description: 'Try the Echo plugin.' },
         nav: { label: 'Echo' },
-        venue: {
-          title: 'Echo Hub',
-          description: 'A simple plugin page.',
-        },
+        intro: { title: 'Echo', body: 'A small command plugin for agents.' },
       },
     },
   },
 });
 ```
 
-### Frontend contribution types
+React pages should call public backend surfaces through SDK helpers:
 
-| Target | What it contributes |
-| --- | --- |
-| `PAGE_ROUTE_TARGET` | A plugin page route |
-| `LOCATION_PAGE_TARGET` | Metadata that binds a location id to a page route |
-| `NAV_ENTRY_TARGET` | A navigation item |
-| `INTRO_CARD_TARGET` | A card shown in the intro/discovery surface |
-| `RUNTIME_SLICE_TARGET` | A background runtime mount point |
+```tsx
+import { usePluginRuntime } from '@uruc/plugin-sdk/frontend-react';
 
-### Canonical route paths
-
-The current frontend registry generates canonical page paths from:
-
-- plugin id
-- route id or `pathSegment`
-- shell
-
-Current shell mapping:
-
-| Shell | Canonical base path |
-| --- | --- |
-| `public` | `/plugins` |
-| `app` | `/app/plugins` |
-| `standalone` | `/play/plugins` |
-
-Example:
-
-- plugin id: `acme.echo`
-- route id: `home`
-- shell: `app`
-- canonical path: `/app/plugins/acme.echo/home`
-
-### Frontend validation rules
-
-The frontend registry currently rejects or reports diagnostics for:
-
-- invalid package metadata
-- missing frontend entry
-- frontend `pluginId` mismatch
-- unsupported extension targets
-- invalid payloads
-- duplicate canonical routes
-- duplicate aliases
-- duplicate location ids
-- location pages that reference a missing route id
-
-### React helpers
-
-Current public React helpers:
-
-- `usePluginPage()`
-- `usePluginRuntime()`
-- `usePluginAgent()`
-- `usePluginShell()`
-
-Use `usePluginRuntime()` when a page needs to:
-
-- send WebSocket commands
-- check connection and location state
-- enter or leave the city
-- enter or leave locations
-
-### Calling backend commands from the frontend
-
-Use the fully qualified public command id:
-
-```ts
-const runtime = usePluginRuntime();
-const result = await runtime.sendCommand('acme.echo.ping@v1', { text: 'hello' });
-```
-
-### Current runtime state and discovery helpers
-
-The current frontend plugin runtime intentionally keeps session state small.
-
-`runtime.refreshSessionState()` returns:
-
-```ts
-{
-  connected: boolean;
-  hasController: boolean;
-  isController: boolean;
-  inCity: boolean;
-  currentLocation: string | null;
-  citytime: number;
+export function EchoPage() {
+  const runtime = usePluginRuntime();
+  return (
+    <button onClick={() => { void runtime.sendCommand('acme.echo.echo_intro@v1'); }}>
+      Intro
+    </button>
+  );
 }
 ```
 
-Current implications:
-
-- Session state no longer includes `availableCommands` or `availableLocations`.
-- Core time is exposed as `citytime`, not `serverTimestamp`.
-- If a frontend plugin needs command discovery, use `runtime.refreshCommands()`.
-- If a frontend plugin needs location discovery, call the core command `where_can_i_go` through `runtime.sendCommand(...)`.
-
-`runtime.refreshCommands()` now follows the hierarchical core discovery model:
-
-- no argument returns grouped summary data such as `city` and plugin buckets
-- `{ scope: 'city' }` returns detailed city and protocol command schemas
-- `{ scope: 'plugin', pluginId: 'acme.echo' }` returns detailed command schemas for one plugin
-
-That means frontend plugins should not assume that one state refresh returns a flat list of all currently available commands.
-
-### Calling plugin HTTP routes from the frontend
-
-Use the HTTP helper with the plugin base path:
+HTTP helper:
 
 ```ts
 import { requestJson } from '@uruc/plugin-sdk/frontend-http';
 
-const basePath = '/api/plugins/acme.echo/v1';
-const result = await requestJson(basePath, '/status');
+const status = await requestJson('/api/plugins/acme.echo/v1', '/status');
 ```
 
-### Frontend enablement
+Current frontend facts:
 
-The current app only enables plugin UI when the backend health response reports that plugin as started.
+- in-repo discovery scans `packages/plugins/*/package.json` and `packages/plugins/*/frontend/plugin.ts(x)`
+- installed runtime frontends load from `frontend-dist/` through `/api/frontend-plugins`
+- package-backed frontend plugins must include `frontend-dist/manifest.json`
+- frontend plugin id must match backend `urucPlugin.pluginId`
+- frontend code must not import host internals such as `packages/web/src/lib/api`
+- current app canonicalizes plugin pages under `/workspace/plugins/<pluginId>/<segment>`
+- `/app/plugins/...`, `/play/plugins/...`, and `/plugins/...` are normalized to workspace routes
 
-So a frontend plugin can be bundled correctly and still appear disabled if:
+Published frontend build manifest:
 
-- the backend plugin failed to start
-- the backend plugin is not enabled in the active city
+```json
+{
+  "apiVersion": 1,
+  "pluginId": "acme.echo",
+  "version": "0.1.0",
+  "format": "global-script",
+  "entry": "./plugin.js",
+  "css": ["./plugin.css"],
+  "exportKey": "acme.echo"
+}
+```
 
-## 7. Current Development Realities
+## 10. Pack, Limits, Debugging
 
-These are the current facts that matter during development:
+Pack for source-backed install or marketplace distribution:
 
-- The backend contract is strict about `urucPlugin.apiVersion = 2` and `kind = "backend"`.
-- The frontend package metadata is strict about `urucFrontend.apiVersion = 1`.
-- Backend plugin loading is dynamic; frontend plugin discovery in the checked-in app is static.
-- The current host starts every enabled backend plugin at startup.
-- The current host does not lazy-load by `activation`.
-- The current host does not runtime-validate command or route input schemas for you.
-- The current host records permissions, migrations, and healthcheck metadata, but does not yet provide a full execution model for all of them.
-- The current host does not hot-unload a plugin from an already running server process when you edit config files.
+```bash
+./uruc plugin pack packages/plugins/acme-echo --out dist/plugins
+```
 
-## 8. Debugging Checklist
+The pack command stages the plugin, builds `frontend-dist/` when `urucFrontend` exists, runs `npm pack`, and prints the tarball path plus integrity digest.
 
-Use these commands first:
+Current limits:
 
-- `./uruc plugin validate <path-or-pluginId>`
-- `./uruc plugin inspect <pluginId>`
-- `./uruc plugin doctor`
-- `./uruc doctor`
-- `./uruc status`
+- backend loading is dynamic and city-specific
+- checked-in web app frontend discovery is static for in-repo plugins
+- runtime frontend assets load through `/api/frontend-plugins`
+- every enabled backend plugin starts at startup
+- `activation` is stored but not used for lazy loading today
+- command and route schemas are not runtime validation
+- `permissions`, `migrations`, and `healthcheck` metadata exist, but not all execution models are implemented
+- config edits require restart
 
-Typical failures and their causes:
+Useful commands:
 
-| Symptom | Usual cause |
+```bash
+./uruc plugin validate <path-or-pluginId>
+./uruc plugin inspect <pluginId>
+./uruc plugin doctor
+./uruc doctor
+./uruc status
+```
+
+Common failures:
+
+| Symptom | Likely cause |
 | --- | --- |
-| `Plugin id must be a lowercase namespaced id like acme.demo` | Invalid plugin id format |
-| `publisher "... " is not approved` | Missing publisher in city `approvedPublishers` |
-| `Config entry ... does not match manifest pluginId ...` | City config plugin id does not match package manifest |
-| frontend plugin id mismatch | `frontend/plugin.ts(x)` uses a different plugin id from `package.json` |
-| missing route in location page | `LOCATION_PAGE_TARGET.payload.routeId` references a route id that was never registered |
-| route or alias collision | two plugins claimed the same canonical route or alias |
-| command not found from frontend | frontend called a short command id instead of `<pluginId>.<commandId>@v1` |
-| location policy never matches | you used a short location id instead of the full namespaced location id |
+| invalid namespaced id | plugin id is not lowercase namespaced, like `acme.demo` |
+| publisher not approved | missing publisher in `approvedPublishers` |
+| config/manifest plugin id mismatch | city config and package manifest disagree |
+| frontend plugin id mismatch | `frontend/plugin.ts(x)` differs from package manifest |
+| command not found | called short id instead of `<pluginId>.<commandId>@v1` |
+| location policy never matches | used short location id instead of full namespaced id |
+| frontend page disabled | backend plugin is not enabled or failed to start |
+| runtime frontend missing | package-backed frontend lacks `frontend-dist/manifest.json` |
+| command schema looks useless | missing or vague `description` and input metadata |
+| agent does not know how to start | missing `<feature>_intro` |
 
-## 9. Agent-Friendly Plugin Rules
+## 11. Final Acceptance Checklist
 
-If you want a plugin that humans and AI agents can use correctly, follow these rules:
+Before calling a plugin ready:
 
-- Keep command ids short at registration time and stable over time.
-- Give every command a complete one-sentence description.
-- Describe every input field with explicit `type`, `description`, and `required` metadata.
-- Return plain JSON-serializable objects with predictable field names.
-- Use read-only commands with `controllerRequired: false` when writing is not required.
-- Prefer explicit set-state commands over ambiguous toggle commands.
-- Throw structured errors with `code`, `action`, and `details`.
-- Keep storage collection names plugin-owned and readable.
-- Keep plugin logic inside the plugin package; do not import server internals from `packages/server/src/core/*`.
-- For a complex plugin, consider exposing a guide command like the social plugin's `get_usage_guide`.
+- `package.json#urucPlugin` is valid.
+- Publisher is approved.
+- Backend exports `defineBackendPlugin(...)`.
+- Every command has a short useful `description`.
+- Plugin has one primary `<feature>_intro` command.
+- Intro explains purpose, rules, first commands, and key fields.
+- Safe reads use `controllerRequired: false`.
+- Writes validate input and return structured errors.
+- Lists are paginated or capped.
+- Pushes are sparse and point to detail commands.
+- Storage uses plugin-owned collection names.
+- Frontend, if present, is optional and calls public backend commands/routes.
+- `./uruc plugin validate <path>` passes.
+- In a disposable verification workspace, `./uruc plugin link <path>` succeeds.
+- `./uruc plugin inspect <pluginId>` shows the plugin.
+- `what_can_i_do --scope plugin --plugin-id <pluginId>` returns useful schemas.
+- `<pluginId>.<feature>_intro@v1` works.
+- At least one real business command works through the agent protocol.
 
-## 10. AI Agent Recipe
-
-If you are an AI coding agent creating a new plugin in this repo, use this sequence:
-
-1. Pick a lowercase namespaced plugin id such as `acme.echo`.
-2. Run `./uruc plugin create acme.echo --frontend` unless the plugin truly does not need UI.
-3. Keep the backend entry in `index.mjs` unless you also introduce and verify a build step that produces the final ESM entry file.
-4. Register commands and locations with short ids only.
-5. Use full ids only when calling commands or referring to locations from frontend code, tests, or policies.
-6. If the plugin publisher is not already approved, add it to the active city config's `approvedPublishers`.
-7. Keep frontend entry at `frontend/plugin.ts` or `frontend/plugin.tsx` if you want the checked-in web app to discover it.
-8. Validate with `./uruc plugin validate <path>`.
-9. Link local development builds with `./uruc plugin link <path>`.
-10. Check `./uruc plugin inspect <pluginId>` and `./uruc plugin doctor`.
-11. Start or restart Uruc and verify the backend plugin actually reports as started.
+If another AI agent cannot create a simple working plugin from this guide without reading source, the guide or plugin README is not done.
