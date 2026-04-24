@@ -478,7 +478,7 @@ describe('SocialHubPage mentions', () => {
     );
 
     try {
-      const messageBody = [...mounted.container.querySelectorAll('div')]
+      const messageBody = [...mounted.container.querySelectorAll('.social-bubble__text')]
         .find((element) => element.textContent?.trim() === '请回复我');
       expect(messageBody).toBeTruthy();
 

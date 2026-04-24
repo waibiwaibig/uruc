@@ -20,6 +20,9 @@ const {
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, params?: Record<string, unknown>) => {
+      if (key === 'social:hub.moments.likeCount' || key === 'social:hub.moments.commentCount') {
+        return String(params?.count ?? 0);
+      }
       if (!params) return key;
       return Object.entries(params).reduce(
         (result, [name, value]) => result.replace(`{{${name}}}`, String(value)),
@@ -564,7 +567,8 @@ describe('SocialHubPage moments', () => {
     try {
       await openMomentsTab(mounted.container);
 
-      const notificationsButton = mounted.container.querySelector('[aria-label="social:hub.moments.notificationsTitle"]');
+      const notificationsButton = [...mounted.container.querySelectorAll('button')]
+        .find((button) => button.textContent?.includes('social:hub.moments.notificationsTitle'));
       expect(notificationsButton).toBeTruthy();
       await clickElement(notificationsButton as Element);
 
@@ -623,7 +627,7 @@ describe('SocialHubPage moments', () => {
 
       expect(momentCard?.textContent).toContain('First note');
 
-      const replyButton = momentCard?.querySelector('[aria-label="social:hub.moments.reply"]');
+      const replyButton = [...momentCard?.querySelectorAll('button') ?? []].find((btn) => btn.textContent?.includes('social:hub.moments.reply'));
       expect(replyButton).toBeTruthy();
       await clickElement(replyButton as Element);
 
@@ -634,9 +638,9 @@ describe('SocialHubPage moments', () => {
       expect(commentInput).toBeTruthy();
       await inputText(commentInput as HTMLInputElement, 'Count me in');
 
-      const commentButtons = momentCard?.querySelectorAll('[aria-label="social:hub.moments.comment"]');
-      expect(commentButtons?.length).toBeGreaterThan(1);
-      await clickElement(commentButtons?.[commentButtons.length - 1] as Element);
+      const submitCommentButton = momentCard?.querySelector('.social-composer__actions button');
+      expect(submitCommentButton).toBeTruthy();
+      await clickElement(submitCommentButton as Element);
 
       expect(sendCommandMock).toHaveBeenCalledWith(
         'uruc.social.create_moment_comment@v1',
@@ -647,7 +651,7 @@ describe('SocialHubPage moments', () => {
         }),
       );
 
-      const deleteButton = momentCard?.querySelector('[aria-label="social:hub.moments.deleteComment"]');
+      const deleteButton = [...momentCard?.querySelectorAll('button') ?? []].find((btn) => btn.textContent?.includes('social:hub.moments.deleteComment'));
       expect(deleteButton).toBeTruthy();
       await clickElement(deleteButton as Element);
 
