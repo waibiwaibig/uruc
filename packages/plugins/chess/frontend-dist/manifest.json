@@ -1,0 +1,9 @@
+{
+  "apiVersion": 1,
+  "pluginId": "uruc.chess",
+  "version": "0.1.0",
+  "format": "global-script",
+  "entry": "./plugin.js",
+  "css": [],
+  "exportKey": "uruc.chess"
+}

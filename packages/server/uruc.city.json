@@ -34,6 +34,14 @@
       "permissionsGranted": [],
       "config": {},
       "devOverridePath": "../plugins/park"
+    },
+    "uruc.chess": {
+      "pluginId": "uruc.chess",
+      "packageName": "@uruc/plugin-chess",
+      "enabled": true,
+      "permissionsGranted": [],
+      "config": {},
+      "devOverridePath": "../plugins/chess"
     }
   },
   "pluginStoreDir": ".uruc/plugins"

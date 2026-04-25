@@ -14,13 +14,18 @@ function readDefaultCityConfig() {
   };
 }
 
-describe('bundled board-game removals', () => {
-  it('does not expose chess or chinese chess in bundled discovery or the default city config', () => {
+describe('bundled board-game plugins', () => {
+  it('exposes chess but keeps chinese chess out of bundled discovery and the default city config', () => {
     const defaultCityConfig = readDefaultCityConfig();
 
-    expect(BUNDLED_PLUGINS.some((plugin) => plugin.pluginId === 'uruc.chess')).toBe(false);
+    expect(BUNDLED_PLUGINS.some((plugin) => plugin.pluginId === 'uruc.chess')).toBe(true);
     expect(BUNDLED_PLUGINS.some((plugin) => plugin.pluginId === 'uruc.chinese-chess')).toBe(false);
-    expect(defaultCityConfig.plugins?.['uruc.chess']).toBeUndefined();
+    expect(defaultCityConfig.plugins?.['uruc.chess']).toEqual(expect.objectContaining({
+      pluginId: 'uruc.chess',
+      packageName: '@uruc/plugin-chess',
+      enabled: true,
+      devOverridePath: '../plugins/chess',
+    }));
     expect(defaultCityConfig.plugins?.['uruc.chinese-chess']).toBeUndefined();
   });
 });

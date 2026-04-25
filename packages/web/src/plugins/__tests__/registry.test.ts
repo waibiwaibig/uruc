@@ -24,7 +24,7 @@ describe('frontend plugin registry v2', () => {
     const registry = await loadFrontendPluginRegistry();
     const pluginIds = registry.plugins.map((plugin) => plugin.pluginId).sort();
 
-    expect(pluginIds).toEqual(['uruc.fleamarket', 'uruc.park', 'uruc.social']);
+    expect(pluginIds).toEqual(['uruc.chess', 'uruc.fleamarket', 'uruc.park', 'uruc.social']);
   });
 
   it('generates canonical app-shell paths and aliases for social pages', async () => {
@@ -142,6 +142,38 @@ describe('frontend plugin registry v2', () => {
     expect(registry.locationPages.some((entry) => entry.pluginId === 'uruc.park')).toBe(false);
   });
 
+  it('registers the Chess Hall standalone venue route and location binding', async () => {
+    const registry = await loadFrontendPluginRegistry();
+    const route = registry.pageRoutes.find((entry) => entry.pluginId === 'uruc.chess' && entry.id === 'hall');
+    const intro = registry.introCards.find((entry) => entry.pluginId === 'uruc.chess' && entry.id === 'intro');
+    const location = registry.locationPages.find((entry) => entry.pluginId === 'uruc.chess' && entry.locationId === 'uruc.chess.chess-club');
+
+    expect(route).toMatchObject({
+      path: '/workspace/plugins/uruc.chess/hall',
+      aliases: ['/play/chess'],
+      shell: 'standalone',
+      guard: 'auth',
+      venue: {
+        titleKey: 'chess:venue.title',
+        shortLabelKey: 'chess:venue.shortLabel',
+        descriptionKey: 'chess:venue.description',
+        icon: 'swords',
+        category: 'public space',
+      },
+    });
+    expect(intro).toMatchObject({
+      titleKey: 'chess:intro.title',
+      bodyKey: 'chess:intro.body',
+      icon: 'swords',
+    });
+    expect(location).toMatchObject({
+      routeId: 'hall',
+      resolvedPath: '/workspace/plugins/uruc.chess/hall',
+      titleKey: 'chess:venue.title',
+      venueCategory: 'public space',
+    });
+  });
+
   it('enables UI strictly from backend health status', () => {
     expect(resolveEnabledPluginIds(null)).toEqual(new Set());
 
@@ -249,7 +281,7 @@ describe('frontend plugin registry v2', () => {
 
     const registry = await loadFrontendPluginRegistry();
 
-    expect(registry.plugins.map((plugin) => plugin.pluginId).sort()).toEqual(['acme.runtime', 'uruc.fleamarket', 'uruc.park', 'uruc.social']);
+    expect(registry.plugins.map((plugin) => plugin.pluginId).sort()).toEqual(['acme.runtime', 'uruc.chess', 'uruc.fleamarket', 'uruc.park', 'uruc.social']);
     expect(registry.pageRoutes.find((route) => route.pluginId === 'acme.runtime' && route.path === '/workspace/plugins/acme.runtime/home')).toMatchObject({
       styleUrls: ['/api/plugin-assets/acme.runtime/rev-runtime/frontend-dist/plugin.css'],
       venue: {

@@ -1,0 +1,51 @@
+{
+  "name": "@uruc/plugin-chess",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/waibiwaibig/uruc.git",
+    "directory": "packages/plugins/chess"
+  },
+  "homepage": "https://github.com/waibiwaibig/uruc/tree/main/packages/plugins/chess",
+  "author": "Uruc Contributors",
+  "files": [
+    "index.mjs",
+    "frontend",
+    "frontend-dist",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "test": "vitest run frontend/ChessPage.test.tsx",
+    "prepack": "node ../../../scripts/prepare-public-package.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "dependencies": {
+    "chess.js": "^1.4.0"
+  },
+  "urucPlugin": {
+    "pluginId": "uruc.chess",
+    "apiVersion": 2,
+    "kind": "backend",
+    "entry": "./index.mjs",
+    "publisher": "uruc",
+    "displayName": "Chess Hall",
+    "description": "Chess venue plugin with matches, ratings, and spectator support.",
+    "permissions": [],
+    "dependencies": [],
+    "activation": [
+      "startup"
+    ]
+  },
+  "urucFrontend": {
+    "apiVersion": 1,
+    "entry": "./frontend/plugin.ts"
+  }
+}

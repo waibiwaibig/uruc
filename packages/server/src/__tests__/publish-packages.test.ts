@@ -28,7 +28,7 @@ async function packDryRun(packageDir: string): Promise<Array<{
 }
 
 describe('publishable package metadata', () => {
-  it('exposes the public cli, server, sdk, social plugin, and park plugin packages for npm publishing', async () => {
+  it('exposes the public cli, server, sdk, social plugin, park plugin, and chess plugin packages for npm publishing', async () => {
     const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 
     const cliPkg = await readJson<{
@@ -66,6 +66,14 @@ describe('publishable package metadata', () => {
       publishConfig?: { access?: string };
       files?: string[];
     }>(path.join(repoRoot, 'packages', 'plugins', 'park', 'package.json'));
+    const chessPkg = await readJson<{
+      name: string;
+      license?: string;
+      private?: boolean;
+      publishConfig?: { access?: string };
+      files?: string[];
+      dependencies?: Record<string, string>;
+    }>(path.join(repoRoot, 'packages', 'plugins', 'chess', 'package.json'));
 
     expect(cliPkg.name).toBe('uruc');
     expect(cliPkg.license).toBe('Apache-2.0');
@@ -104,6 +112,13 @@ describe('publishable package metadata', () => {
       'GUIDE.md',
       'GUIDE.zh-CN.md',
     ]));
+
+    expect(chessPkg.name).toBe('@uruc/plugin-chess');
+    expect(chessPkg.license).toBe('Apache-2.0');
+    expect(chessPkg.private).not.toBe(true);
+    expect(chessPkg.publishConfig?.access).toBe('public');
+    expect(chessPkg.dependencies?.['chess.js']).toBeDefined();
+    expect(chessPkg.files).toEqual(expect.arrayContaining(['index.mjs', 'frontend', 'frontend-dist']));
   });
 
   it('excludes removed build artifacts from the published server tarball', async () => {

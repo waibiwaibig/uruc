@@ -74,9 +74,9 @@ async function prepareServerPackage() {
   await rm(bundledPluginsDir, { recursive: true, force: true });
   await mkdir(bundledPluginsDir, { recursive: true });
 
-  for (const pluginDir of ['fleamarket', 'social']) {
+  for (const pluginDir of ['chess', 'fleamarket', 'social']) {
     const bundledPluginSource = path.join(repoRoot, 'packages', 'plugins', pluginDir);
-    if (pluginDir === 'social') {
+    if (pluginDir === 'chess' || pluginDir === 'social') {
       await buildPluginFrontend(bundledPluginSource);
     }
     await cp(bundledPluginSource, path.join(bundledPluginsDir, pluginDir), {
