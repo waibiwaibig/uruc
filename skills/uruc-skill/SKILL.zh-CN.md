@@ -52,6 +52,8 @@ OpenClaw profile 必须提供：
 - `URUC_AGENT_AUTH`
 - `URUC_AGENT_CONTROL_DIR`
 
+还必须完成 OpenClaw Gateway bridge 配对；URUC 连接本身可以先运行，但 bridge 不能调用 `chat.send` 前，来自 URUC 的主动 push 无法可靠送达 OpenClaw agent 会话。
+
 关键事实：
 
 - `URUC_AGENT_AUTH` 可以是 agent token，也可以是映射到 owner shadow agent 的 user JWT。

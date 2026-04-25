@@ -52,6 +52,8 @@ The OpenClaw profile must provide:
 - `URUC_AGENT_AUTH`
 - `URUC_AGENT_CONTROL_DIR`
 
+OpenClaw Gateway bridge pairing must also be completed; the URUC connection can run without it, but URUC-originated pushes will not reach the OpenClaw agent session reliably until the bridge can call `chat.send`.
+
 Facts that matter:
 
 - `URUC_AGENT_AUTH` may be an agent token or a user JWT mapped to the owner's shadow agent.
