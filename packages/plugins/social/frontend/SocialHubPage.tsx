@@ -38,6 +38,7 @@ import type {
   MomentNotificationEventPayload,
   MomentNotificationsPayload,
   MomentsFeedPayload,
+  OpenDirectThreadPayload,
   PrivacyStatus,
   RelationshipSnapshot,
   SearchContactsPayload,
@@ -1115,13 +1116,19 @@ export function SocialHubPage() {
   };
 
   const openDirect = async (target: SocialAgentSummary) => {
-    const result = await sendSocialCommand<ThreadDetailPayload>(t('social:hub.actions.openDirect'), 'open_direct_thread', { agentId: target.agentId });
+    const result = await sendSocialCommand<OpenDirectThreadPayload>(t('social:hub.actions.openDirect'), 'open_direct_thread', { agentId: target.agentId });
     if (!result) return;
+    const detail = await sendSocialCommand<ThreadDetailPayload>(
+      t('social:hub.actions.openThread'),
+      'get_thread_history',
+      { threadId: result.threadId },
+    );
+    if (!detail) return;
     shouldScrollThreadToBottomRef.current = true;
     setActiveTab('chats');
-    setSelectedThreadId(result.thread.threadId);
-    setThreadDetail(result);
-    setRenameDraft(result.thread.title);
+    setSelectedThreadId(detail.thread.threadId);
+    setThreadDetail(detail);
+    setRenameDraft(detail.thread.title);
   };
 
   const openPrivacyPanel = () => {
@@ -1400,23 +1407,27 @@ export function SocialHubPage() {
   };
 
   const sendRequest = async (agent: SocialAgentSummary) => {
-    const result = await sendSocialCommand<{ relationships: RelationshipSnapshot }>(t('social:hub.actions.sendRequest'), 'send_request', {
+    const result = await sendSocialCommand(t('social:hub.actions.sendRequest'), 'send_request', {
       agentId: agent.agentId,
       note: t('social:hub.contacts.compose.defaultRequestNote'),
     });
     if (!result) return;
-    setRelationships(result.relationships);
+    if (viewAgentId) {
+      await loadRelationships(viewAgentId);
+    }
     void refreshContacts();
   };
 
   const respondRequest = async (agentIdValue: string, decision: 'accept' | 'decline') => {
-    const result = await sendSocialCommand<{ relationships: RelationshipSnapshot }>(
+    const result = await sendSocialCommand(
       decision === 'accept' ? t('social:hub.actions.acceptRequest') : t('social:hub.actions.declineRequest'),
       'respond_request',
       { agentId: agentIdValue, decision },
     );
     if (!result) return;
-    setRelationships(result.relationships);
+    if (viewAgentId) {
+      await loadRelationships(viewAgentId);
+    }
     if (viewAgentId) {
       await loadInbox(viewAgentId);
     }
@@ -1424,25 +1435,31 @@ export function SocialHubPage() {
 
   const blockAgent = async (agentIdValue: string) => {
     if (!window.confirm(t('social:hub.confirm.blockAgent'))) return;
-    const result = await sendSocialCommand<{ relationships: RelationshipSnapshot }>(t('social:hub.actions.blockAgent'), 'block_agent', { agentId: agentIdValue });
+    const result = await sendSocialCommand(t('social:hub.actions.blockAgent'), 'block_agent', { agentId: agentIdValue });
     if (!result) return;
-    setRelationships(result.relationships);
+    if (viewAgentId) {
+      await loadRelationships(viewAgentId);
+    }
     if (viewAgentId) {
       await loadInbox(viewAgentId);
     }
   };
 
   const unblockAgent = async (agentIdValue: string) => {
-    const result = await sendSocialCommand<{ relationships: RelationshipSnapshot }>(t('social:hub.actions.unblockAgent'), 'unblock_agent', { agentId: agentIdValue });
+    const result = await sendSocialCommand(t('social:hub.actions.unblockAgent'), 'unblock_agent', { agentId: agentIdValue });
     if (!result) return;
-    setRelationships(result.relationships);
+    if (viewAgentId) {
+      await loadRelationships(viewAgentId);
+    }
   };
 
   const removeFriend = async (agentIdValue: string) => {
     if (!window.confirm(t('social:hub.confirm.removeFriend'))) return;
-    const result = await sendSocialCommand<{ relationships: RelationshipSnapshot }>(t('social:hub.actions.removeFriend'), 'remove_friend', { agentId: agentIdValue });
+    const result = await sendSocialCommand(t('social:hub.actions.removeFriend'), 'remove_friend', { agentId: agentIdValue });
     if (!result) return;
-    setRelationships(result.relationships);
+    if (viewAgentId) {
+      await loadRelationships(viewAgentId);
+    }
     if (viewAgentId) {
       await loadInbox(viewAgentId);
     }

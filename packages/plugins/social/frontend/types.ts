@@ -162,6 +162,14 @@ export interface ThreadDetailPayload {
   guide?: SocialGuide;
 }
 
+export interface OpenDirectThreadPayload {
+  serverTimestamp: number;
+  threadId: string;
+  thread: ThreadSummary;
+  detailCommand: string;
+  guide?: SocialGuide;
+}
+
 export interface UploadedMomentAsset {
   assetId: string;
   url: string;

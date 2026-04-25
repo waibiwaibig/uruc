@@ -108,6 +108,41 @@ async function makeFriends(service: SocialService, actor: { agentId: string; use
   await service.respondRequest(target, { agentId: actor.agentId, decision: 'accept' });
 }
 
+function expectLightweightRelationshipMutation(
+  result: Record<string, unknown>,
+  expected: {
+    counts: {
+      friends: number;
+      incomingRequests: number;
+      outgoingRequests: number;
+      blocks: number;
+    };
+    changed: {
+      reason: string;
+      actorAgentId: string;
+      targetAgentId: string;
+    };
+  },
+) {
+  expect(result).toMatchObject({
+    serverTimestamp: expect.any(Number),
+    counts: expected.counts,
+    changed: {
+      ...expected.changed,
+      relationshipIds: [expect.any(String)],
+    },
+    detailCommand: 'uruc.social.list_relationships_page@v1',
+    guide: expect.objectContaining({
+      summary: expect.any(String),
+    }),
+  });
+  expect(result).not.toHaveProperty('relationships');
+  expect(result).not.toHaveProperty('friends');
+  expect(result).not.toHaveProperty('incomingRequests');
+  expect(result).not.toHaveProperty('outgoingRequests');
+  expect(result).not.toHaveProperty('blocks');
+}
+
 describe('SocialService', () => {
   let tempDir = '';
   let service: SocialService;
@@ -231,9 +266,17 @@ describe('SocialService', () => {
     await makeFriends(service, actors['agent-a'], actors['agent-b']);
 
     const thread = await service.openDirectThread(actors['agent-a'], { agentId: 'agent-b' });
+    expect(thread).toMatchObject({
+      serverTimestamp: expect.any(Number),
+      threadId: expect.any(String),
+      detailCommand: 'uruc.social.get_thread_history@v1',
+    });
     expect(thread.thread.kind).toBe('direct');
     expect(thread.thread.title).toBe('Agent B');
     expect((thread as { guide?: { summary?: string } }).guide?.summary).toContain('Direct thread');
+    expect(thread).not.toHaveProperty('messages');
+    expect(thread).not.toHaveProperty('members');
+    expect(thread).not.toHaveProperty('nextCursor');
 
     const sendResult = await service.sendThreadMessage(actors['agent-a'], {
       threadId: thread.thread.threadId,
@@ -336,6 +379,83 @@ describe('SocialService', () => {
     expect(update?.payload).not.toHaveProperty('incomingRequests');
     expect(update?.payload).not.toHaveProperty('outgoingRequests');
     expect(update?.payload).not.toHaveProperty('blocks');
+  });
+
+  it('returns lightweight relationship write results with detail pull metadata', async () => {
+    const request = await service.sendRequest(actors['agent-a'], { agentId: 'agent-b' });
+    expectLightweightRelationshipMutation(request, {
+      counts: {
+        friends: 0,
+        incomingRequests: 0,
+        outgoingRequests: 1,
+        blocks: 0,
+      },
+      changed: {
+        reason: 'send_request',
+        actorAgentId: 'agent-a',
+        targetAgentId: 'agent-b',
+      },
+    });
+
+    const response = await service.respondRequest(actors['agent-b'], { agentId: 'agent-a', decision: 'accept' });
+    expectLightweightRelationshipMutation(response, {
+      counts: {
+        friends: 1,
+        incomingRequests: 0,
+        outgoingRequests: 0,
+        blocks: 0,
+      },
+      changed: {
+        reason: 'accept_request',
+        actorAgentId: 'agent-b',
+        targetAgentId: 'agent-a',
+      },
+    });
+
+    const removed = await service.removeFriend(actors['agent-a'], { agentId: 'agent-b' });
+    expectLightweightRelationshipMutation(removed, {
+      counts: {
+        friends: 0,
+        incomingRequests: 0,
+        outgoingRequests: 0,
+        blocks: 0,
+      },
+      changed: {
+        reason: 'remove_friend',
+        actorAgentId: 'agent-a',
+        targetAgentId: 'agent-b',
+      },
+    });
+
+    const blocked = await service.blockAgent(actors['agent-a'], { agentId: 'agent-c' });
+    expectLightweightRelationshipMutation(blocked, {
+      counts: {
+        friends: 0,
+        incomingRequests: 0,
+        outgoingRequests: 0,
+        blocks: 1,
+      },
+      changed: {
+        reason: 'block_agent',
+        actorAgentId: 'agent-a',
+        targetAgentId: 'agent-c',
+      },
+    });
+
+    const unblocked = await service.unblockAgent(actors['agent-a'], { agentId: 'agent-c' });
+    expectLightweightRelationshipMutation(unblocked, {
+      counts: {
+        friends: 0,
+        incomingRequests: 0,
+        outgoingRequests: 0,
+        blocks: 0,
+      },
+      changed: {
+        reason: 'unblock_agent',
+        actorAgentId: 'agent-a',
+        targetAgentId: 'agent-c',
+      },
+    });
   });
 
   it('paginates relationship summaries without changing the legacy relationship snapshot', async () => {

@@ -485,8 +485,9 @@ export class SocialService {
         return createGuide(
           `Friend request sent to ${context.targetAgentName ?? context.targetAgentId ?? 'the target agent'}.`,
           'You attempted to start a friendship through the social graph.',
-          `Wait for ${COMMAND_IDS.respondRequest} on the other side. Only after acceptance should you call ${COMMAND_IDS.openDirectThread} for direct messaging.`,
-          [COMMAND_IDS.listRelationships, COMMAND_IDS.openDirectThread, COMMAND_IDS.searchContacts],
+          `Wait for ${COMMAND_IDS.respondRequest} on the other side. Use ${COMMAND_IDS.listRelationshipsPage} if you need the updated relationship page.`,
+          [COMMAND_IDS.listRelationshipsPage, COMMAND_IDS.openDirectThread, COMMAND_IDS.searchContacts],
+          { detailCommand: COMMAND_IDS.listRelationshipsPage },
         );
       case 'respond_request': {
         const accepted = context.decision === 'accept';
@@ -497,10 +498,11 @@ export class SocialService {
           'You responded to a pending inbound friend request.',
           accepted
             ? `If you want to talk immediately, call ${COMMAND_IDS.openDirectThread} and then ${COMMAND_IDS.sendThreadMessage}.`
-            : `No direct thread will be available unless a new friendship request is sent and accepted later.`,
+            : `No direct thread will be available unless a new friendship request is sent and accepted later. Use ${COMMAND_IDS.listRelationshipsPage} for the updated relationship page.`,
           accepted
-            ? [COMMAND_IDS.openDirectThread, COMMAND_IDS.sendThreadMessage, COMMAND_IDS.listRelationships]
-            : [COMMAND_IDS.listRelationships, COMMAND_IDS.searchContacts, COMMAND_IDS.sendRequest],
+            ? [COMMAND_IDS.openDirectThread, COMMAND_IDS.sendThreadMessage, COMMAND_IDS.listRelationshipsPage]
+            : [COMMAND_IDS.listRelationshipsPage, COMMAND_IDS.searchContacts, COMMAND_IDS.sendRequest],
+          { detailCommand: COMMAND_IDS.listRelationshipsPage },
         );
       }
       case 'remove_friend':
@@ -508,21 +510,24 @@ export class SocialService {
           `You removed ${context.targetAgentId ?? 'the other agent'} from your friend list.`,
           'You ended an existing friendship.',
           'Assume any direct thread with that agent is no longer normally usable. Re-establish friendship before opening a new direct thread.',
-          [COMMAND_IDS.listRelationships, COMMAND_IDS.searchContacts, COMMAND_IDS.sendRequest],
+          [COMMAND_IDS.listRelationshipsPage, COMMAND_IDS.searchContacts, COMMAND_IDS.sendRequest],
+          { detailCommand: COMMAND_IDS.listRelationshipsPage },
         );
       case 'block_agent':
         return createGuide(
           `You blocked ${context.targetAgentId ?? 'the target agent'}.`,
           'You created a social block for this relationship.',
           `The relationship is now hidden for practical access and any direct thread is cut off. Use ${COMMAND_IDS.unblockAgent} later if you want to remove the block.`,
-          [COMMAND_IDS.unblockAgent, COMMAND_IDS.listRelationships],
+          [COMMAND_IDS.unblockAgent, COMMAND_IDS.listRelationshipsPage],
+          { detailCommand: COMMAND_IDS.listRelationshipsPage },
         );
       case 'unblock_agent':
         return createGuide(
           `You removed your block on ${context.targetAgentId ?? 'the target agent'}.`,
           'You cleared a social block that you previously created.',
           `This does not restore friendship automatically. Use ${COMMAND_IDS.sendRequest} if you want to become friends again.`,
-          [COMMAND_IDS.sendRequest, COMMAND_IDS.listRelationships, COMMAND_IDS.searchContacts],
+          [COMMAND_IDS.sendRequest, COMMAND_IDS.listRelationshipsPage, COMMAND_IDS.searchContacts],
+          { detailCommand: COMMAND_IDS.listRelationshipsPage },
         );
       case 'list_inbox':
         return createGuide(
@@ -535,9 +540,10 @@ export class SocialService {
         return createGuide(
           `Direct thread ${payload.thread?.threadId ?? ''} is ready for messaging.`,
           'You opened or reused a direct thread with a current friend.',
-          `Use thread.threadId with ${COMMAND_IDS.sendThreadMessage}. If you need older context, call ${COMMAND_IDS.getThreadHistory} with the same threadId.`,
+          `Use thread.threadId with ${COMMAND_IDS.sendThreadMessage}. This result has no messages; call ${COMMAND_IDS.getThreadHistory} with the same threadId when you need history.`,
           [COMMAND_IDS.sendThreadMessage, COMMAND_IDS.getThreadHistory, COMMAND_IDS.markThreadRead],
           {
+            detailCommand: COMMAND_IDS.getThreadHistory,
             fieldGlossary: [
               guideField('thread.threadId', 'The direct thread identifier to reuse for later messaging and history calls.'),
             ],
@@ -657,10 +663,10 @@ export class SocialService {
     switch (kind) {
       case 'social_relationship_update':
         return createGuide(
-          `Your relationship snapshot changed: ${context.friendCount ?? 0} friends, ${context.incomingCount ?? 0} incoming requests, ${context.outgoingCount ?? 0} outgoing requests, and ${context.blockCount ?? 0} blocks.`,
-          'The social graph changed for this target agent, so the plugin pushed a fresh authoritative snapshot.',
-          `Inspect the new snapshot directly, or call ${COMMAND_IDS.listRelationships} if you want to refetch it on demand.`,
-          [COMMAND_IDS.listRelationships, COMMAND_IDS.sendRequest, COMMAND_IDS.respondRequest],
+          `Your relationship counts changed: ${context.friendCount ?? 0} friends, ${context.incomingCount ?? 0} incoming requests, ${context.outgoingCount ?? 0} outgoing requests, and ${context.blockCount ?? 0} blocks.`,
+          'The social graph changed for this target agent, so the plugin pushed lightweight count metadata.',
+          `Call ${COMMAND_IDS.listRelationshipsPage} for a small page or ${COMMAND_IDS.listRelationships} only when you need the legacy complete snapshot.`,
+          [COMMAND_IDS.listRelationshipsPage, COMMAND_IDS.listRelationships, COMMAND_IDS.respondRequest],
         );
       case 'social_inbox_update':
         return createGuide(
@@ -857,14 +863,15 @@ export class SocialService {
       targetAgentId,
       relationshipIds: [record.relationshipId],
     });
-    const relationships = await this.buildFriendSnapshot(actor.agentId);
-    return this.withGuide({
-      serverTimestamp: now(),
-      relationships,
-    }, this.buildResponseGuide('send_request', { relationships }, {
+    return this.buildRelationshipMutationResponse(actor.agentId, {
+      reason: 'send_request',
+      actorAgentId: actor.agentId,
+      targetAgentId,
+      relationshipIds: [record.relationshipId],
+    }, 'send_request', {
       targetAgentId,
       targetAgentName: target.agentName,
-    }));
+    });
   }
 
   async respondRequest(actor, input = {}) {
@@ -896,14 +903,15 @@ export class SocialService {
       targetAgentId,
       relationshipIds: [relationshipId],
     });
-    const relationships = await this.buildFriendSnapshot(actor.agentId);
-    return this.withGuide({
-      serverTimestamp: now(),
-      relationships,
-    }, this.buildResponseGuide('respond_request', { relationships }, {
+    return this.buildRelationshipMutationResponse(actor.agentId, {
+      reason: decision === 'accept' ? 'accept_request' : 'decline_request',
+      actorAgentId: actor.agentId,
+      targetAgentId,
+      relationshipIds: [relationshipId],
+    }, 'respond_request', {
       targetAgentId,
       decision,
-    }));
+    });
   }
 
   async removeFriend(actor, input = {}) {
@@ -926,11 +934,12 @@ export class SocialService {
       actorAgentId: actor.agentId,
       targetAgentId,
     });
-    const relationships = await this.buildFriendSnapshot(actor.agentId);
-    return this.withGuide({
-      serverTimestamp: now(),
-      relationships,
-    }, this.buildResponseGuide('remove_friend', { relationships }, { targetAgentId }));
+    return this.buildRelationshipMutationResponse(actor.agentId, {
+      reason: 'remove_friend',
+      actorAgentId: actor.agentId,
+      targetAgentId,
+      relationshipIds: [relationshipId],
+    }, 'remove_friend', { targetAgentId });
   }
 
   async blockAgent(actor, input = {}) {
@@ -975,11 +984,12 @@ export class SocialService {
       actorAgentId: actor.agentId,
       targetAgentId,
     });
-    const relationships = await this.buildFriendSnapshot(actor.agentId);
-    return this.withGuide({
-      serverTimestamp: now(),
-      relationships,
-    }, this.buildResponseGuide('block_agent', { relationships }, { targetAgentId }));
+    return this.buildRelationshipMutationResponse(actor.agentId, {
+      reason: 'block_agent',
+      actorAgentId: actor.agentId,
+      targetAgentId,
+      relationshipIds: [relationshipId],
+    }, 'block_agent', { targetAgentId });
   }
 
   async unblockAgent(actor, input = {}) {
@@ -997,11 +1007,12 @@ export class SocialService {
       targetAgentId,
       relationshipIds: [relationshipId],
     });
-    const relationships = await this.buildFriendSnapshot(actor.agentId);
-    return this.withGuide({
-      serverTimestamp: now(),
-      relationships,
-    }, this.buildResponseGuide('unblock_agent', { relationships }, { targetAgentId }));
+    return this.buildRelationshipMutationResponse(actor.agentId, {
+      reason: 'unblock_agent',
+      actorAgentId: actor.agentId,
+      targetAgentId,
+      relationshipIds: [relationshipId],
+    }, 'unblock_agent', { targetAgentId });
   }
 
   async listInbox(agentId, input = {}) {
@@ -1107,10 +1118,12 @@ export class SocialService {
       await this.putRecord('threads', thread.threadId, thread);
     }
 
-    const response = await this.getThreadHistory(actor.agentId, {
+    const response = {
+      serverTimestamp: now(),
       threadId: thread.threadId,
-      limit: DEFAULT_THREAD_LIMIT,
-    });
+      thread: await this.toThreadSummary(actor.agentId, thread),
+      detailCommand: COMMAND_IDS.getThreadHistory,
+    };
     return this.withGuide(response, this.buildResponseGuide('open_direct_thread', response));
   }
 
@@ -2309,6 +2322,50 @@ export class SocialService {
       outgoingRequests: snapshot.outgoingRequests?.length ?? 0,
       blocks: snapshot.blocks?.length ?? 0,
     };
+  }
+
+  async relationshipCountsForAgent(agentId) {
+    const counts = {
+      friends: 0,
+      incomingRequests: 0,
+      outgoingRequests: 0,
+      blocks: 0,
+    };
+    const relationships = await this.listRecords('relationships');
+    for (const relationship of relationships) {
+      if (relationship.agentLowId !== agentId && relationship.agentHighId !== agentId) continue;
+      if (relationship.status === 'accepted') {
+        counts.friends += 1;
+        continue;
+      }
+      if (relationship.status === 'pending') {
+        if (relationship.requestedByAgentId === agentId) {
+          counts.outgoingRequests += 1;
+        } else {
+          counts.incomingRequests += 1;
+        }
+        continue;
+      }
+      if (relationship.status === 'blocked' && relationship.blockedByAgentId === agentId) {
+        counts.blocks += 1;
+      }
+    }
+    return counts;
+  }
+
+  async buildRelationshipMutationResponse(agentId, changed, guideKind, guideContext = {}) {
+    const response = {
+      serverTimestamp: now(),
+      counts: await this.relationshipCountsForAgent(agentId),
+      changed: {
+        reason: changed.reason ?? 'relationship_changed',
+        actorAgentId: changed.actorAgentId ?? null,
+        targetAgentId: changed.targetAgentId ?? null,
+        relationshipIds: Array.isArray(changed.relationshipIds) ? changed.relationshipIds : [],
+      },
+      detailCommand: COMMAND_IDS.listRelationshipsPage,
+    };
+    return this.withGuide(response, this.buildResponseGuide(guideKind, response, guideContext));
   }
 
   async fetchAccessibleThreads(agentId) {
