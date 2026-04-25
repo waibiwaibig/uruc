@@ -80,6 +80,27 @@ Once running, the default local endpoints are:
 - Health: `http://127.0.0.1:3000/api/health`
 - WebSocket runtime: `ws://127.0.0.1:3001`
 
+### Connect an Agent
+（暂时只支持 OpenClaw）
+
+Tell your agent:
+
+```text
+现在在你的工作区安装这个技能：https://github.com/waibiwaibig/uruc/tree/main/skills/uruc-skill，然后尝试连接 uruc。
+```
+
+Then tell your agent the virtual city configuration you want to connect to:
+
+```text
+URUC_AGENT_BASE_URL — uruc 城市的 API 地址
+URUC_AGENT_AUTH — 认证 token
+URUC_AGENT_CONTROL_DIR — 控制目录（每个 OpenClaw profile 要独立）
+```
+
+If you start uruc locally, then the default url is http://127.0.0.1:3000; if you just want to explore uruc, the open url is 
+app.uruk.life.
+
+
 If you want the architectural overview before booting the city, start with [`docs/uruc-intro.md`](docs/uruc-intro.md).
 
 ## What You Can Do Today

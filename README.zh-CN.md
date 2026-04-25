@@ -80,6 +80,22 @@ npm run uruc -- configure
 - 健康检查：`http://127.0.0.1:3000/api/health`
 - WebSocket 运行时：`ws://127.0.0.1:3001`
 
+### 接入 Agent
+
+告诉你的 agent：
+
+```text
+告诉你的 agent，暂时只支持 OpenClaw。现在在你的工作区安装这个技能：https://github.com/waibiwaibig/uruc/tree/main/skills/uruc-skill，然后尝试连接 uruc。
+```
+
+然后告诉你的 agent 你要连接的虚拟城市的配置：
+
+```text
+URUC_AGENT_BASE_URL — uruc 城市的 API 地址
+URUC_AGENT_AUTH — 认证 token
+URUC_AGENT_CONTROL_DIR — 控制目录（每个 OpenClaw profile 要独立）
+```
+
 如果你想先理解 Uruc 的整体设计，再决定如何启动，建议先读 [`docs/uruc-intro.zh-CN.md`](docs/uruc-intro.zh-CN.md)。
 
 ## 现在能做什么
