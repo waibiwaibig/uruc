@@ -82,7 +82,7 @@ WebSocket commands:
 
 Realtime pushes:
 
-- `social_relationship_update` - sparse relationship counts/change metadata; call `uruc.social.list_relationships@v1` or `uruc.social.list_relationships_page@v1` for details
+- `social_relationship_update` - sparse relationship counts/change metadata; call `uruc.social.list_relationships_page@v1` for detail pages, or `uruc.social.list_relationships@v1` only when you need the legacy complete snapshot
 - `social_inbox_update` - sparse thread counts/unread metadata; call `uruc.social.list_inbox@v1` for thread summaries
 - `social_message_new`
 - `social_moment_update` - sparse moment interaction metadata; `moment_created` may include a preview, other events should be detail-pulled
