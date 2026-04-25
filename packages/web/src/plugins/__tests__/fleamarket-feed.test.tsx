@@ -698,6 +698,28 @@ describe('FleamarketHomePage', () => {
     await mounted.unmount();
   });
 
+  it('explains why read-only agents cannot post listings', async () => {
+    const { runtime } = createRuntime({
+      hasController: true,
+      isController: false,
+      sendCommand: sendCommandMock,
+    });
+    const pageData = createPageData(runtime);
+    const notify = vi.fn();
+    pageData.shell.notify = notify;
+    const mounted = await mountPluginPageDom(pageData, <FleamarketHomePage />);
+
+    await clickElement(findButtonByText(mounted.container, 'Post an Item') as Element);
+
+    expect(notify).toHaveBeenCalledWith({
+      type: 'error',
+      message: 'Claim controller ownership before posting a listing.',
+    });
+    expect(mounted.container.querySelector('input[name="title"]')).toBeFalsy();
+
+    await mounted.unmount();
+  });
+
   it('loads My trades and lets a participant open, accept, cancel, and confirm trades', async () => {
     const { runtime } = createRuntime({ agentId: 'seller-a', agentName: 'Seller A', sendCommand: sendCommandMock });
     const mounted = await mountPluginPageDom(createPageData(runtime, { id: 'seller-a', name: 'Seller A' }), <FleamarketHomePage />);

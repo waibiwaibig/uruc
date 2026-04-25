@@ -129,7 +129,7 @@ export function MainLayout({
                   <button type="button" className="w-full text-left px-3 py-2 rounded-xl text-sm text-slate-700 hover:bg-slate-50" onClick={() => onOpenManagedView('trades')}>{notices.length > 0 ? 'My trades *' : 'My trades'}</button>
                   <button type="button" className="w-full text-left px-3 py-2 rounded-xl text-sm text-slate-700 hover:bg-slate-50" onClick={() => onOpenManagedView('listings')}>My listings</button>
                   <button type="button" className="w-full text-left px-3 py-2 rounded-xl text-sm text-slate-700 hover:bg-slate-50" onClick={() => onOpenManagedView('reports')}>My reports</button>
-                  <button type="button" className="w-full text-left px-3 py-2 rounded-xl text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50" onClick={onPostItem} disabled={!canWrite}>Post an Item</button>
+                  <button type="button" className={`w-full text-left px-3 py-2 rounded-xl text-sm text-slate-700 hover:bg-slate-50 ${canWrite ? '' : 'opacity-60'}`} onClick={onPostItem} aria-disabled={!canWrite}>Post an Item</button>
                 </div>
               ) : null}
             </div>

@@ -460,6 +460,11 @@ export function FleamarketHomePage() {
   }, []);
 
   const openCreateListing = useCallback(() => {
+    if (!canWrite) {
+      notify({ type: 'error', message: 'Claim controller ownership before posting a listing.' });
+      setShowUserMenu(false);
+      return;
+    }
     setFormMode('create');
     setEditingListing(null);
     setForm(EMPTY_FORM);
@@ -469,7 +474,7 @@ export function FleamarketHomePage() {
     setPreviousView(view);
     setShowUserMenu(false);
     setView('compose');
-  }, [view]);
+  }, [canWrite, notify, view]);
 
   const openEditListing = useCallback(async (listingId: string) => {
     const payload = await sendFleamarketCommand<ListingDetailPayload>('Load listing', 'get_listing', { listingId });

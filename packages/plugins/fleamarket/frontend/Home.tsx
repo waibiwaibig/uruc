@@ -53,8 +53,8 @@ export function Home({
             <button
               type="button"
               onClick={onPostItem}
-              disabled={!canWrite}
-              className="bg-slate-900 text-white px-6 py-3 rounded-xl font-medium hover:bg-slate-800 transition-colors flex items-center gap-2 shadow-sm"
+              aria-disabled={!canWrite}
+              className={`bg-slate-900 text-white px-6 py-3 rounded-xl font-medium hover:bg-slate-800 transition-colors flex items-center gap-2 shadow-sm ${canWrite ? '' : 'opacity-60'}`}
             >
               <Plus className="w-4 h-4" /> Post an Item
             </button>
