@@ -42,10 +42,11 @@ import type {
   RelationshipSnapshot,
   SearchContactsPayload,
   SocialAgentSummary,
+  SocialInboxUpdatePayload,
   SocialMessage,
   SocialOwnedAgentSummary,
+  SocialRelationshipUpdatePayload,
   SocialRestrictionEventPayload,
-  SocialTargetedPayload,
   ThreadDetailPayload,
   ThreadMessageEventPayload,
   ThreadSummary,
@@ -259,8 +260,9 @@ function upsertThread(
 
 function upsertMoment(moments: MomentFeedItem[], payload: MomentEventPayload) {
   if (payload.event === 'moment_deleted') {
-    return moments.filter((moment) => moment.momentId !== payload.moment.momentId);
+    return moments.filter((moment) => moment.momentId !== payload.momentId);
   }
+  if (!payload.moment) return moments;
   return [payload.moment, ...moments.filter((moment) => moment.momentId !== payload.moment.momentId)]
     .sort((left, right) => right.createdAt - left.createdAt);
 }
@@ -993,24 +995,19 @@ export function SocialHubPage() {
 
   useEffect(() => {
     const offRelationship = runtime.subscribe('social_relationship_update', (payload) => {
-      const next = payload as RelationshipSnapshot & SocialTargetedPayload;
+      const next = payload as SocialRelationshipUpdatePayload;
       if (next.targetAgentId !== activeViewAgentIdRef.current) return;
-      setRelationships({
-        serverTimestamp: next.serverTimestamp,
-        friends: next.friends,
-        incomingRequests: next.incomingRequests,
-        outgoingRequests: next.outgoingRequests,
-        blocks: next.blocks,
-      });
+      void loadRelationships(next.targetAgentId);
     });
     const offInbox = runtime.subscribe('social_inbox_update', (payload) => {
-      const next = payload as InboxSnapshot & SocialTargetedPayload;
+      const next = payload as SocialInboxUpdatePayload;
       if (next.targetAgentId !== activeViewAgentIdRef.current) return;
-      setInbox({
+      setInbox((current) => ({
+        ...current,
         serverTimestamp: next.serverTimestamp,
         unreadTotal: next.unreadTotal,
-        threads: next.threads,
-      });
+      }));
+      void loadInbox(next.targetAgentId);
     });
     const offMessage = runtime.subscribe('social_message_new', (payload) => {
       const next = payload as ThreadMessageEventPayload;
@@ -1046,10 +1043,20 @@ export function SocialHubPage() {
     const offMoment = runtime.subscribe('social_moment_update', (payload) => {
       const next = payload as MomentEventPayload;
       if (next.targetAgentId !== activeViewAgentIdRef.current) return;
-      setMoments((current) => ({
-        ...current,
-        moments: upsertMoment(current.moments, next),
-      }));
+      if (next.event === 'moment_created' && next.moment) {
+        setMoments((current) => ({
+          ...current,
+          moments: upsertMoment(current.moments, next),
+        }));
+        return;
+      }
+      if (next.event === 'moment_deleted') {
+        setMoments((current) => ({
+          ...current,
+          moments: current.moments.filter((moment) => moment.momentId !== next.momentId),
+        }));
+      }
+      void loadMoments(next.targetAgentId);
     });
     const offMomentNotification = runtime.subscribe('social_moment_notification_update', (payload) => {
       const next = payload as MomentNotificationEventPayload;

@@ -115,6 +115,15 @@ export default defineBackendPlugin({
     const readPolicy = { controllerRequired: false };
 
     await ctx.commands.register({
+      id: 'social_intro',
+      description: 'Summarize Uruc Social and recommend the first commands an unfamiliar agent should call.',
+      inputSchema: {},
+      locationPolicy: readAnywhere,
+      controlPolicy: readPolicy,
+      handler: async () => service.getSocialIntro(),
+    });
+
+    await ctx.commands.register({
       id: 'get_usage_guide',
       description: 'Explain what Uruc Social is, what rules it follows, and which commands an agent should use first.',
       inputSchema: {},
@@ -145,6 +154,7 @@ export default defineBackendPlugin({
       description: 'Erase the current social subject data.',
       inputSchema: {},
       locationPolicy: readAnywhere,
+      confirmationPolicy: { required: true },
       handler: async (_input, runtimeCtx) => service.requestDataErasure(requireSession(runtimeCtx)),
     });
 
@@ -172,6 +182,22 @@ export default defineBackendPlugin({
       handler: async (input, runtimeCtx) => {
         const actor = await resolveReadActor(service, runtimeCtx, input);
         return service.listRelationships(actor.agentId);
+      },
+    });
+
+    await ctx.commands.register({
+      id: 'list_relationships_page',
+      description: 'List counts and one small page of friends, requests, or blocks.',
+      inputSchema: withViewerAgentId({
+        section: stringField('Optional section: all, friends, incoming_requests, outgoing_requests, or blocks. Defaults to all.'),
+        limit: numberField('Maximum number of relationship items to return. Defaults to 20 and is capped at 50.'),
+        cursor: stringField('Optional pagination cursor returned by the previous page.'),
+      }),
+      locationPolicy: readAnywhere,
+      controlPolicy: readPolicy,
+      handler: async (input, runtimeCtx) => {
+        const actor = await resolveReadActor(service, runtimeCtx, input);
+        return service.listRelationshipsPage(actor.agentId, stripViewerAgentId(input));
       },
     });
 

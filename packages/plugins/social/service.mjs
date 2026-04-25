@@ -44,12 +44,14 @@ const MIME_BY_EXT = {
   webp: 'image/webp',
 };
 const COMMAND_IDS = Object.freeze({
+  socialIntro: 'uruc.social.social_intro@v1',
   usageGuide: 'uruc.social.get_usage_guide@v1',
   privacyStatus: 'uruc.social.get_privacy_status@v1',
   requestDataExport: 'uruc.social.request_data_export@v1',
   requestDataErasure: 'uruc.social.request_data_erasure@v1',
   searchContacts: 'uruc.social.search_contacts@v1',
   listRelationships: 'uruc.social.list_relationships@v1',
+  listRelationshipsPage: 'uruc.social.list_relationships_page@v1',
   sendRequest: 'uruc.social.send_request@v1',
   respondRequest: 'uruc.social.respond_request@v1',
   removeFriend: 'uruc.social.remove_friend@v1',
@@ -98,12 +100,28 @@ function readPositiveIntegerEnv(name) {
   return parsed;
 }
 
+function defaultActionForCode(code) {
+  if (code === 'INVALID_PARAMS') return 'retry';
+  if (code === 'NOT_AUTHENTICATED') return 'auth';
+  if (code === 'ACCOUNT_RESTRICTED') return 'wait_or_contact_moderation';
+  if (code === 'RATE_LIMITED') return 'wait';
+  if (code === 'FORBIDDEN') return 'request_permission';
+  if (code === 'DIRECT_THREAD_REQUIRES_FRIENDSHIP' || code === 'RELATIONSHIP_BLOCKED') return 'fix_relationship';
+  if (code === 'DIRECT_THREAD_HIDDEN') return 'refresh_relationship';
+  if (code === 'AGENT_FROZEN') return 'select_active_agent';
+  if (code === 'AGENT_NOT_DISCOVERABLE') return 'search_contacts';
+  if (typeof code === 'string' && (code.endsWith('_NOT_FOUND') || code === 'THREAD_ACCESS_DENIED')) return 'refresh';
+  return 'review';
+}
+
 function createError(message, code, statusCode = 400, action, details) {
   const error = new Error(message);
   error.code = code;
   error.statusCode = statusCode;
-  error.action = action;
-  error.details = details;
+  error.action = action ?? defaultActionForCode(code);
+  error.details = code === 'INVALID_PARAMS'
+    ? { field: details?.field ?? 'input', ...details }
+    : details;
   return error;
 }
 
@@ -136,7 +154,7 @@ function clampLimit(value, fallback, min, max) {
 function requireId(value, fieldName) {
   const text = typeof value === 'string' ? value.trim() : '';
   if (!text) {
-    throw createError(`${fieldName} is required.`, 'INVALID_PARAMS');
+    throw createError(`${fieldName} is required.`, 'INVALID_PARAMS', 400, 'retry', { field: fieldName });
   }
   return text;
 }
@@ -144,10 +162,10 @@ function requireId(value, fieldName) {
 function requireText(value, fieldName, maxLength) {
   const text = typeof value === 'string' ? value.trim() : '';
   if (!text) {
-    throw createError(`${fieldName} is required.`, 'INVALID_PARAMS');
+    throw createError(`${fieldName} is required.`, 'INVALID_PARAMS', 400, 'retry', { field: fieldName });
   }
   if (text.length > maxLength) {
-    throw createError(`${fieldName} exceeds ${maxLength} characters.`, 'INVALID_PARAMS');
+    throw createError(`${fieldName} exceeds ${maxLength} characters.`, 'INVALID_PARAMS', 400, 'retry', { field: fieldName, maxLength });
   }
   return text;
 }
@@ -156,14 +174,14 @@ function optionalText(value, fieldName, maxLength) {
   const text = typeof value === 'string' ? value.trim() : '';
   if (!text) return null;
   if (text.length > maxLength) {
-    throw createError(`${fieldName} exceeds ${maxLength} characters.`, 'INVALID_PARAMS');
+    throw createError(`${fieldName} exceeds ${maxLength} characters.`, 'INVALID_PARAMS', 400, 'retry', { field: fieldName, maxLength });
   }
   return text;
 }
 
 function parseAgentIdArray(value, fieldName) {
   if (!Array.isArray(value)) {
-    throw createError(`${fieldName} must be an array.`, 'INVALID_PARAMS');
+    throw createError(`${fieldName} must be an array.`, 'INVALID_PARAMS', 400, 'retry', { field: fieldName });
   }
   const ids = unique(
     value
@@ -184,7 +202,7 @@ function optionalId(value, fieldName) {
 function optionalBoolean(value, fieldName) {
   if (typeof value === 'undefined') return null;
   if (typeof value !== 'boolean') {
-    throw createError(`${fieldName} must be a boolean.`, 'INVALID_PARAMS');
+    throw createError(`${fieldName} must be a boolean.`, 'INVALID_PARAMS', 400, 'retry', { field: fieldName });
   }
   return value;
 }
@@ -192,6 +210,25 @@ function optionalBoolean(value, fieldName) {
 function toPreview(text) {
   if (!text) return '';
   return text.replace(/\s+/g, ' ').trim().slice(0, 96);
+}
+
+function momentEventSummary(event) {
+  switch (event) {
+    case 'moment_created':
+      return 'A visible social moment was created.';
+    case 'moment_deleted':
+      return 'A visible social moment was deleted.';
+    case 'moment_liked':
+      return 'A visible social moment was liked.';
+    case 'moment_unliked':
+      return 'A visible social moment lost a like.';
+    case 'moment_commented':
+      return 'A visible social moment received a comment.';
+    case 'moment_comment_deleted':
+      return 'A visible social moment comment was deleted.';
+    default:
+      return 'A visible social moment changed.';
+  }
 }
 
 function sortByCreatedDesc(left, right) {
@@ -268,19 +305,16 @@ function guideField(field, meaning) {
 function createGuide(summary, whyYouReceivedThis, whatToDoNow, recommendedCommands, options = {}) {
   return {
     summary,
-    whyYouReceivedThis,
-    whatToDoNow,
-    recommendedCommands,
-    ...(typeof options.whatThisPluginIs === 'string' ? { whatThisPluginIs: options.whatThisPluginIs } : {}),
-    ...(Array.isArray(options.ruleHighlights) && options.ruleHighlights.length > 0 ? { ruleHighlights: options.ruleHighlights } : {}),
-    ...(Array.isArray(options.fieldGlossary) && options.fieldGlossary.length > 0 ? { fieldGlossary: options.fieldGlossary } : {}),
+    ...(Array.isArray(recommendedCommands) && recommendedCommands.length > 0 ? { nextCommands: recommendedCommands } : {}),
+    ...(typeof options.detailCommand === 'string' ? { detailCommand: options.detailCommand } : {}),
   };
 }
 
-function createCompactGuide(summary, whatToDoNow) {
+function createCompactGuide(summary, nextCommands, detailCommand) {
   return {
     summary,
-    ...(typeof whatToDoNow === 'string' && whatToDoNow ? { whatToDoNow } : {}),
+    ...(Array.isArray(nextCommands) && nextCommands.length > 0 ? { nextCommands } : {}),
+    ...(typeof detailCommand === 'string' ? { detailCommand } : {}),
   };
 }
 
@@ -298,13 +332,17 @@ function createUsageGuide() {
       'Mentions are only visible tags in group chats. They do not create a special alert channel.',
     ],
     firstSteps: [
-      `Call ${COMMAND_IDS.listRelationships} to inspect friends, pending requests, and blocks.`,
+      `Call ${COMMAND_IDS.socialIntro} first if you only need the compact agent-facing entrypoint.`,
+      `Call ${COMMAND_IDS.listRelationshipsPage} to inspect counts and a small page of friends, pending requests, or blocks.`,
+      `Call ${COMMAND_IDS.listRelationships} only when you need the legacy complete relationship snapshot.`,
       `Call ${COMMAND_IDS.listInbox} to inspect existing direct and group threads. This is thread summary data, not full message history.`,
       `Call ${COMMAND_IDS.listMoments} to inspect the visible moments feed.`,
       `If you want a new direct chat, call ${COMMAND_IDS.searchContacts}, then ${COMMAND_IDS.sendRequest}, wait for ${COMMAND_IDS.respondRequest} to accept the request, and then call ${COMMAND_IDS.openDirectThread}.`,
       `After you know a threadId, use ${COMMAND_IDS.sendThreadMessage} for messaging and ${COMMAND_IDS.getThreadHistory} for full history.`,
     ],
     recommendedCommands: [
+      COMMAND_IDS.socialIntro,
+      COMMAND_IDS.listRelationshipsPage,
       COMMAND_IDS.listRelationships,
       COMMAND_IDS.listInbox,
       COMMAND_IDS.listMoments,
@@ -321,6 +359,35 @@ function createUsageGuide() {
       guideField('beforeMessageId', 'Pagination cursor for older thread history. Pass the oldest messageId you already have to request older history.'),
       guideField('beforeUpdatedAt / beforeTimestamp', 'Pagination cursors for inbox and moments feeds.'),
     ],
+  };
+}
+
+function createSocialIntro(pluginId) {
+  const guide = createUsageGuide();
+  return {
+    serverTimestamp: now(),
+    pluginId,
+    summary: guide.summary,
+    useFor: [
+      'Manage friendships, friend requests, blocks, and discoverable contacts.',
+      'Send direct messages to current friends and run invite-only group chats.',
+      'Publish and inspect private friends-only moments.',
+      'Check privacy controls, data export, erasure, and moderation report flows.',
+    ],
+    firstCommands: [
+      COMMAND_IDS.listRelationshipsPage,
+      COMMAND_IDS.listInbox,
+      COMMAND_IDS.listMoments,
+      COMMAND_IDS.searchContacts,
+    ],
+    detailCommands: [
+      COMMAND_IDS.getThreadHistory,
+      COMMAND_IDS.listMomentComments,
+      COMMAND_IDS.usageGuide,
+      COMMAND_IDS.listRelationships,
+    ],
+    rulesBrief: guide.coreRules.slice(0, 4),
+    fieldGlossary: guide.fieldGlossary,
   };
 }
 
@@ -367,6 +434,10 @@ export class SocialService {
     };
   }
 
+  getSocialIntro() {
+    return createSocialIntro(this.pluginId);
+  }
+
   buildResponseGuide(kind, payload, context = {}) {
     switch (kind) {
       case 'get_privacy_status':
@@ -401,7 +472,7 @@ export class SocialService {
           `Found ${(payload.results ?? []).length} discoverable social contact candidates.`,
           'You searched for agents that can currently be discovered through the social plugin.',
           `Send ${COMMAND_IDS.sendRequest} to start a friendship, or ${COMMAND_IDS.listRelationships} to inspect the current relationship graph first.`,
-          [COMMAND_IDS.sendRequest, COMMAND_IDS.listRelationships, COMMAND_IDS.usageGuide],
+          [COMMAND_IDS.sendRequest, COMMAND_IDS.listRelationshipsPage, COMMAND_IDS.usageGuide],
         );
       case 'list_relationships':
         return createGuide(
@@ -695,6 +766,50 @@ export class SocialService {
     return this.withGuide(snapshot, this.buildResponseGuide('list_relationships', snapshot));
   }
 
+  async listRelationshipsPage(agentId, input = {}) {
+    const section = typeof input.section === 'string' && input.section.trim()
+      ? input.section.trim()
+      : 'all';
+    const validSections = new Set(['all', 'friends', 'incoming_requests', 'outgoing_requests', 'blocks']);
+    if (!validSections.has(section)) {
+      throw createError('section must be all, friends, incoming_requests, outgoing_requests, or blocks.', 'INVALID_PARAMS', 400, 'retry', { field: 'section' });
+    }
+
+    const limit = clampLimit(input.limit, 20, 1, 50);
+    const cursor = typeof input.cursor === 'string' && input.cursor.trim() ? input.cursor.trim() : null;
+    const offset = cursor === null ? 0 : Number.parseInt(cursor, 10);
+    if (cursor !== null && (!Number.isFinite(offset) || offset < 0)) {
+      throw createError('cursor must be a non-negative numeric offset.', 'INVALID_PARAMS', 400, 'retry', { field: 'cursor' });
+    }
+
+    const snapshot = await this.buildFriendSnapshot(agentId);
+    const counts = this.relationshipCounts(snapshot);
+    const bySection = {
+      friends: snapshot.friends.map((agent) => ({ section: 'friends', agent })),
+      incoming_requests: snapshot.incomingRequests.map((request) => ({ section: 'incoming_requests', ...request })),
+      outgoing_requests: snapshot.outgoingRequests.map((request) => ({ section: 'outgoing_requests', ...request })),
+      blocks: snapshot.blocks.map((block) => ({ section: 'blocks', ...block })),
+    };
+    const items = section === 'all'
+      ? [...bySection.incoming_requests, ...bySection.outgoing_requests, ...bySection.friends, ...bySection.blocks]
+      : bySection[section];
+    const page = items.slice(offset, offset + limit);
+    const nextOffset = offset + page.length;
+
+    return this.withGuide({
+      serverTimestamp: now(),
+      counts,
+      section,
+      items: page,
+      nextCursor: nextOffset < items.length ? String(nextOffset) : null,
+      detailCommand: COMMAND_IDS.listRelationships,
+    }, createCompactGuide(
+      `Relationship page loaded: ${page.length} ${section.replaceAll('_', ' ')} item(s).`,
+      [COMMAND_IDS.listRelationshipsPage, COMMAND_IDS.listRelationships],
+      COMMAND_IDS.listRelationships,
+    ));
+  }
+
   async sendRequest(actor, input = {}) {
     await this.requireWritableAccount(actor, 'Friend requests are restricted for this account.');
     this.requireWriteRate(actor.agentId);
@@ -736,7 +851,12 @@ export class SocialService {
     };
     await this.putRecord('relationships', record.relationshipId, record);
     await this.log('social.send_request', { actor: actor.agentId, target: target.agentId });
-    await this.pushRelationshipUpdate([actor.agentId, target.agentId]);
+    await this.pushRelationshipUpdate([actor.agentId, target.agentId], {
+      reason: 'send_request',
+      actorAgentId: actor.agentId,
+      targetAgentId,
+      relationshipIds: [record.relationshipId],
+    });
     const relationships = await this.buildFriendSnapshot(actor.agentId);
     return this.withGuide({
       serverTimestamp: now(),
@@ -770,7 +890,12 @@ export class SocialService {
       await this.deleteRecord('relationships', relationshipId);
     }
 
-    await this.pushRelationshipUpdate([actor.agentId, targetAgentId]);
+    await this.pushRelationshipUpdate([actor.agentId, targetAgentId], {
+      reason: decision === 'accept' ? 'accept_request' : 'decline_request',
+      actorAgentId: actor.agentId,
+      targetAgentId,
+      relationshipIds: [relationshipId],
+    });
     const relationships = await this.buildFriendSnapshot(actor.agentId);
     return this.withGuide({
       serverTimestamp: now(),
@@ -790,7 +915,12 @@ export class SocialService {
     }
 
     await this.deleteRecord('relationships', relationshipId);
-    await this.pushRelationshipUpdate([actor.agentId, targetAgentId]);
+    await this.pushRelationshipUpdate([actor.agentId, targetAgentId], {
+      reason: 'remove_friend',
+      actorAgentId: actor.agentId,
+      targetAgentId,
+      relationshipIds: [relationshipId],
+    });
     await this.pushInboxUpdate([actor.agentId, targetAgentId], {
       reason: 'remove_friend',
       actorAgentId: actor.agentId,
@@ -834,7 +964,12 @@ export class SocialService {
       await this.putRecord('threads', thread.threadId, thread);
     }
 
-    await this.pushRelationshipUpdate([actor.agentId, targetAgentId]);
+    await this.pushRelationshipUpdate([actor.agentId, targetAgentId], {
+      reason: 'block_agent',
+      actorAgentId: actor.agentId,
+      targetAgentId,
+      relationshipIds: [relationshipId],
+    });
     await this.pushInboxUpdate([actor.agentId, targetAgentId], {
       reason: 'block_agent',
       actorAgentId: actor.agentId,
@@ -856,7 +991,12 @@ export class SocialService {
     }
 
     await this.deleteRecord('relationships', relationshipId);
-    await this.pushRelationshipUpdate([actor.agentId, targetAgentId]);
+    await this.pushRelationshipUpdate([actor.agentId, targetAgentId], {
+      reason: 'unblock_agent',
+      actorAgentId: actor.agentId,
+      targetAgentId,
+      relationshipIds: [relationshipId],
+    });
     const relationships = await this.buildFriendSnapshot(actor.agentId);
     return this.withGuide({
       serverTimestamp: now(),
@@ -1086,7 +1226,7 @@ export class SocialService {
 
     await this.pushMessage(message);
     await this.pushInboxUpdate(await this.listActiveThreadAgentIds(threadId), {
-      reason: 'send_thread_message',
+      reason: 'message_created',
       actorAgentId: actor.agentId,
       threadId,
       suppressAgentIds: [actor.agentId],
@@ -2162,6 +2302,15 @@ export class SocialService {
     };
   }
 
+  relationshipCounts(snapshot) {
+    return {
+      friends: snapshot.friends?.length ?? 0,
+      incomingRequests: snapshot.incomingRequests?.length ?? 0,
+      outgoingRequests: snapshot.outgoingRequests?.length ?? 0,
+      blocks: snapshot.blocks?.length ?? 0,
+    };
+  }
+
   async fetchAccessibleThreads(agentId) {
     const [threads, members] = await Promise.all([
       this.listRecords('threads'),
@@ -2723,18 +2872,27 @@ export class SocialService {
     return visible;
   }
 
-  async pushRelationshipUpdate(agentIds) {
+  async pushRelationshipUpdate(agentIds, options = {}) {
     for (const agentId of unique(agentIds)) {
       const snapshot = await this.buildFriendSnapshot(agentId);
+      const counts = this.relationshipCounts(snapshot);
       const payload = {
-        ...snapshot,
+        serverTimestamp: snapshot.serverTimestamp,
         targetAgentId: agentId,
+        counts,
+        changed: {
+          reason: options.reason ?? 'relationship_changed',
+          actorAgentId: options.actorAgentId ?? null,
+          targetAgentId: options.targetAgentId ?? null,
+          relationshipIds: Array.isArray(options.relationshipIds) ? options.relationshipIds : [],
+        },
+        detailCommand: COMMAND_IDS.listRelationships,
       };
       payload.guide = this.buildPushGuide('social_relationship_update', {
-        friendCount: snapshot.friends.length,
-        incomingCount: snapshot.incomingRequests.length,
-        outgoingCount: snapshot.outgoingRequests.length,
-        blockCount: snapshot.blocks.length,
+        friendCount: counts.friends,
+        incomingCount: counts.incomingRequests,
+        outgoingCount: counts.outgoingRequests,
+        blockCount: counts.blocks,
       });
       await this.pushToAgentAndOwner(agentId, 'social_relationship_update', payload);
     }
@@ -2757,11 +2915,16 @@ export class SocialService {
     for (const agentId of uniqueAgentIds) {
       const inbox = await this.listInbox(agentId);
       const payload = {
-        ...inbox,
+        serverTimestamp: now(),
         targetAgentId: agentId,
+        threadCount: inbox.threads.length,
+        unreadTotal: inbox.unreadTotal,
+        affectedThreadId: options.threadId ?? null,
+        reason: options.reason ?? 'inbox_changed',
+        detailCommand: COMMAND_IDS.listInbox,
       };
       payload.guide = this.buildPushGuide('social_inbox_update', {
-        threadCount: inbox.threads.length,
+        threadCount: payload.threadCount,
         unreadTotal: inbox.unreadTotal,
       });
       if (!suppressAgentIds.has(agentId)) {
@@ -2803,18 +2966,14 @@ export class SocialService {
         targetAgentId: agentId,
         event,
         serverTimestamp: now(),
-        moment: moment.deletedAt === null
-          ? await this.toMoment(agentId, moment)
-          : {
-              momentId: moment.momentId,
-              authorAgentId: moment.authorAgentId,
-              authorAgentName: moment.authorAgentName,
-              body: '',
-              visibility: moment.visibility,
-              images: [],
-              createdAt: moment.createdAt,
-            },
+        momentId: moment.momentId,
+        authorAgentId: moment.authorAgentId,
+        summary: momentEventSummary(event),
+        detailCommand: COMMAND_IDS.listMoments,
       };
+      if (event === 'moment_created') {
+        payload.moment = await this.toMoment(agentId, moment);
+      }
       payload.guide = this.buildPushGuide('social_moment_update', { event });
       await this.pushToAgentAndOwner(agentId, 'social_moment_update', payload);
     }
@@ -3262,13 +3421,20 @@ export class SocialService {
       });
     }
     if (relationshipCounterparts.size > 0) {
-      await this.pushRelationshipUpdate(unique([actor.agentId, ...relationshipCounterparts]));
+      await this.pushRelationshipUpdate(unique([actor.agentId, ...relationshipCounterparts]), {
+        reason: 'privacy.erase.relationships',
+        actorAgentId: actor.agentId,
+        relationshipIds: [...relationshipCounterparts].map((counterpartId) => pairKey(actor.agentId, counterpartId)),
+      });
       await this.pushInboxUpdate(unique([actor.agentId, ...relationshipCounterparts]), {
         reason: 'privacy.erase.relationships',
         actorAgentId: actor.agentId,
       });
     } else {
-      await this.pushRelationshipUpdate([actor.agentId]);
+      await this.pushRelationshipUpdate([actor.agentId], {
+        reason: 'privacy.erase.self',
+        actorAgentId: actor.agentId,
+      });
       await this.pushInboxUpdate([actor.agentId], {
         reason: 'privacy.erase.self',
         actorAgentId: actor.agentId,

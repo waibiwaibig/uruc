@@ -158,6 +158,45 @@ describe('SocialService', () => {
     });
   });
 
+  it('provides a compact social intro for first-time agents', async () => {
+    const intro = service.getSocialIntro();
+    expect(intro).toMatchObject({
+      pluginId: 'uruc.social',
+      summary: expect.stringContaining('Uruc Social'),
+      useFor: expect.arrayContaining([
+        expect.stringContaining('friend'),
+        expect.stringContaining('message'),
+      ]),
+      firstCommands: expect.arrayContaining([
+        'uruc.social.list_relationships_page@v1',
+        'uruc.social.list_inbox@v1',
+      ]),
+      detailCommands: expect.arrayContaining([
+        'uruc.social.get_usage_guide@v1',
+      ]),
+      rulesBrief: expect.any(Array),
+      fieldGlossary: expect.arrayContaining([
+        expect.objectContaining({ field: 'threadId' }),
+      ]),
+    });
+  });
+
+  it('keeps ordinary command guides compact instead of repeating the full usage guide', async () => {
+    const result = await service.searchContacts(actors['agent-a'], { query: 'agent-b', limit: 10 });
+
+    expect(result.guide).toMatchObject({
+      summary: expect.stringContaining('Found'),
+      nextCommands: expect.arrayContaining([
+        'uruc.social.send_request@v1',
+        'uruc.social.list_relationships_page@v1',
+      ]),
+    });
+    expect(result.guide).not.toHaveProperty('whyYouReceivedThis');
+    expect(result.guide).not.toHaveProperty('whatThisPluginIs');
+    expect(result.guide).not.toHaveProperty('ruleHighlights');
+    expect(result.guide).not.toHaveProperty('fieldGlossary');
+  });
+
   it('searches discoverable contacts by agentId to disambiguate duplicate names', async () => {
     const result = await service.searchContacts(actors['agent-a'], { query: 'agent-b', limit: 10 });
 
@@ -167,6 +206,25 @@ describe('SocialService', () => {
         agentName: 'Agent B',
       }),
     ]);
+  });
+
+  it('returns stable retry metadata for invalid params and stable actions for permission errors', async () => {
+    await expect(service.sendRequest(actors['agent-a'], {})).rejects.toMatchObject({
+      code: 'INVALID_PARAMS',
+      action: 'retry',
+      details: { field: 'agentId' },
+    });
+
+    await expect(service.openDirectThread(actors['agent-a'], { agentId: 'agent-b' })).rejects.toMatchObject({
+      code: 'DIRECT_THREAD_REQUIRES_FRIENDSHIP',
+      action: 'fix_relationship',
+    });
+
+    await service.restrictAccount('agent-a', { restricted: true, reason: 'policy' });
+    await expect(service.createMoment(actors['agent-a'], { body: 'blocked write' })).rejects.toMatchObject({
+      code: 'ACCOUNT_RESTRICTED',
+      action: 'wait_or_contact_moderation',
+    });
   });
 
   it('supports the friend request to direct message lifecycle', async () => {
@@ -227,11 +285,17 @@ describe('SocialService', () => {
       payload: expect.objectContaining({
         targetAgentId: 'agent-b',
         unreadTotal: 1,
+        threadCount: 1,
+        affectedThreadId: thread.thread.threadId,
+        reason: 'message_created',
+        detailCommand: 'uruc.social.list_inbox@v1',
         guide: expect.objectContaining({
           summary: expect.stringContaining('inbox summary changed'),
         }),
       }),
     });
+    expect(agentMessages.find((entry) => entry.agentId === 'agent-b' && entry.type === 'social_inbox_update')?.payload)
+      .not.toHaveProperty('threads');
     expect(ownerMessages.find((entry) => entry.userId === 'user-a' && entry.type === 'social_message_new')).toMatchObject({
       payload: expect.objectContaining({
         targetAgentId: 'agent-a',
@@ -243,6 +307,69 @@ describe('SocialService', () => {
         unreadTotal: 0,
       }),
     });
+  });
+
+  it('pushes lightweight relationship updates with detail pull metadata', async () => {
+    await makeFriends(service, actors['agent-a'], actors['agent-b']);
+    agentMessages.length = 0;
+
+    await service.sendRequest(actors['agent-a'], { agentId: 'agent-c' });
+
+    const update = agentMessages.find((entry) => entry.agentId === 'agent-a' && entry.type === 'social_relationship_update');
+    expect(update?.payload).toMatchObject({
+      targetAgentId: 'agent-a',
+      counts: {
+        friends: 1,
+        incomingRequests: 0,
+        outgoingRequests: 1,
+        blocks: 0,
+      },
+      changed: {
+        reason: 'send_request',
+        actorAgentId: 'agent-a',
+        targetAgentId: 'agent-c',
+        relationshipIds: [expect.any(String)],
+      },
+      detailCommand: 'uruc.social.list_relationships@v1',
+    });
+    expect(update?.payload).not.toHaveProperty('friends');
+    expect(update?.payload).not.toHaveProperty('incomingRequests');
+    expect(update?.payload).not.toHaveProperty('outgoingRequests');
+    expect(update?.payload).not.toHaveProperty('blocks');
+  });
+
+  it('paginates relationship summaries without changing the legacy relationship snapshot', async () => {
+    await makeFriends(service, actors['agent-a'], actors['agent-b']);
+    await makeFriends(service, actors['agent-a'], actors['agent-c']);
+    await makeFriends(service, actors['agent-a'], actors['agent-d']);
+
+    const snapshot = await service.listRelationships('agent-a');
+    expect(snapshot.friends).toHaveLength(3);
+    expect(snapshot.incomingRequests).toEqual([]);
+    expect(snapshot.outgoingRequests).toEqual([]);
+    expect(snapshot.blocks).toEqual([]);
+
+    const firstPage = await service.listRelationshipsPage('agent-a', { section: 'friends', limit: 2 });
+    expect(firstPage).toMatchObject({
+      counts: {
+        friends: 3,
+        incomingRequests: 0,
+        outgoingRequests: 0,
+        blocks: 0,
+      },
+      section: 'friends',
+      detailCommand: 'uruc.social.list_relationships@v1',
+    });
+    expect(firstPage.items).toHaveLength(2);
+    expect(firstPage.nextCursor).toEqual(expect.any(String));
+
+    const secondPage = await service.listRelationshipsPage('agent-a', {
+      section: 'friends',
+      limit: 2,
+      cursor: firstPage.nextCursor,
+    });
+    expect(secondPage.items).toHaveLength(1);
+    expect(secondPage.nextCursor).toBeNull();
   });
 
   it('cuts off direct threads when one side blocks the other', async () => {
@@ -417,6 +544,38 @@ describe('SocialService', () => {
     ).rejects.toMatchObject({
       code: 'MOMENT_INTERACTION_FORBIDDEN',
     });
+  });
+
+  it('pushes lightweight moment interaction updates and keeps created moments previewable', async () => {
+    await makeFriends(service, actors['agent-a'], actors['agent-b']);
+    agentMessages.length = 0;
+
+    const created = await service.createMoment(actors['agent-a'], {
+      body: 'Preview this new moment',
+    });
+    const createdPush = agentMessages.find((entry) => entry.agentId === 'agent-b' && entry.type === 'social_moment_update');
+    expect(createdPush?.payload).toMatchObject({
+      event: 'moment_created',
+      moment: expect.objectContaining({
+        momentId: created.moment.momentId,
+        body: 'Preview this new moment',
+      }),
+      detailCommand: 'uruc.social.list_moments@v1',
+    });
+
+    agentMessages.length = 0;
+    await service.setMomentLike(actors['agent-b'], { momentId: created.moment.momentId, value: true });
+
+    const likePush = agentMessages.find((entry) => entry.agentId === 'agent-a' && entry.type === 'social_moment_update');
+    expect(likePush?.payload).toMatchObject({
+      targetAgentId: 'agent-a',
+      event: 'moment_liked',
+      momentId: created.moment.momentId,
+      authorAgentId: 'agent-a',
+      summary: expect.stringContaining('liked'),
+      detailCommand: 'uruc.social.list_moments@v1',
+    });
+    expect(likePush?.payload).not.toHaveProperty('moment');
   });
 
   it('allows comments and replies only while the moment remains visible', async () => {

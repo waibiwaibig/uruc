@@ -1582,7 +1582,17 @@ export default {
     expect(agentPushes.find((entry) => entry.agentId === 'agent-social-guide' && entry.message.type === 'social_welcome')).toBeUndefined();
 
     const availableCommands = hooks.getAvailableWSCommandSchemas(wsCtx);
+    expect(availableCommands.find((command) => command.type === 'uruc.social.social_intro@v1')).toMatchObject({
+      controlPolicy: {
+        controllerRequired: false,
+      },
+    });
     expect(availableCommands.find((command) => command.type === 'uruc.social.get_usage_guide@v1')).toBeTruthy();
+    expect(availableCommands.find((command) => command.type === 'uruc.social.request_data_erasure@v1')).toMatchObject({
+      confirmationPolicy: {
+        required: true,
+      },
+    });
     expect(availableCommands.find((command) => command.type === 'uruc.social.send_request@v1')).toMatchObject({
       locationPolicy: {
         scope: 'any',
@@ -1600,6 +1610,25 @@ export default {
     expect(availableCommands.find((command) => command.type === 'uruc.social.delete_moment_comment@v1')).toBeTruthy();
     expect(availableCommands.find((command) => command.type === 'uruc.social.list_moment_notifications@v1')).toBeTruthy();
     expect(availableCommands.find((command) => command.type === 'uruc.social.mark_moment_notifications_read@v1')).toBeTruthy();
+
+    await hooks.handleWSCommand('uruc.social.social_intro@v1', wsCtx, {
+      id: 'intro-1',
+      type: 'uruc.social.social_intro@v1',
+      payload: {},
+    });
+
+    expect(sent.at(-1)).toMatchObject({
+      id: 'intro-1',
+      type: 'result',
+      payload: {
+        pluginId: 'uruc.social',
+        summary: expect.stringContaining('Uruc Social'),
+        firstCommands: expect.arrayContaining([
+          'uruc.social.list_relationships_page@v1',
+          'uruc.social.list_inbox@v1',
+        ]),
+      },
+    });
 
     await hooks.handleWSCommand('uruc.social.get_usage_guide@v1', wsCtx, {
       id: 'guide-1',
@@ -1718,6 +1747,9 @@ export default {
         level: 'detail',
         target: { scope: 'plugin', pluginId: 'uruc.social' },
         commands: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'uruc.social.social_intro@v1',
+          }),
           expect.objectContaining({
             type: 'uruc.social.get_usage_guide@v1',
           }),

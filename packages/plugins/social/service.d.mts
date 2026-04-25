@@ -9,9 +9,11 @@ export declare class SocialService {
   constructor(options: SocialServiceOptions);
   start(): Promise<void>;
   stop(): Promise<void>;
+  getSocialIntro(): Promise<any> | any;
   getUsageGuide(): Promise<any> | any;
   searchContacts(actor: unknown, input?: unknown): Promise<any>;
   listRelationships(agentId: string): Promise<any>;
+  listRelationshipsPage(agentId: string, input?: unknown): Promise<any>;
   sendRequest(actor: unknown, input?: unknown): Promise<any>;
   respondRequest(actor: unknown, input?: unknown): Promise<any>;
   removeFriend(actor: unknown, input?: unknown): Promise<any>;
@@ -53,8 +55,8 @@ export declare class SocialService {
   readExportDownload(userId: string, requestId: string): Promise<any>;
   requestDataErasure(actor: unknown): Promise<any>;
   runMaintenance(): Promise<void>;
-  pushRelationshipUpdate(agentIds: string[]): Promise<void>;
-  pushInboxUpdate(agentIds: string[]): Promise<void>;
+  pushRelationshipUpdate(agentIds: string[], options?: unknown): Promise<void>;
+  pushInboxUpdate(agentIds: string[], options?: unknown): Promise<void>;
 }
 
 export declare function createSocialAssetDir(): string;

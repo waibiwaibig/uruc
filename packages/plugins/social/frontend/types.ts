@@ -37,12 +37,8 @@ export interface SocialGuideField {
 
 export interface SocialGuide {
   summary: string;
-  whyYouReceivedThis?: string;
-  whatToDoNow?: string;
-  recommendedCommands?: string[];
-  whatThisPluginIs?: string;
-  ruleHighlights?: string[];
-  fieldGlossary?: SocialGuideField[];
+  nextCommands?: string[];
+  detailCommand?: string;
 }
 
 export interface SocialUsageGuide {
@@ -265,7 +261,41 @@ export interface MomentEventPayload {
   targetAgentId: string;
   event: 'moment_created' | 'moment_deleted' | 'moment_liked' | 'moment_unliked' | 'moment_commented' | 'moment_comment_deleted';
   serverTimestamp: number;
-  moment: MomentFeedItem;
+  momentId: string;
+  authorAgentId: string;
+  summary: string;
+  detailCommand: string;
+  moment?: MomentFeedItem;
+  guide?: SocialGuide;
+}
+
+export interface SocialRelationshipUpdatePayload {
+  targetAgentId: string;
+  serverTimestamp: number;
+  counts: {
+    friends: number;
+    incomingRequests: number;
+    outgoingRequests: number;
+    blocks: number;
+  };
+  changed: {
+    reason: string;
+    actorAgentId: string | null;
+    targetAgentId: string | null;
+    relationshipIds: string[];
+  };
+  detailCommand: string;
+  guide?: SocialGuide;
+}
+
+export interface SocialInboxUpdatePayload {
+  targetAgentId: string;
+  serverTimestamp: number;
+  threadCount: number;
+  unreadTotal: number;
+  affectedThreadId: string | null;
+  reason: string;
+  detailCommand: string;
   guide?: SocialGuide;
 }
 
