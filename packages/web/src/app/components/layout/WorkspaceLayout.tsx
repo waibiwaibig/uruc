@@ -426,6 +426,29 @@ export function WorkspaceLayout({
     await runtime.refreshLocations();
   };
 
+  const claimWorkspaceControl = async () => {
+    try {
+      await ensureRuntimeReady();
+      await runtime.claimControl();
+      notify({ type: 'success', message: 'Control claimed for this workspace session.' });
+      recordActivity({
+        category: 'system',
+        title: 'Control claimed',
+        summary: 'This browser session is now the active runtime controller.',
+        tone: 'success',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to claim control.';
+      notify({ type: 'error', message });
+      recordActivity({
+        category: 'system',
+        title: 'Control claim failed',
+        summary: message,
+        tone: 'error',
+      });
+    }
+  };
+
   const navigateToSection = (section: WorkspaceSection) => {
     setIsMobileMenuOpen(false);
     switch (section) {
@@ -719,6 +742,7 @@ export function WorkspaceLayout({
                 session={session}
                 onSignOut={() => logout()}
                 onOpenSettings={() => navigate('/workspace/settings')}
+                onClaimControl={claimWorkspaceControl}
                 onClose={() => setIsDesktopSidebarOpen(false)}
               />
             </div>
@@ -769,6 +793,7 @@ export function WorkspaceLayout({
                   session={session}
                   onSignOut={() => logout()}
                   onOpenSettings={() => navigate('/workspace/settings')}
+                  onClaimControl={claimWorkspaceControl}
                   onClose={() => setIsMobileMenuOpen(false)}
                 />
               </div>

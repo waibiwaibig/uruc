@@ -100,6 +100,46 @@ describe('workspace app shell glass surfaces', () => {
     await cleanup();
   });
 
+  it('renders claim control before settings in the account menu', async () => {
+    const onClaimControl = vi.fn();
+    const { container, cleanup } = await renderAppShell(
+      <Sidebar
+        activeSection="home"
+        onNavigate={() => undefined}
+        cityPulse={cityPulse}
+        alertCount={0}
+        linkedDestinations={[]}
+        availableDestinations={[]}
+        session={{ name: 'Workspace User', initials: 'W' }}
+        onSignOut={() => undefined}
+        onOpenSettings={() => undefined}
+        onClaimControl={onClaimControl}
+      />,
+    );
+
+    const accountButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Open account menu'));
+    expect(accountButton).toBeDefined();
+
+    await act(async () => {
+      accountButton?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }));
+    });
+
+    const claimControlItem = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find((item) => item.textContent?.includes('Claim control'));
+    const settingsItem = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find((item) => item.textContent?.includes('Settings'));
+
+    expect(claimControlItem).toBeDefined();
+    expect(settingsItem).toBeDefined();
+    expect(claimControlItem!.compareDocumentPosition(settingsItem!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+    await act(async () => {
+      (claimControlItem as HTMLElement | undefined)?.click();
+    });
+
+    expect(onClaimControl).toHaveBeenCalledTimes(1);
+
+    await cleanup();
+  });
+
   it('renders the command search trigger above the workspace navigation in the sidebar', async () => {
     const onOpenCommand = vi.fn();
     const { container, cleanup } = await renderAppShell(

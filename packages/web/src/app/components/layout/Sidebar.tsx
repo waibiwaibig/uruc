@@ -28,6 +28,7 @@ type SidebarProps = {
   session?: SessionUser | null;
   onSignOut?: () => void;
   onOpenSettings?: () => void;
+  onClaimControl?: () => Promise<void> | void;
   onClose?: () => void;
 };
 
@@ -48,6 +49,7 @@ export function Sidebar({
   session = null,
   onSignOut,
   onOpenSettings,
+  onClaimControl,
   onClose,
 }: SidebarProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -77,6 +79,7 @@ export function Sidebar({
           session={session}
           onSignOut={onSignOut ?? (() => undefined)}
           onOpenSettings={onOpenSettings ?? (() => undefined)}
+          onClaimControl={onClaimControl ?? (() => undefined)}
           className="ml-0 shrink-0"
         />
         <span className="flex-1 text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 truncate">Uruc Workspace</span>

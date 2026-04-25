@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { LogOut, Settings2 } from 'lucide-react';
+import { LogOut, Settings2, ShieldCheck } from 'lucide-react';
 
 import { cn } from '../../utils/cn';
 import { Button } from '../ui/Button';
@@ -24,6 +24,7 @@ type AccountControlsProps = {
   session: SessionUser | null;
   onSignOut: () => void;
   onOpenSettings: () => void;
+  onClaimControl: () => Promise<void> | void;
   className?: string;
 };
 
@@ -31,6 +32,7 @@ export function AccountControls({
   session,
   onSignOut,
   onOpenSettings,
+  onClaimControl,
   className,
 }: AccountControlsProps) {
   if (!session) {
@@ -82,6 +84,15 @@ export function AccountControls({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault();
+              void onClaimControl();
+            }}
+          >
+            <ShieldCheck />
+            Claim control
+          </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={(event) => {
               event.preventDefault();
