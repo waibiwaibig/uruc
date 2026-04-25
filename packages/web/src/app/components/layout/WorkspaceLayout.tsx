@@ -120,6 +120,19 @@ export function shouldRenderFloatingShellToggle(isDesktopSidebarOpen: boolean, i
   return !isDesktopViewport || !isDesktopSidebarOpen;
 }
 
+export function shouldPrepareRuntimeForDestination(destination: Pick<Destination, 'locationId' | 'path' | 'shell'>): boolean {
+  if (destination.locationId) return true;
+  return destination.shell === 'app' && normalizePluginPath(destination.path).startsWith('/workspace/plugins/');
+}
+
+export function resolveLocationDestinationName(options: {
+  locationId: string;
+  pageLabel?: string | null;
+  runtimeName?: string | null;
+}): string {
+  return options.pageLabel ?? options.runtimeName ?? options.locationId;
+}
+
 function getIsDesktopViewport(): boolean {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
     return true;
@@ -291,7 +304,11 @@ export function WorkspaceLayout({
       const page = pluginHost.enabledLocationPages.find((item) => item.locationId === locationId);
       const route = page ? routeByPluginAndId.get(`${page.pluginId}:${page.routeId}`) : null;
       const runtimeLocation = discoveredById.get(locationId);
-      const name = runtimeLocation?.name ?? (page ? t(page.titleKey) : locationId);
+      const name = resolveLocationDestinationName({
+        locationId,
+        pageLabel: page ? t(page.shortLabelKey ?? page.titleKey) : null,
+        runtimeName: runtimeLocation?.name,
+      });
       const description = runtimeLocation?.description
         ?? (page?.descriptionKey ? t(page.descriptionKey) : `Enter ${name} through the live runtime.`);
       const path = page ? normalizePluginPath(page.resolvedPath) : `/workspace/venues?focus=${encodeURIComponent(locationId)}`;
@@ -479,8 +496,11 @@ export function WorkspaceLayout({
       : destination.path;
 
     try {
-      if (destination.locationId) {
+      if (shouldPrepareRuntimeForDestination(destination)) {
         await ensureRuntimeReady();
+      }
+
+      if (destination.locationId) {
         if (!runtime.isController) {
           await runtime.claimControl();
         }

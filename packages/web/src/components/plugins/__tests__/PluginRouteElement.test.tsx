@@ -4,7 +4,7 @@ import { act } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePluginPage } from '@uruc/plugin-sdk/frontend-react';
 
 import { PluginRouteElement } from '../PluginRouteElement';
@@ -12,8 +12,8 @@ import type { RegisteredPageRoute } from '../../../plugins/registry';
 import { usePluginPortalContainer } from '@uruc/plugin-sdk/frontend-react';
 
 const runtime = {
-  status: 'idle',
-  isConnected: false,
+  status: 'connected',
+  isConnected: true,
   hasController: false,
   isController: false,
   error: '',
@@ -35,6 +35,43 @@ const runtime = {
   subscribe: vi.fn(() => () => undefined),
   reportEvent: vi.fn(),
 };
+
+const agentRuntime = {
+  status: 'connected',
+  isConnected: true,
+  hasController: false,
+  isController: false,
+  wsUrl: 'ws://127.0.0.1:3001',
+  setWsUrl: vi.fn(),
+  error: '',
+  agentSession: { agentId: 'agent-1', agentName: 'Agent One' },
+  inCity: false,
+  currentLocation: null,
+  citytime: null,
+  currentPlace: null,
+  commandGroups: [],
+  discoveredCommands: [],
+  discoveredLocations: [],
+  events: [],
+  connect: vi.fn(async () => undefined),
+  disconnect: vi.fn(),
+  claimControl: vi.fn(),
+  releaseControl: vi.fn(),
+  refreshSessionState: vi.fn(async () => ({})),
+  refreshLocations: vi.fn(async () => ({ locations: [], current: { place: 'outside', locationId: null, locationName: null } })),
+  sendCommand: vi.fn(),
+  enterCity: vi.fn(),
+  leaveCity: vi.fn(),
+  enterLocation: vi.fn(),
+  leaveLocation: vi.fn(),
+  refreshCommands: vi.fn(),
+  subscribe: vi.fn(() => () => undefined),
+  reportEvent: vi.fn(),
+};
+
+vi.mock('../../../context/AgentRuntimeContext', () => ({
+  useAgentRuntime: () => agentRuntime,
+}));
 
 vi.mock('../../../plugins/context', () => ({
   usePluginHost: () => ({
@@ -113,6 +150,17 @@ async function renderPluginRoute(route = makeRoute()) {
 }
 
 describe('PluginRouteElement isolation', () => {
+  beforeEach(() => {
+    Object.assign(agentRuntime, {
+      status: 'connected',
+      isConnected: true,
+      error: '',
+      agentSession: { agentId: 'agent-1', agentName: 'Agent One' },
+    });
+    agentRuntime.connect.mockClear();
+    agentRuntime.refreshSessionState.mockClear();
+  });
+
   it('renders plugin pages and plugin styles inside the plugin shadow root', async () => {
     const { container, cleanup } = await renderPluginRoute();
 
@@ -138,6 +186,22 @@ describe('PluginRouteElement isolation', () => {
 
     expect(document.body.querySelector('[data-testid="plugin-portal-child"]')).toBeNull();
     expect(portalRoot?.querySelector('[data-testid="plugin-portal-child"]')).toBeTruthy();
+
+    await cleanup();
+  });
+
+  it('connects the runtime before mounting auth app plugin pages', async () => {
+    Object.assign(agentRuntime, {
+      status: 'idle',
+      isConnected: false,
+      agentSession: null,
+    });
+
+    const { container, cleanup } = await renderPluginRoute();
+
+    expect(agentRuntime.connect).toHaveBeenCalledTimes(1);
+    expect(agentRuntime.refreshSessionState).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[data-testid="plugin-page"]')).toBeNull();
 
     await cleanup();
   });

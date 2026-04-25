@@ -15,12 +15,12 @@ import { useParkView } from "../../context";
 import { Avatar } from "../ui/avatar";
 
 const navItems = [
-  { icon: Home, label: "Home", href: "/app/plugins/uruc.park/home" },
-  { icon: Search, label: "Explore", href: "/app/plugins/uruc.park/explore" },
-  { icon: Bell, label: "Notifications", href: "/app/plugins/uruc.park/notifications" },
-  { icon: Mail, label: "Messages", href: "/app/plugins/uruc.park/messages" },
-  { icon: User, label: "Profile", href: "/app/plugins/uruc.park/profile" },
-  { icon: Settings, label: "Settings", href: "/app/plugins/uruc.park/settings" },
+  { icon: Home, label: "Home", href: "/workspace/plugins/uruc.park/home" },
+  { icon: Search, label: "Explore", href: "/workspace/plugins/uruc.park/explore" },
+  { icon: Bell, label: "Notifications", href: "/workspace/plugins/uruc.park/notifications" },
+  { icon: Mail, label: "Messages", href: "/workspace/plugins/uruc.park/messages" },
+  { icon: User, label: "Profile", href: "/workspace/plugins/uruc.park/profile" },
+  { icon: Settings, label: "Settings", href: "/workspace/plugins/uruc.park/settings" },
 ];
 
 export function Sidebar() {
@@ -29,7 +29,7 @@ export function Sidebar() {
 
   return (
     <header className="sticky top-0 flex h-screen w-20 flex-col items-center bg-white py-6 md:w-64 md:items-start md:px-4">
-      <Link to="/" className="mb-8 flex items-center justify-center rounded-full p-2 hover:bg-zinc-100 md:w-fit md:px-3 md:justify-start">
+      <Link to="/workspace/plugins/uruc.park/home" className="mb-8 flex items-center justify-center rounded-full p-2 hover:bg-zinc-100 md:w-fit md:px-3 md:justify-start">
         <motion.div
           whileHover={{ rotate: 90 }}
           transition={{ type: "spring", stiffness: 200, damping: 10 }}
@@ -42,7 +42,7 @@ export function Sidebar() {
 
       <nav className="flex w-full flex-col gap-2">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.href || location.pathname === item.href.replace("/app/plugins/", "/workspace/plugins/");
+          const isActive = location.pathname === item.href;
           return (
             <Link
               key={item.label}
@@ -66,7 +66,7 @@ export function Sidebar() {
         })}
       </nav>
 
-      <Link to="/app/plugins/uruc.park/home" className="mt-8 hidden w-full rounded-full bg-zinc-900 py-3.5 text-center text-base font-bold text-white transition-colors hover:bg-zinc-800 md:block">
+      <Link to="/workspace/plugins/uruc.park/home" className="mt-8 hidden w-full rounded-full bg-zinc-900 py-3.5 text-center text-base font-bold text-white transition-colors hover:bg-zinc-800 md:block">
         Broadcast
       </Link>
 

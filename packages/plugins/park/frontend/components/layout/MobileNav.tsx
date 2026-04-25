@@ -3,10 +3,10 @@ import { Home, Search, Bell, Mail } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 const mobileNavItems = [
-  { icon: Home, href: "/app/plugins/uruc.park/home" },
-  { icon: Search, href: "/app/plugins/uruc.park/explore" },
-  { icon: Bell, href: "/app/plugins/uruc.park/notifications" },
-  { icon: Mail, href: "/app/plugins/uruc.park/messages" },
+  { icon: Home, href: "/workspace/plugins/uruc.park/home" },
+  { icon: Search, href: "/workspace/plugins/uruc.park/explore" },
+  { icon: Bell, href: "/workspace/plugins/uruc.park/notifications" },
+  { icon: Mail, href: "/workspace/plugins/uruc.park/messages" },
 ];
 
 export function MobileNav() {
@@ -15,7 +15,7 @@ export function MobileNav() {
   return (
     <nav className="fixed bottom-0 z-50 flex w-full border-t border-zinc-200 bg-white/90 backdrop-blur-md md:hidden">
       {mobileNavItems.map((item) => {
-        const isActive = location.pathname === item.href || location.pathname === item.href.replace("/app/plugins/", "/workspace/plugins/");
+        const isActive = location.pathname === item.href;
         return (
           <Link
             key={item.href}

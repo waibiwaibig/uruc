@@ -12,6 +12,8 @@ import {
   getDesktopSidebarFrameClassName,
   getDesktopSidebarFrameStyle,
   getDefaultAppShellAnchor,
+  resolveLocationDestinationName,
+  shouldPrepareRuntimeForDestination,
   shouldRenderFloatingShellToggle,
 } from '../WorkspaceLayout';
 
@@ -239,5 +241,46 @@ describe('workspace app shell glass surfaces', () => {
       left: 16,
       top: 732,
     });
+  });
+
+  it('prepares runtime connections for app plugin destinations even without a location id', () => {
+    expect(shouldPrepareRuntimeForDestination({
+      shell: 'app',
+      path: '/workspace/plugins/uruc.park/home',
+    })).toBe(true);
+    expect(shouldPrepareRuntimeForDestination({
+      shell: 'app',
+      path: '/workspace/plugins/uruc.social/hub',
+    })).toBe(true);
+    expect(shouldPrepareRuntimeForDestination({
+      shell: 'app',
+      path: '/workspace/plugins/uruc.fleamarket/home',
+      locationId: 'uruc.fleamarket.market-hall',
+    })).toBe(true);
+    expect(shouldPrepareRuntimeForDestination({
+      shell: 'standalone',
+      path: '/workspace/plugins/acme.tool/home',
+    })).toBe(false);
+    expect(shouldPrepareRuntimeForDestination({
+      shell: 'app',
+      path: '/workspace/settings',
+    })).toBe(false);
+  });
+
+  it('uses frontend location labels before runtime-discovered venue names', () => {
+    expect(resolveLocationDestinationName({
+      locationId: 'uruc.fleamarket.market-hall',
+      pageLabel: 'Fleamarket',
+      runtimeName: 'Fleamarket Hall',
+    })).toBe('Fleamarket');
+    expect(resolveLocationDestinationName({
+      locationId: 'uruc.chess.chess-club',
+      pageLabel: 'Chess',
+      runtimeName: 'Chess Hall',
+    })).toBe('Chess');
+    expect(resolveLocationDestinationName({
+      locationId: 'runtime.only',
+      runtimeName: 'Runtime Only',
+    })).toBe('Runtime Only');
   });
 });

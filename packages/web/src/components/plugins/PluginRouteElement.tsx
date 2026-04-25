@@ -13,6 +13,7 @@ import { PluginDomBoundaryProvider, PluginPageContext } from '@uruc/plugin-sdk/f
 import { AlertTriangle, LoaderCircle, PlugZap } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
+import { useAgentRuntime } from '../../context/AgentRuntimeContext';
 import { usePluginHost } from '../../plugins/context';
 import type { RegisteredPageRoute } from '../../plugins/registry';
 
@@ -262,9 +263,17 @@ function IsolatedPluginHost({
   );
 }
 
+function routeRequiresRuntime(route: RegisteredPageRoute): boolean {
+  return route.shell === 'app' && route.guard === 'auth';
+}
+
 export function PluginRouteElement({ route }: { route: RegisteredPageRoute }) {
   const { buildPageContext, isPluginEnabled } = usePluginHost();
+  const runtime = useAgentRuntime();
   const location = useLocation();
+  const [runtimePrepareError, setRuntimePrepareError] = useState('');
+  const [isPreparingRuntime, setIsPreparingRuntime] = useState(false);
+  const runtimePrepareInFlightRef = useRef(false);
   const LazyComponent = useMemo(
     () => lazy(async () => {
       try {
@@ -277,9 +286,80 @@ export function PluginRouteElement({ route }: { route: RegisteredPageRoute }) {
     [route],
   );
   const routeInstanceKey = `${route.pluginId}:${route.id}:${location.pathname}`;
+  const requiresRuntime = routeRequiresRuntime(route);
+  const isRuntimeConnecting = runtime.status === 'connecting'
+    || runtime.status === 'authenticating'
+    || runtime.status === 'syncing'
+    || runtime.status === 'reconnecting';
+
+  useEffect(() => {
+    if (!requiresRuntime) {
+      setRuntimePrepareError('');
+      setIsPreparingRuntime(false);
+      return undefined;
+    }
+    if (runtime.isConnected) {
+      setRuntimePrepareError('');
+      setIsPreparingRuntime(false);
+      return undefined;
+    }
+    if (isRuntimeConnecting) {
+      setRuntimePrepareError('');
+      setIsPreparingRuntime(true);
+      return undefined;
+    }
+    if (runtimePrepareError) {
+      setIsPreparingRuntime(false);
+      return undefined;
+    }
+    if (runtimePrepareInFlightRef.current) {
+      setIsPreparingRuntime(true);
+      return undefined;
+    }
+
+    let active = true;
+    runtimePrepareInFlightRef.current = true;
+    setRuntimePrepareError('');
+    setIsPreparingRuntime(true);
+
+    void runtime.connect()
+      .then(() => runtime.refreshSessionState())
+      .catch((error) => {
+        if (!active) return;
+        setRuntimePrepareError(error instanceof Error ? error.message : 'Runtime connection failed.');
+      })
+      .finally(() => {
+        runtimePrepareInFlightRef.current = false;
+        if (active) setIsPreparingRuntime(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [
+    requiresRuntime,
+    isRuntimeConnecting,
+    routeInstanceKey,
+    runtime.connect,
+    runtime.isConnected,
+    runtime.refreshSessionState,
+    runtimePrepareError,
+  ]);
 
   if (!isPluginEnabled(route.pluginId)) {
     return <PluginUnavailablePage pluginId={route.pluginId} />;
+  }
+
+  if (requiresRuntime && !runtime.isConnected) {
+    return (
+      <PluginStatePanel
+        title={runtimePrepareError ? 'Runtime unavailable' : 'Connecting runtime'}
+        body={runtimePrepareError || (isPreparingRuntime
+          ? 'The workspace is connecting the shadow-agent runtime before loading this plugin page.'
+          : 'This plugin page needs the shadow-agent runtime before it can sync.')}
+        icon={runtimePrepareError ? <AlertTriangle className="size-4" /> : <LoaderCircle className="size-4 animate-spin" />}
+      />
+    );
   }
 
   return (

@@ -218,7 +218,7 @@ export function dedupeDestinations(destinations: Destination[]): Destination[] {
   const map = new Map<string, Destination>();
 
   destinations.forEach((destination) => {
-    const key = destination.locationId ?? destination.path;
+    const key = destination.path;
     const current = map.get(key);
     if (!current || (!current.locationId && destination.locationId)) {
       map.set(key, destination);

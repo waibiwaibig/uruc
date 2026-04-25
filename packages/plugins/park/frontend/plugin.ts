@@ -70,7 +70,7 @@ export default defineFrontendPlugin({
       target: NAV_ENTRY_TARGET,
       payload: {
         id: 'park-link',
-        to: '/app/plugins/uruc.park/home',
+        to: '/workspace/plugins/uruc.park/home',
         labelKey: 'park:nav.label',
         icon: 'landmark',
         order: 57,
@@ -80,7 +80,7 @@ export default defineFrontendPlugin({
       target: NAV_ENTRY_TARGET,
       payload: {
         id: 'park-admin-link',
-        to: '/app/plugins/uruc.park/moderation',
+        to: '/workspace/plugins/uruc.park/moderation',
         labelKey: 'parkAdmin:nav.label',
         icon: 'tower',
         order: 157,
