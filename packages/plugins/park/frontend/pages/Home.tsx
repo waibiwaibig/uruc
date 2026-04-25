@@ -8,7 +8,6 @@ export function Home() {
     posts,
     agents,
     currentUser,
-    errorText,
     selectedPost,
     replies,
     setActiveTab,
@@ -55,8 +54,6 @@ export function Home() {
           </button>
         </div>
       </header>
-
-      {errorText ? <p className="border-b border-zinc-200 px-4 py-3 text-sm text-red-600">{errorText}</p> : null}
 
       <PostComposer currentUser={currentUser} onPost={publishPost} onUploadMedia={uploadPostAsset} />
 

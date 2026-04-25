@@ -1,6 +1,6 @@
 import { Fragment, type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { formatPluginDateTime, formatPluginTime, isPluginCommandError } from '@uruc/plugin-sdk/frontend';
-import { usePluginAgent, usePluginRuntime } from '@uruc/plugin-sdk/frontend-react';
+import { usePluginAgent, usePluginRuntime, usePluginShell } from '@uruc/plugin-sdk/frontend-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import {
@@ -340,6 +340,7 @@ function AgentBadge({
 
 export function SocialHubPage() {
   const runtime = usePluginRuntime();
+  const { notify } = usePluginShell();
   const { ownerAgent, connectedAgent } = usePluginAgent();
   const { t } = useTranslation(['social', 'common']);
   const presenceLabel = (isOnline: boolean) => (isOnline ? t('social:labels.online') : t('social:labels.offline'));
@@ -407,8 +408,12 @@ export function SocialHubPage() {
   const [inviteAgentId, setInviteAgentId] = useState('');
   const [renameDraft, setRenameDraft] = useState('');
   const [busyAction, setBusyAction] = useState('');
-  const [errorText, setErrorText] = useState('');
-  const [successText, setSuccessText] = useState('');
+  const notifyError = (message: string) => {
+    if (message) notify({ type: 'error', message });
+  };
+  const notifySuccess = (message: string) => {
+    if (message) notify({ type: 'success', message });
+  };
   const [isViewMenuOpen, setIsViewMenuOpen] = useState(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
   const [privacyStatus, setPrivacyStatus] = useState<PrivacyStatus | null>(null);
@@ -522,13 +527,13 @@ export function SocialHubPage() {
 
   const sendSocialCommand = async <T,>(label: string, commandId: string, payload?: unknown): Promise<T | null> => {
     setBusyAction(label);
-    setErrorText('');
-    setSuccessText('');
+    notifyError('');
+    notifySuccess('');
     try {
       const result = await runtime.sendCommand<T>(SOCIAL_COMMAND(commandId), payload);
       return result;
     } catch (error) {
-      setErrorText(
+      notifyError(
         isPluginCommandError(error)
           ? error.message
           : error instanceof Error
@@ -552,7 +557,7 @@ export function SocialHubPage() {
       const result = await SocialApi.listOwnedAgents();
       setOwnedAgents(result.agents);
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : t('social:hub.errors.loadView'));
+      notifyError(error instanceof Error ? error.message : t('social:hub.errors.loadView'));
       setOwnedAgents((current) => current.length > 0
         ? current
         : fallbackOwnerAgent
@@ -573,7 +578,7 @@ export function SocialHubPage() {
       const result = await SocialApi.privacyStatus(privacySubjectAgentId);
       setPrivacyStatus(result);
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : t('social:hub.errors.loadPrivacy'));
+      notifyError(error instanceof Error ? error.message : t('social:hub.errors.loadPrivacy'));
     } finally {
       setPrivacyLoading(false);
     }
@@ -965,8 +970,8 @@ export function SocialHubPage() {
     setGroupMembers([]);
     setInviteAgentId('');
     setRenameDraft('');
-    setErrorText('');
-    setSuccessText('');
+    notifyError('');
+    notifySuccess('');
     setPrivacyStatus(null);
     setIsPrivacyOpen(false);
     setPendingLatestCount(0);
@@ -1128,17 +1133,17 @@ export function SocialHubPage() {
   const requestDataExport = async () => {
     if (!privacySubjectAgentId || watchMode) return;
     setBusyAction(t('social:hub.actions.exportData'));
-    setErrorText('');
-    setSuccessText('');
+    notifyError('');
+    notifySuccess('');
     try {
       const result = await SocialApi.requestDataExport(privacySubjectAgentId);
       setPrivacyStatus((current) => current ? { ...current, latestExport: result.request } : current);
       if (result.request.downloadPath) {
         triggerDownload(result.request.downloadPath);
       }
-      setSuccessText(t('social:hub.feedback.exportReady'));
+      notifySuccess(t('social:hub.feedback.exportReady'));
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : t('social:hub.errors.exportFailed'));
+      notifyError(error instanceof Error ? error.message : t('social:hub.errors.exportFailed'));
     } finally {
       setBusyAction('');
     }
@@ -1156,8 +1161,8 @@ export function SocialHubPage() {
     if (!doubleConfirmed) return;
 
     setBusyAction(t('social:hub.actions.eraseData'));
-    setErrorText('');
-    setSuccessText('');
+    notifyError('');
+    notifySuccess('');
     try {
       const result = await SocialApi.requestDataErasure(privacySubjectAgentId);
       setPrivacyStatus((current) => current ? { ...current, latestErasure: result.request } : current);
@@ -1167,9 +1172,9 @@ export function SocialHubPage() {
       if (viewAgentId) {
         await refreshAll(viewAgentId);
       }
-      setSuccessText(t('social:hub.feedback.erasureDone'));
+      notifySuccess(t('social:hub.feedback.erasureDone'));
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : t('social:hub.errors.erasureFailed'));
+      notifyError(error instanceof Error ? error.message : t('social:hub.errors.erasureFailed'));
     } finally {
       setBusyAction('');
     }
@@ -1336,7 +1341,7 @@ export function SocialHubPage() {
       memberAgentIds: groupMembers,
     });
     if (!result) return;
-    setSuccessText(t('social:hub.feedback.groupCreated'));
+    notifySuccess(t('social:hub.feedback.groupCreated'));
     setGroupTitle('');
     setGroupMembers([]);
     shouldScrollThreadToBottomRef.current = true;
@@ -1354,7 +1359,7 @@ export function SocialHubPage() {
     if (!result) return;
     setInbox((current) => ({ ...current, threads: upsertThread(current.threads, result.thread) }));
     setThreadDetail((current) => current ? { ...current, thread: result.thread } : current);
-    setSuccessText(t('social:hub.feedback.groupRenamed'));
+    notifySuccess(t('social:hub.feedback.groupRenamed'));
   };
 
   const inviteFriend = async () => {
@@ -1457,7 +1462,7 @@ export function SocialHubPage() {
       moments: [result.moment, ...current.moments.filter((moment) => moment.momentId !== result.moment.momentId)]
         .sort((left, right) => right.createdAt - left.createdAt),
     }));
-    setSuccessText(t('social:hub.feedback.momentPublished'));
+    notifySuccess(t('social:hub.feedback.momentPublished'));
   };
 
   const deleteMoment = async (momentId: string) => {
@@ -1613,7 +1618,7 @@ export function SocialHubPage() {
     if (!viewAgentId || watchMode || files.length === 0) return;
     setIsMomentComposerOpen(true);
     setBusyAction(t('social:hub.actions.uploadImages'));
-    setErrorText('');
+    notifyError('');
     try {
       const uploaded: UploadedMomentAsset[] = [];
       for (const file of files.slice(0, 4 - momentAssets.length)) {
@@ -1622,7 +1627,7 @@ export function SocialHubPage() {
       }
       setMomentAssets((current) => [...current, ...uploaded]);
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : t('social:hub.errors.uploadFailed'));
+      notifyError(error instanceof Error ? error.message : t('social:hub.errors.uploadFailed'));
     } finally {
       event.target.value = '';
       setBusyAction('');
@@ -1848,24 +1853,16 @@ export function SocialHubPage() {
 
   return (
     <div className="social-shell">
-      {(!ownerAgent || errorText || successText) ? (
+      {!ownerAgent ? (
         <div className="social-float-stack">
-          {!ownerAgent ? (
-            <article className="social-float-card social-float-card--warning">
-              <CircleAlert size={18} />
-              <div>
-                <strong>{t('social:hub.ownerMissing.title')}</strong>
-                <p>{t('social:hub.ownerMissing.body')}</p>
-              </div>
-              <Link className="social-btn social-btn--ghost" to="/agents">{t('common:actions.goToAgentCenter')}</Link>
-            </article>
-          ) : null}
-
-          {(errorText || successText) ? (
-            <div className={`social-float-card social-float-card--banner ${errorText ? 'social-float-card--error' : 'social-float-card--success'}`}>
-              {errorText || successText}
+          <article className="social-float-card social-float-card--warning">
+            <CircleAlert size={18} />
+            <div>
+              <strong>{t('social:hub.ownerMissing.title')}</strong>
+              <p>{t('social:hub.ownerMissing.body')}</p>
             </div>
-          ) : null}
+            <Link className="social-btn social-btn--ghost" to="/agents">{t('common:actions.goToAgentCenter')}</Link>
+          </article>
         </div>
       ) : null}
 

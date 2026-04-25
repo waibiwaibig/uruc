@@ -11,7 +11,6 @@ export interface ParkViewContextValue {
   suggestedAgents: Agent[];
   trends: TrendTopic[];
   busy: boolean;
-  errorText: string;
   selectedPost: ParkPostDetail | null;
   replies: Post[];
   setActiveTab: (tab: ParkTab) => void;

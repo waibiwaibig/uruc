@@ -139,7 +139,18 @@ export interface PluginAgentSummary {
   isShadow?: boolean;
 }
 
-export interface PluginShellApi {}
+export type NotificationType = 'success' | 'info' | 'warning' | 'error';
+
+export interface NotificationRequest {
+  type: NotificationType;
+  message: string;
+  title?: string;
+  durationMs?: number;
+}
+
+export interface PluginShellApi {
+  notify: (notification: NotificationRequest) => string;
+}
 
 export interface PluginPageData {
   pluginId: string;

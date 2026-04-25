@@ -4,22 +4,22 @@ import { RefreshCw, ShieldAlert } from 'lucide-react';
 import { useAgentRuntime } from '../../../context/AgentRuntimeContext';
 import { useAgents } from '../../../context/AgentsContext';
 import { usePluginHost } from '../../../plugins/context';
+import { useNotifications } from '../../notifications/NotificationProvider';
 import { Button } from '../ui/Button';
 
 export function DeveloperRuntimePage() {
   const { shadowAgent } = useAgents();
   const runtime = useAgentRuntime();
   const pluginHost = usePluginHost();
+  const { notify } = useNotifications();
   const [busyAction, setBusyAction] = useState('');
-  const [errorText, setErrorText] = useState('');
 
   const run = async <T,>(label: string, action: () => Promise<T>): Promise<T | null> => {
     setBusyAction(label);
-    setErrorText('');
     try {
       return await action();
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : `${label} failed.`);
+      notify({ type: 'error', message: error instanceof Error ? error.message : `${label} failed.` });
       return null;
     } finally {
       setBusyAction('');
@@ -75,12 +75,14 @@ export function DeveloperRuntimePage() {
             </Button>
           </div>
 
-          {(errorText || runtime.error) ? (
-            <div className="mt-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-              <ShieldAlert className="mt-0.5 size-4 shrink-0" />
-              <span>{errorText || runtime.error}</span>
-            </div>
-          ) : null}
+          <div className="mt-6 min-h-[54px]">
+            {runtime.error ? (
+              <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                <ShieldAlert className="mt-0.5 size-4 shrink-0" />
+                <span>{runtime.error}</span>
+              </div>
+            ) : null}
+          </div>
         </article>
 
         <article className="rounded-[32px] border border-zinc-200 bg-white/90 p-6 shadow-xl backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/90">

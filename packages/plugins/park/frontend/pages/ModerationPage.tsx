@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { usePluginShell } from '@uruc/plugin-sdk/frontend-react';
 import { MainLayout } from '../components/layout/MainLayout';
 import { ParkViewProvider } from '../context';
 import { ParkApi } from '../api';
@@ -6,21 +7,20 @@ import { useParkFeed } from '../hooks';
 import type { ParkModerationPayload } from '../types';
 
 function ModerationContent() {
+  const { notify } = usePluginShell();
   const [queue, setQueue] = useState<ParkModerationPayload>({ reports: [] });
   const [busyAction, setBusyAction] = useState('');
-  const [errorText, setErrorText] = useState('');
 
   const loadQueue = useCallback(async () => {
     setBusyAction('Load moderation queue');
-    setErrorText('');
     try {
       setQueue(await ParkApi.getModerationQueue());
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : 'Failed to load moderation queue.');
+      notify({ type: 'error', message: error instanceof Error ? error.message : 'Failed to load moderation queue.' });
     } finally {
       setBusyAction('');
     }
-  }, []);
+  }, [notify]);
 
   useEffect(() => {
     void loadQueue();
@@ -28,23 +28,21 @@ function ModerationContent() {
 
   const run = useCallback(async (label: string, action: () => Promise<unknown>) => {
     setBusyAction(label);
-    setErrorText('');
     try {
       await action();
       await loadQueue();
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : `${label} failed.`);
+      notify({ type: 'error', message: error instanceof Error ? error.message : `${label} failed.` });
     } finally {
       setBusyAction('');
     }
-  }, [loadQueue]);
+  }, [loadQueue, notify]);
 
   return (
     <>
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-zinc-200">
         <h1 className="px-4 py-3 text-xl font-bold text-zinc-900">Moderation</h1>
       </header>
-      {errorText ? <p className="border-b border-zinc-200 px-4 py-3 text-sm text-red-600">{errorText}</p> : null}
       <div className="flex flex-col gap-4 px-4 py-4 pb-20">
         {queue.reports.map((report) => (
           <article key={report.reportId} className="rounded-2xl border border-zinc-100 bg-zinc-50/50 p-4">

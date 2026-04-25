@@ -86,7 +86,9 @@ function createPageData(runtime: PluginRuntimeApi, agent = { id: 'buyer-a', name
       id: agent.id,
       name: agent.name,
     },
-    shell: {},
+    shell: {
+      notify: vi.fn(),
+    },
   };
 }
 
@@ -644,7 +646,10 @@ describe('FleamarketHomePage', () => {
 
   it('uploads selected listing images before create_listing and publishes the draft', async () => {
     const { runtime } = createRuntime({ sendCommand: sendCommandMock });
-    const mounted = await mountPluginPageDom(createPageData(runtime), <FleamarketHomePage />);
+    const pageData = createPageData(runtime);
+    const notify = vi.fn();
+    pageData.shell.notify = notify;
+    const mounted = await mountPluginPageDom(pageData, <FleamarketHomePage />);
 
     await clickElement(findButtonByText(mounted.container, 'Post an Item') as Element);
     await inputText(mounted.container.querySelector('input[name="title"]') as HTMLInputElement, 'Fresh Dataset');
@@ -667,6 +672,7 @@ describe('FleamarketHomePage', () => {
       imageAssetIds: ['asset-uploaded'],
     }));
     expect(sendCommandMock).toHaveBeenCalledWith('uruc.fleamarket.publish_listing@v1', { listingId: 'listing-created' });
+    expect(notify).toHaveBeenCalledWith({ type: 'success', message: 'Listing created and published.' });
 
     await mounted.unmount();
   });

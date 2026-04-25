@@ -5,12 +5,9 @@ import {
   type FormEvent,
 } from 'react';
 import { isPluginCommandError } from '@uruc/plugin-sdk/frontend';
-import { usePluginAgent, usePluginRuntime } from '@uruc/plugin-sdk/frontend-react';
+import { usePluginAgent, usePluginRuntime, usePluginShell } from '@uruc/plugin-sdk/frontend-react';
 import {
-  AlertTriangle,
-  CheckCircle2,
   Store,
-  X,
 } from 'lucide-react';
 import { FLEAMARKET_COMMAND, FleamarketApi } from './api';
 import { Chat } from './Chat';
@@ -107,6 +104,7 @@ function marketItemFromListing(listing: ListingSummary): MarketItem {
 
 export function FleamarketHomePage() {
   const runtime = usePluginRuntime();
+  const { notify } = usePluginShell();
   const { ownerAgent, connectedAgent } = usePluginAgent();
   const activeAgentId = connectedAgent?.id ?? runtime.agentId ?? ownerAgent?.id ?? null;
   const activeAgentName = connectedAgent?.name ?? runtime.agentName ?? ownerAgent?.name ?? activeAgentId ?? 'Agent';
@@ -156,8 +154,6 @@ export function FleamarketHomePage() {
   const [reportReasonCode, setReportReasonCode] = useState('safety_review');
   const [reportDetail, setReportDetail] = useState('');
   const [busyAction, setBusyAction] = useState('');
-  const [errorText, setErrorText] = useState('');
-  const [successText, setSuccessText] = useState('');
   const [eventNotices, setEventNotices] = useState<FleamarketNotice[]>([]);
   const [showNoticeMenu, setShowNoticeMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -166,17 +162,15 @@ export function FleamarketHomePage() {
 
   const sendFleamarketCommand = useCallback(async <T,>(label: string, commandId: string, payload?: unknown): Promise<T | null> => {
     setBusyAction(label);
-    setErrorText('');
-    setSuccessText('');
     try {
       return await runtime.sendCommand<T>(FLEAMARKET_COMMAND(commandId), payload);
     } catch (error) {
-      setErrorText(getErrorText(error, `${label} failed.`));
+      notify({ type: 'error', message: getErrorText(error, `${label} failed.`) });
       return null;
     } finally {
       setBusyAction('');
     }
-  }, [runtime]);
+  }, [notify, runtime]);
 
   const addNotice = useCallback((notice: Omit<FleamarketNotice, 'id'>) => {
     setEventNotices((current) => [{
@@ -394,12 +388,12 @@ export function FleamarketHomePage() {
   const openTrade = useCallback(async () => {
     if (!selectedListing) return;
     if (!canWrite) {
-      setErrorText('Claim controller ownership before opening a trade.');
+      notify({ type: 'error', message: 'Claim controller ownership before opening a trade.' });
       return;
     }
     const quantity = Number(tradeQuantity || 1);
     if (!Number.isInteger(quantity) || quantity < 1) {
-      setErrorText('Quantity must be a positive integer.');
+      notify({ type: 'error', message: 'Quantity must be a positive integer.' });
       return;
     }
     const payload = await sendFleamarketCommand<{ ok: true; trade: FleamarketTrade }>('Open trade', 'open_trade', {
@@ -412,7 +406,7 @@ export function FleamarketHomePage() {
     setReviewSubmitted(false);
     setView('trade');
     await loadTradeMessages(payload.trade.tradeId);
-  }, [canWrite, loadTradeMessages, openingMessage, selectedListing, sendFleamarketCommand, tradeQuantity]);
+  }, [canWrite, loadTradeMessages, notify, openingMessage, selectedListing, sendFleamarketCommand, tradeQuantity]);
 
   const sendMessage = useCallback(async () => {
     if (!trade || !messageDraft.trim()) return;
@@ -433,9 +427,9 @@ export function FleamarketHomePage() {
     });
     if (!payload) return;
     setTrade(payload.trade);
-    setSuccessText(`Trade status is now ${payload.trade.status}.`);
+    notify({ type: 'success', message: `Trade status is now ${payload.trade.status}.` });
     void loadMyTrades();
-  }, [loadMyTrades, sendFleamarketCommand, trade]);
+  }, [loadMyTrades, notify, sendFleamarketCommand, trade]);
 
   const submitReview = useCallback(async () => {
     if (!trade) return;
@@ -448,18 +442,18 @@ export function FleamarketHomePage() {
       });
       if (payload) {
         setReviewSubmitted(true);
-        setSuccessText('Review submitted.');
+        notify({ type: 'success', message: 'Review submitted.' });
         setReviewComment('');
       }
     } catch (error) {
       if (isPluginCommandError(error) && error.code === 'REVIEW_ALREADY_EXISTS') {
         setReviewSubmitted(true);
-        setSuccessText('Review already submitted.');
+        notify({ type: 'info', message: 'Review already submitted.' });
         return;
       }
-      setErrorText(getErrorText(error, 'Submit review failed.'));
+      notify({ type: 'error', message: getErrorText(error, 'Submit review failed.') });
     }
-  }, [reviewComment, reviewRating, runtime, trade]);
+  }, [notify, reviewComment, reviewRating, runtime, trade]);
 
   const updateForm = useCallback((name: keyof ListingFormState, value: string) => {
     setForm((current) => ({ ...current, [name]: value }));
@@ -493,22 +487,21 @@ export function FleamarketHomePage() {
   const handleFilesChange = useCallback((files: File[]) => {
     const nextFiles = files.slice(0, MAX_LISTING_IMAGES);
     if (retainedImageAssetIds.length + nextFiles.length > MAX_LISTING_IMAGES) {
-      setErrorText(`A listing can include at most ${MAX_LISTING_IMAGES} images.`);
+      notify({ type: 'error', message: `A listing can include at most ${MAX_LISTING_IMAGES} images.` });
       return;
     }
     const oversized = nextFiles.find((file) => file.size > MAX_LISTING_IMAGE_BYTES);
     if (oversized) {
-      setErrorText('Listing image size cannot exceed 512KB.');
+      notify({ type: 'error', message: 'Listing image size cannot exceed 512KB.' });
       return;
     }
     const unsupported = nextFiles.find((file) => file.type && !['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type));
     if (unsupported) {
-      setErrorText('Only png, jpg, jpeg, and webp listing images are supported.');
+      notify({ type: 'error', message: 'Only png, jpg, jpeg, and webp listing images are supported.' });
       return;
     }
-    setErrorText('');
     setSelectedFiles(nextFiles);
-  }, [retainedImageAssetIds.length]);
+  }, [notify, retainedImageAssetIds.length]);
 
   const removeRetainedImage = useCallback((assetId: string) => {
     setRetainedImageAssetIds((current) => current.filter((id) => id !== assetId));
@@ -516,16 +509,14 @@ export function FleamarketHomePage() {
 
   const submitListing = useCallback(async (publish: boolean) => {
     if (!activeAgentId) {
-      setErrorText('Connect an agent before posting a listing.');
+      notify({ type: 'error', message: 'Connect an agent before posting a listing.' });
       return;
     }
     if (!canWrite) {
-      setErrorText('Claim controller ownership before changing a listing.');
+      notify({ type: 'error', message: 'Claim controller ownership before changing a listing.' });
       return;
     }
     setBusyAction(formMode === 'edit' ? 'Update listing' : publish ? 'Create listing' : 'Save draft');
-    setErrorText('');
-    setSuccessText('');
     try {
       const uploadedAssets = [];
       for (const file of selectedFiles) {
@@ -541,7 +532,7 @@ export function FleamarketHomePage() {
           ...payload,
         });
         setSelectedListing(updated.listing);
-        setSuccessText('Listing saved.');
+        notify({ type: 'success', message: 'Listing saved.' });
         setView('listings');
         void loadMyListings();
         return;
@@ -557,15 +548,15 @@ export function FleamarketHomePage() {
         });
         setSelectedListing(published.listing);
         setView('detail');
-        setSuccessText('Listing created and published.');
+        notify({ type: 'success', message: 'Listing created and published.' });
         void loadListings();
       } else {
         setView('listings');
-        setSuccessText('Listing saved as draft.');
+        notify({ type: 'success', message: 'Listing saved as draft.' });
       }
       void loadMyListings();
     } catch (error) {
-      setErrorText(getErrorText(error, formMode === 'edit' ? 'Update listing failed.' : publish ? 'Create listing failed.' : 'Save draft failed.'));
+      notify({ type: 'error', message: getErrorText(error, formMode === 'edit' ? 'Update listing failed.' : publish ? 'Create listing failed.' : 'Save draft failed.') });
     } finally {
       setBusyAction('');
       setForm(EMPTY_FORM);
@@ -574,20 +565,20 @@ export function FleamarketHomePage() {
       setEditingListing(null);
       setFormMode('create');
     }
-  }, [activeAgentId, canWrite, editingListing, form, formMode, loadListings, loadMyListings, retainedImageAssetIds, runtime, selectedFiles]);
+  }, [activeAgentId, canWrite, editingListing, form, formMode, loadListings, loadMyListings, notify, retainedImageAssetIds, runtime, selectedFiles]);
 
   const runListingAction = useCallback(async (commandId: string, listingId: string) => {
     const payload = await sendFleamarketCommand<{ ok: true; listing: ListingDetail }>('Update listing', commandId, { listingId });
     if (!payload) return;
-    setSuccessText(`Listing status is now ${payload.listing.status}.`);
+    notify({ type: 'success', message: `Listing status is now ${payload.listing.status}.` });
     void loadMyListings();
     void loadListings();
-  }, [loadListings, loadMyListings, sendFleamarketCommand]);
+  }, [loadListings, loadMyListings, notify, sendFleamarketCommand]);
 
   const createReport = useCallback(async () => {
     if (!reportTarget) return;
     if (!canWrite) {
-      setErrorText('Claim controller ownership before creating a report.');
+      notify({ type: 'error', message: 'Claim controller ownership before creating a report.' });
       return;
     }
     const payload = await sendFleamarketCommand<{ ok: true }>('Create report', 'create_report', {
@@ -599,13 +590,13 @@ export function FleamarketHomePage() {
       detail: reportDetail.trim(),
     });
     if (payload) {
-      setSuccessText('Report recorded.');
+      notify({ type: 'success', message: 'Report recorded.' });
       setReportTarget(null);
       setReportReasonCode('safety_review');
       setReportDetail('');
       void loadReports();
     }
-  }, [canWrite, loadReports, reportDetail, reportReasonCode, reportTarget, sendFleamarketCommand]);
+  }, [canWrite, loadReports, notify, reportDetail, reportReasonCode, reportTarget, sendFleamarketCommand]);
 
   const submitSearch = useCallback((event: FormEvent) => {
     event.preventDefault();
@@ -640,25 +631,6 @@ export function FleamarketHomePage() {
       beforeCreatedAt: messages[0].createdAt,
     });
   }, [loadTradeMessages, messages, trade]);
-
-  const renderAlerts = () => (
-    <>
-      {errorText ? (
-        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
-          <span className="flex-1">{errorText}</span>
-          <button type="button" onClick={() => setErrorText('')} aria-label="Dismiss error" className="text-rose-400 hover:text-rose-700"><X className="w-4 h-4" aria-hidden="true" /></button>
-        </div>
-      ) : null}
-      {successText ? (
-        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
-          <span className="flex-1">{successText}</span>
-          <button type="button" onClick={() => setSuccessText('')} aria-label="Dismiss success" className="text-emerald-400 hover:text-emerald-700"><X className="w-4 h-4" aria-hidden="true" /></button>
-        </div>
-      ) : null}
-    </>
-  );
 
   const mainContent = () => {
     if (!canUseCommands) {
@@ -827,7 +799,6 @@ export function FleamarketHomePage() {
       onOpenManagedView={openManagedView}
       onPostItem={openCreateListing}
     >
-        {renderAlerts()}
         {mainContent()}
       {reportTarget ? (
         <ReportModal

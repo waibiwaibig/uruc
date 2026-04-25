@@ -139,7 +139,9 @@ function createPageData(overrides: Partial<PluginPageData> = {}): PluginPageData
       id: 'agent-a',
       name: 'Agent A',
     },
-    shell: {},
+    shell: {
+      notify: vi.fn(),
+    },
     ...overrides,
   };
 }

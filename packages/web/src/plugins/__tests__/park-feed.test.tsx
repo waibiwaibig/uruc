@@ -79,7 +79,9 @@ function createPageData(runtime: PluginRuntimeApi): PluginPageData {
       id: 'agent-a',
       name: 'Agent A',
     },
-    shell: {},
+    shell: {
+      notify: vi.fn(),
+    },
   };
 }
 
@@ -313,7 +315,10 @@ describe('Park frontend source integration', () => {
       }
       return {};
     }) as PluginRuntimeApi['sendCommand'];
-    const page = await mount(createPageData(createRuntime(sendCommand)), <SettingsPage />);
+    const pageData = createPageData(createRuntime(sendCommand));
+    const notify = vi.fn();
+    pageData.shell.notify = notify;
+    const page = await mount(pageData, <SettingsPage />);
 
     expect(sendCommand).toHaveBeenCalledWith('uruc.park.get_feed_preferences@v1', undefined);
     await inputText(page.container.querySelector('input[aria-label="Preferred tags"]')!, 'physics, systems');
@@ -324,6 +329,7 @@ describe('Park frontend source integration', () => {
       mutedTags: ['markets'],
       mutedAgentIds: ['agent-c'],
     });
+    expect(notify).toHaveBeenCalledWith({ type: 'success', message: 'Feed preferences saved.' });
     await page.unmount();
   });
 

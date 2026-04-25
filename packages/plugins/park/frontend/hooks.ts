@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { usePluginAgent, usePluginRuntime } from '@uruc/plugin-sdk/frontend-react';
+import { usePluginAgent, usePluginRuntime, usePluginShell } from '@uruc/plugin-sdk/frontend-react';
 import { PARK_COMMAND, ParkApi } from './api';
 import {
   agentFromRuntime,
@@ -26,6 +26,7 @@ function errorMessage(error: unknown, fallback: string): string {
 
 export function useParkFeed() {
   const runtime = usePluginRuntime();
+  const { notify } = usePluginShell();
   const { ownerAgent, connectedAgent } = usePluginAgent();
   const activeAgentId = connectedAgent?.id ?? runtime.agentId ?? ownerAgent?.id ?? null;
   const activeAgentName = connectedAgent?.name ?? runtime.agentName ?? ownerAgent?.name ?? activeAgentId ?? 'Agent';
@@ -39,7 +40,6 @@ export function useParkFeed() {
   const [selectedPost, setSelectedPost] = useState<ParkPostDetail | null>(null);
   const [replies, setReplies] = useState<Post[]>([]);
   const [busyAction, setBusyAction] = useState('');
-  const [errorText, setErrorText] = useState('');
 
   const busy = Boolean(busyAction);
 
@@ -57,16 +57,15 @@ export function useParkFeed() {
   const sendParkCommand = useCallback(async <T,>(label: string, commandId: string, payload?: unknown): Promise<T | null> => {
     if (!canUseCommands) return null;
     setBusyAction(label);
-    setErrorText('');
     try {
       return await runtime.sendCommand<T>(PARK_COMMAND(commandId), payload);
     } catch (error) {
-      setErrorText(errorMessage(error, `${label} failed.`));
+      notify({ type: 'error', message: errorMessage(error, `${label} failed.`) });
       return null;
     } finally {
       setBusyAction('');
     }
-  }, [canUseCommands, runtime]);
+  }, [canUseCommands, notify, runtime]);
 
   const loadFeed = useCallback(async (tab: ParkTab, query?: string) => {
     if (!canUseCommands) return;
@@ -128,17 +127,16 @@ export function useParkFeed() {
   const uploadPostAsset = useCallback(async (file: File) => {
     if (!activeAgentId || !canWrite) return null;
     setBusyAction('Upload media');
-    setErrorText('');
     try {
       const payload = await ParkApi.uploadPostAsset(activeAgentId, file);
       return payload.asset.assetId;
     } catch (error) {
-      setErrorText(errorMessage(error, 'Media upload failed.'));
+      notify({ type: 'error', message: errorMessage(error, 'Media upload failed.') });
       return null;
     } finally {
       setBusyAction('');
     }
-  }, [activeAgentId, canWrite]);
+  }, [activeAgentId, canWrite, notify]);
 
   const replyToPost = useCallback((post: Post) => {
     if (!canWrite) return;
@@ -259,7 +257,6 @@ export function useParkFeed() {
     suggestedAgents,
     trends,
     busy,
-    errorText,
     selectedPost,
     replies,
     setActiveTab,
@@ -287,26 +284,23 @@ function parseCommaList(value: string): string[] {
 
 export function useParkFeedPreferences() {
   const runtime = usePluginRuntime();
+  const { notify } = usePluginShell();
   const [preferredTags, setPreferredTags] = useState('');
   const [mutedTags, setMutedTags] = useState('');
   const [mutedAgentIds, setMutedAgentIds] = useState('');
   const [busyAction, setBusyAction] = useState('');
-  const [errorText, setErrorText] = useState('');
-  const [successText, setSuccessText] = useState('');
 
   const sendParkCommand = useCallback(async <T,>(label: string, commandId: string, input?: unknown): Promise<T | null> => {
     setBusyAction(label);
-    setErrorText('');
-    setSuccessText('');
     try {
       return await runtime.sendCommand<T>(PARK_COMMAND(commandId), input);
     } catch (error) {
-      setErrorText(errorMessage(error, `${label} failed.`));
+      notify({ type: 'error', message: errorMessage(error, `${label} failed.`) });
       return null;
     } finally {
       setBusyAction('');
     }
-  }, [runtime]);
+  }, [notify, runtime]);
 
   useEffect(() => {
     void sendParkCommand<ParkFeedPreferencesPayload>('Load feed preferences', 'get_feed_preferences')
@@ -324,17 +318,15 @@ export function useParkFeedPreferences() {
       mutedTags: parseCommaList(mutedTags),
       mutedAgentIds: parseCommaList(mutedAgentIds),
     }).then((payload) => {
-      if (payload) setSuccessText('Feed preferences saved.');
+      if (payload) notify({ type: 'success', message: 'Feed preferences saved.' });
     });
-  }, [mutedAgentIds, mutedTags, preferredTags, sendParkCommand]);
+  }, [mutedAgentIds, mutedTags, notify, preferredTags, sendParkCommand]);
 
   return {
     preferredTags,
     mutedTags,
     mutedAgentIds,
     busy: Boolean(busyAction),
-    errorText,
-    successText,
     setPreferredTags,
     setMutedTags,
     setMutedAgentIds,
@@ -344,26 +336,25 @@ export function useParkFeedPreferences() {
 
 export function useParkNotifications() {
   const runtime = usePluginRuntime();
+  const { notify } = usePluginShell();
   const [payload, setPayload] = useState<ParkNotificationsPayload>({
     unreadCount: 0,
     nextCursor: null,
     notifications: [],
   });
   const [busyAction, setBusyAction] = useState('');
-  const [errorText, setErrorText] = useState('');
 
   const sendParkCommand = useCallback(async <T,>(label: string, commandId: string, input?: unknown): Promise<T | null> => {
     setBusyAction(label);
-    setErrorText('');
     try {
       return await runtime.sendCommand<T>(PARK_COMMAND(commandId), input);
     } catch (error) {
-      setErrorText(errorMessage(error, `${label} failed.`));
+      notify({ type: 'error', message: errorMessage(error, `${label} failed.`) });
       return null;
     } finally {
       setBusyAction('');
     }
-  }, [runtime]);
+  }, [notify, runtime]);
 
   const loadNotifications = useCallback(async () => {
     const next = await sendParkCommand<ParkNotificationsPayload>('Load notifications', 'list_notifications', { limit: 20 });
@@ -393,7 +384,6 @@ export function useParkNotifications() {
   return {
     ...payload,
     busy: Boolean(busyAction),
-    errorText,
     markAllRead,
   };
 }

@@ -8,7 +8,6 @@ function NotificationsContent() {
     notifications,
     unreadCount,
     busy,
-    errorText,
     markAllRead,
   } = useParkNotifications();
 
@@ -27,7 +26,6 @@ function NotificationsContent() {
           </button>
         </div>
       </header>
-      {errorText ? <p className="border-b border-zinc-200 px-4 py-3 text-sm text-red-600">{errorText}</p> : null}
       <div className="flex flex-col pb-20">
         {notifications.map((notification) => (
           <article

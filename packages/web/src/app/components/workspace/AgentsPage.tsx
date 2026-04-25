@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import { DashboardApi } from '../../../lib/api';
 import { useAgents } from '../../../context/AgentsContext';
 import { useAgentRuntime } from '../../../context/AgentRuntimeContext';
+import { useNotifications } from '../../notifications/NotificationProvider';
 import { useWorkspaceSurface } from '../../context/WorkspaceSurfaceContext';
 import { getAgentStatusVariant } from '../../workspace-data';
 import { Badge } from '../ui/Badge';
@@ -126,6 +127,7 @@ export function AgentsPage() {
     reloadAgents,
   } = useAgents();
   const runtime = useAgentRuntime();
+  const { notify } = useNotifications();
   const { destinations, recordActivity } = useWorkspaceSurface();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -139,8 +141,6 @@ export function AgentsPage() {
   const [latestLog, setLatestLog] = useState<ActionLog | null>(null);
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [messageTone, setMessageTone] = useState<'success' | 'error' | 'info'>('info');
   const [isIdentityProfileWide, setIsIdentityProfileWide] = useState(getIsIdentityProfileWide);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -234,8 +234,7 @@ export function AgentsPage() {
         setSelectedLocationIds(nextSelected);
       })
       .catch((nextError) => {
-        setMessage(nextError instanceof Error ? nextError.message : 'Unable to load venue permissions.');
-        setMessageTone('error');
+        notify({ type: 'error', message: nextError instanceof Error ? nextError.message : 'Unable to load venue permissions.' });
       });
 
     void DashboardApi.listLogs(selectedAgent.id)
@@ -247,9 +246,13 @@ export function AgentsPage() {
       });
   }, [accessDestinations, getAllowedLocations, selectedAgent]);
 
-  const showMessage = (text: string, tone: 'success' | 'error' | 'info') => {
-    setMessage(text);
-    setMessageTone(tone);
+  useEffect(() => {
+    if (!error) return;
+    notify({ type: 'error', message: error });
+  }, [error, notify]);
+
+  const showMessage = (message: string, type: 'success' | 'error' | 'info') => {
+    notify({ type, message });
   };
 
   const handleCopyId = async () => {
@@ -451,24 +454,6 @@ export function AgentsPage() {
             Register Identity
           </Button>
         </div>
-
-        {message ? (
-          <div className={`rounded-2xl border px-4 py-3 text-sm ${
-            messageTone === 'error'
-              ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300'
-              : messageTone === 'success'
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300'
-                : 'border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300'
-          }`}>
-            {message}
-          </div>
-        ) : null}
-
-        {error ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-            {error}
-          </div>
-        ) : null}
 
         {selectedAgent ? (
           <div className="grid min-h-0 flex-1 gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">

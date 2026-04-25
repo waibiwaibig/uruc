@@ -8,20 +8,23 @@ import { AgentsProvider } from './context/AgentsContext';
 import { AgentRuntimeProvider } from './context/AgentRuntimeContext';
 import { PluginHostProvider } from './plugins/context';
 import { installPluginRuntimeGlobals } from './plugins/runtime-globals';
+import { NotificationProvider } from './app/notifications/NotificationProvider';
 import './styles/index.css';
 
 installPluginRuntimeGlobals();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider>
-      <AgentsProvider>
-        <AgentRuntimeProvider>
-          <PluginHostProvider>
-            <App />
-          </PluginHostProvider>
-        </AgentRuntimeProvider>
-      </AgentsProvider>
-    </AuthProvider>
+    <NotificationProvider>
+      <AuthProvider>
+        <AgentsProvider>
+          <AgentRuntimeProvider>
+            <PluginHostProvider>
+              <App />
+            </PluginHostProvider>
+          </AgentRuntimeProvider>
+        </AgentsProvider>
+      </AuthProvider>
+    </NotificationProvider>
   </StrictMode>,
 );

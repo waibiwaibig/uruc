@@ -167,8 +167,7 @@
   background: linear-gradient(135deg, rgba(255, 244, 244, 0.85), rgba(255, 245, 239, 0.7));
 }
 
-.social-float-card strong,
-.social-float-card--banner {
+.social-float-card strong {
   font-size: 0.98rem;
 }
 
@@ -180,26 +179,8 @@
   line-height: 1.65;
 }
 
-.social-float-card > div,
-.social-float-card--banner {
+.social-float-card > div {
   flex: 1;
-}
-
-.social-float-card--banner {
-  padding: 14px 16px;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  box-shadow: var(--social-shadow-soft);
-}
-
-.social-float-card--error {
-  color: #7c1530;
-  background: rgba(255, 237, 239, 0.88);
-}
-
-.social-float-card--success {
-  color: #5d3040;
-  background: rgba(255, 249, 245, 0.88);
 }
 
 .social-stage,

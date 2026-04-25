@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatPluginDateTime } from '@uruc/plugin-sdk/frontend';
+import { usePluginShell } from '@uruc/plugin-sdk/frontend-react';
 import { RefreshCw, ShieldBan, Sparkles, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SocialAdminApi } from './api';
@@ -42,6 +43,7 @@ function SelectionCard({
 
 export function SocialModerationPage() {
   const { t } = useTranslation(['socialAdmin', 'social']);
+  const { notify } = usePluginShell();
   const [queue, setQueue] = useState<ModerationQueue>(EMPTY_QUEUE);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
@@ -49,8 +51,12 @@ export function SocialModerationPage() {
   const [restrictionReason, setRestrictionReason] = useState('');
   const [strikeDelta, setStrikeDelta] = useState(1);
   const [busyAction, setBusyAction] = useState('');
-  const [errorText, setErrorText] = useState('');
-  const [successText, setSuccessText] = useState('');
+  const notifyError = (message: string) => {
+    if (message) notify({ type: 'error', message });
+  };
+  const notifySuccess = (message: string) => {
+    if (message) notify({ type: 'success', message });
+  };
 
   const selectedReport = useMemo(
     () => queue.reports.find((report) => report.reportId === selectedReportId) ?? null,
@@ -81,7 +87,7 @@ export function SocialModerationPage() {
 
   const refreshQueue = async (label = t('socialAdmin:page.actions.syncQueue')) => {
     setBusyAction(label);
-    setErrorText('');
+    notifyError('');
     try {
       const next = await SocialAdminApi.moderationQueue();
       setQueue(next);
@@ -92,7 +98,7 @@ export function SocialModerationPage() {
         ? current
         : next.restrictedAccounts[0]?.agentId ?? null);
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : t('socialAdmin:page.feedback.actionFailed', { action: label }));
+      notifyError(error instanceof Error ? error.message : t('socialAdmin:page.feedback.actionFailed', { action: label }));
     } finally {
       setBusyAction('');
     }
@@ -104,14 +110,14 @@ export function SocialModerationPage() {
 
   const runAdminAction = async (label: string, action: () => Promise<void>) => {
     setBusyAction(label);
-    setErrorText('');
-    setSuccessText('');
+    notifyError('');
+    notifySuccess('');
     try {
       await action();
-      setSuccessText(t('socialAdmin:page.feedback.actionDone', { action: label }));
+      notifySuccess(t('socialAdmin:page.feedback.actionDone', { action: label }));
       await refreshQueue(t('socialAdmin:page.actions.refreshState'));
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : t('socialAdmin:page.feedback.actionFailed', { action: label }));
+      notifyError(error instanceof Error ? error.message : t('socialAdmin:page.feedback.actionFailed', { action: label }));
     } finally {
       setBusyAction('');
     }
@@ -185,12 +191,6 @@ export function SocialModerationPage() {
           </button>
         </div>
       </section>
-
-      {(errorText || successText) ? (
-        <div className={`social-banner ${errorText ? 'social-banner--error' : 'social-banner--success'}`}>
-          {errorText || successText}
-        </div>
-      ) : null}
 
       <section className="social-admin-stage">
         <aside className="social-panel social-panel--nav">

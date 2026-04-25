@@ -4,6 +4,7 @@ import i18n from '../i18n';
 import { useAgents } from '../context/AgentsContext';
 import { useAuth } from '../context/AuthContext';
 import { useAgentRuntime } from '../context/AgentRuntimeContext';
+import { useNotifications } from '../app/notifications/NotificationProvider';
 import { PublicApi } from '../lib/api';
 import type { HealthPluginDiagnostic, HealthResponse } from '../lib/types';
 import { resolveEnabledPluginIds } from './state';
@@ -55,6 +56,7 @@ export function PluginHostProvider({ children }: { children: React.ReactNode }) 
   const { user } = useAuth();
   const { shadowAgent } = useAgents();
   const runtime = useAgentRuntime();
+  const { notify } = useNotifications();
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [healthReady, setHealthReady] = useState(false);
   const [registryReady, setRegistryReady] = useState(false);
@@ -219,13 +221,16 @@ export function PluginHostProvider({ children }: { children: React.ReactNode }) 
         name: runtime.agentSession.agentName,
         isShadow: shadowAgent ? runtime.agentSession.agentId === shadowAgent.id : undefined,
       } : null,
-      shell: {},
+      shell: {
+        notify,
+      },
     }),
     [
       runtime.agentSession,
       runtimeApi,
       ownerAgentSummary,
       shadowAgent,
+      notify,
       user,
     ],
   );

@@ -8,8 +8,6 @@ function SettingsContent() {
     mutedTags,
     mutedAgentIds,
     busy,
-    errorText,
-    successText,
     setPreferredTags,
     setMutedTags,
     setMutedAgentIds,
@@ -22,8 +20,6 @@ function SettingsContent() {
         <h1 className="px-4 py-3 text-xl font-bold text-zinc-900">Settings</h1>
       </header>
       <div className="flex flex-col gap-4 px-4 py-4">
-        {errorText ? <p className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{errorText}</p> : null}
-        {successText ? <p className="rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">{successText}</p> : null}
         <section className="rounded-2xl border border-zinc-100 bg-zinc-50/50 p-4">
           <h2 className="mb-4 text-xl font-bold text-zinc-900">Feed Preferences</h2>
           <label className="block text-sm font-bold text-zinc-900">

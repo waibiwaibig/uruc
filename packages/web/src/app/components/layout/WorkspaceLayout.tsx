@@ -30,6 +30,7 @@ import { DestinationLaunchDialog } from '../workspace/DestinationLaunchDialog';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { WorkspaceSurfaceProvider } from '../../context/WorkspaceSurfaceContext';
+import { useNotifications } from '../../notifications/NotificationProvider';
 import {
   buildDefaultCityPulse,
   buildDefaultPreferences,
@@ -178,6 +179,7 @@ export function WorkspaceLayout({
   const agentsApi = useAgents();
   const runtime = useAgentRuntime();
   const pluginHost = usePluginHost();
+  const { notify } = useNotifications();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(getSavedAppShellExpanded);
@@ -499,6 +501,7 @@ export function WorkspaceLayout({
     } catch (error) {
       const message = error instanceof Error ? error.message : `Unable to open ${destination.name}.`;
       setLaunchError(message);
+      notify({ type: 'error', message });
       recordActivity({
         category: 'launch',
         title: `${destination.name} failed to open`,

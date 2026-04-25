@@ -45,7 +45,9 @@ vi.mock('../../../plugins/context', () => ({
       user: null,
       ownerAgent: null,
       connectedAgent: null,
-      shell: {},
+      shell: {
+        notify: vi.fn(),
+      },
     }),
   }),
 }));

@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useAgents } from '../../../context/AgentsContext';
 import { useAgentRuntime } from '../../../context/AgentRuntimeContext';
 import { useWorkspaceSurface } from '../../context/WorkspaceSurfaceContext';
+import { useNotifications } from '../../notifications/NotificationProvider';
 import { DESTINATION_KIND_ORDER, dedupeDestinations, type Destination } from '../../workspace-data';
 import { Input } from '../ui/input';
 
@@ -47,12 +48,11 @@ const CAROUSEL_SLIDES = [
 export function LibraryPage() {
   const [search, setSearch] = useState('');
   const [activeSlide, setActiveSlide] = useState(0);
-  const [localErrorText, setLocalErrorText] = useState('');
+  const { notify } = useNotifications();
   const { shadowAgent } = useAgents();
   const runtime = useAgentRuntime();
   const {
     destinations,
-    launchError,
     requestDestinationLaunch,
     clearLaunchError,
     recordActivity,
@@ -113,14 +113,12 @@ export function LibraryPage() {
 
   const launchDestination = async (destination: Destination) => {
     try {
-      setLocalErrorText('');
       clearLaunchError();
       await requestDestinationLaunch(destination);
     } catch (error) {
       if (error instanceof Error && error.message === 'Launch cancelled') {
         return;
       }
-      setLocalErrorText(error instanceof Error ? error.message : `Unable to open ${destination.name}.`);
     }
   };
 
@@ -128,8 +126,6 @@ export function LibraryPage() {
     if (!destination.locationId || runtime.currentLocation !== destination.locationId) {
       return;
     }
-
-    setLocalErrorText('');
 
     try {
       await runtime.leaveLocation();
@@ -142,14 +138,13 @@ export function LibraryPage() {
         destinationId: destination.id,
       });
     } catch (error) {
-      setLocalErrorText(error instanceof Error ? error.message : `Unable to close ${destination.name}.`);
+      notify({ type: 'error', message: error instanceof Error ? error.message : `Unable to close ${destination.name}.` });
     }
   };
 
   const slideAction = async () => {
     if (CAROUSEL_SLIDES[activeSlide].id === 'brand') {
       try {
-        setLocalErrorText('');
         clearLaunchError();
         await ensureConnected();
         if (!runtime.isController) {
@@ -166,7 +161,7 @@ export function LibraryPage() {
           tone: 'success',
         });
       } catch (error) {
-        setLocalErrorText(error instanceof Error ? error.message : 'Unable to enter the city.');
+        notify({ type: 'error', message: error instanceof Error ? error.message : 'Unable to enter the city.' });
       }
       return;
     }
@@ -259,12 +254,6 @@ export function LibraryPage() {
             </motion.div>
           </AnimatePresence>
         </div>
-
-        {localErrorText || launchError || runtime.error ? (
-          <div className="w-full rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-            {localErrorText || launchError || runtime.error}
-          </div>
-        ) : null}
 
         <div className="z-10 flex w-full flex-col gap-12 pb-16">
           {grouped.map(([kind, items]) => (

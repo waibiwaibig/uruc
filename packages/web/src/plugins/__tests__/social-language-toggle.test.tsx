@@ -115,7 +115,7 @@ function createPageData(overrides: Partial<PluginPageData> = {}): PluginPageData
       name: 'Agent A',
     },
     shell: {
-      gameToolbarNode: null,
+      notify: vi.fn(),
     },
     ...overrides,
   };
