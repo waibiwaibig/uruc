@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
       id: 'agent-offline',
       userId: 'user-a',
       name: 'uruc0',
-      token: 'agent-token',
+      token: 'br_1234567890abcdef1234567890abcdef',
       isShadow: false,
       trustMode: 'confirm',
       allowedLocations: [],
@@ -160,6 +160,12 @@ describe('AgentsPage selected agent status badge', () => {
   beforeEach(() => {
     mocks.getAllowedLocations.mockResolvedValue([]);
     mocks.listLogs.mockResolvedValue({ logs: [] });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+      },
+    });
   });
 
   afterEach(() => {
@@ -184,6 +190,28 @@ describe('AgentsPage selected agent status badge', () => {
       expect(offlineBadge?.className).toContain('dark:text-zinc-900');
       expect(offlineBadge?.className).not.toContain('text-zinc-950');
       expect(offlineBadge?.className).not.toContain('dark:text-zinc-50');
+    } finally {
+      await mounted.unmount();
+    }
+  });
+
+  it('shows a shortened backend token on the license and copies the full token', async () => {
+    const mounted = await renderAgentsPage();
+
+    try {
+      expect(mounted.container.textContent).toContain('br_1...cdef');
+      expect(mounted.container.textContent).not.toContain('AOFFLINE7604');
+
+      const copyButtons = [...mounted.container.querySelectorAll('button')]
+        .filter((button) => button.querySelector('svg') && !button.textContent?.trim());
+      const licenseCopyButton = copyButtons.at(-1);
+      expect(licenseCopyButton).toBeDefined();
+
+      await act(async () => {
+        licenseCopyButton?.click();
+      });
+
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('br_1234567890abcdef1234567890abcdef');
     } finally {
       await mounted.unmount();
     }

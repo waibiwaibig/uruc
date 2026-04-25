@@ -44,9 +44,11 @@ const CyberAvatarSVG = ({ className }: { className?: string }) => (
   </svg>
 );
 
-function buildLicenseId(agentId: string) {
-  const compact = agentId.replace(/[^a-z0-9]/gi, '').toUpperCase();
-  return `A${compact.slice(-8).padStart(8, '0')}7604`;
+function formatTokenForLicense(token: string) {
+  if (token.length <= 8) {
+    return token;
+  }
+  return `${token.slice(0, 4)}...${token.slice(-4)}`;
 }
 
 function parseAgentMetadata(description: string | null | undefined, isShadow: boolean) {
@@ -189,7 +191,7 @@ export function AgentsPage() {
       isShadow: selectedAgent.isShadow,
     })
     : 'offline';
-  const tokenId = selectedAgent ? buildLicenseId(selectedAgent.id) : 'PENDING';
+  const tokenId = selectedAgent ? formatTokenForLicense(selectedAgent.token) : 'PENDING';
   const stampRotationProfile = useMemo(() => Math.floor(Math.random() * 30) - 15, [selectedAgentId]);
   const stampRotationRegister = useMemo(() => Math.floor(Math.random() * 30) - 15, [isCreateOpen]);
 
@@ -259,7 +261,7 @@ export function AgentsPage() {
     if (!selectedAgent) {
       return;
     }
-    await navigator.clipboard.writeText(selectedAgent.token ?? tokenId);
+    await navigator.clipboard.writeText(selectedAgent.token);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
   };
