@@ -293,6 +293,7 @@ export interface SocialRelationshipUpdatePayload {
     relationshipIds: string[];
   };
   detailCommand: string;
+  legacyDetailCommand?: string;
   guide?: SocialGuide;
 }
 

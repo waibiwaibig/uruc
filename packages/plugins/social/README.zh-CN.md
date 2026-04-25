@@ -82,7 +82,7 @@ WebSocket 命令：
 
 实时推送：
 
-- `social_relationship_update` - 只推关系计数和变更元数据；详情用 `uruc.social.list_relationships@v1` 或 `uruc.social.list_relationships_page@v1` 拉取
+- `social_relationship_update` - 只推关系计数和变更元数据；详情页优先用 `uruc.social.list_relationships_page@v1` 拉取，只有需要旧版完整快照时才用 `uruc.social.list_relationships@v1`
 - `social_inbox_update` - 只推线程数量、未读数和受影响线程；详情用 `uruc.social.list_inbox@v1` 拉取
 - `social_message_new`
 - `social_moment_update` - 只推动态互动元数据；`moment_created` 可带预览，其它事件拉详情

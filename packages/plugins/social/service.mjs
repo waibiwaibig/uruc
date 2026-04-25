@@ -583,8 +583,9 @@ export class SocialService {
         return createGuide(
           `Group "${payload.thread?.title ?? 'Untitled Group'}" was created as an invite-only thread.`,
           'You created a new group chat.',
-          `Use ${COMMAND_IDS.sendThreadMessage} to speak in the group, ${COMMAND_IDS.inviteGroupMember} to add more friends, or ${COMMAND_IDS.renameGroup} if the title should change.`,
-          [COMMAND_IDS.sendThreadMessage, COMMAND_IDS.inviteGroupMember, COMMAND_IDS.renameGroup],
+          `Use ${COMMAND_IDS.sendThreadMessage} to speak in the group. This result has no messages or member list; call ${COMMAND_IDS.getThreadHistory} when you need history or membership details.`,
+          [COMMAND_IDS.sendThreadMessage, COMMAND_IDS.getThreadHistory, COMMAND_IDS.inviteGroupMember],
+          { detailCommand: COMMAND_IDS.getThreadHistory },
         );
       case 'rename_group':
         return createGuide(
@@ -597,15 +598,17 @@ export class SocialService {
         return createGuide(
           `Group membership updated. ${context.targetAgentId ?? 'The invited agent'} is now in the group.`,
           'You invited one of your friends into a group that you own.',
-          `Use ${COMMAND_IDS.sendThreadMessage} if you want to greet the new member or ${COMMAND_IDS.getThreadHistory} if you need the refreshed member list and message context again.`,
+          `Use ${COMMAND_IDS.sendThreadMessage} if you want to greet the new member. This result has no member list; call ${COMMAND_IDS.getThreadHistory} when you need refreshed membership or history.`,
           [COMMAND_IDS.sendThreadMessage, COMMAND_IDS.getThreadHistory, COMMAND_IDS.removeGroupMember],
+          { detailCommand: COMMAND_IDS.getThreadHistory },
         );
       case 'remove_group_member':
         return createGuide(
           `Group membership updated. ${context.targetAgentId ?? 'The target agent'} was removed from the group.`,
           'You removed a member from a group that you own.',
-          `Use ${COMMAND_IDS.getThreadHistory} if you need the refreshed member list or ${COMMAND_IDS.sendThreadMessage} if you want to explain the change to the remaining members.`,
+          `This result has no member list; call ${COMMAND_IDS.getThreadHistory} when you need refreshed membership or history, or use ${COMMAND_IDS.sendThreadMessage} to explain the change.`,
           [COMMAND_IDS.getThreadHistory, COMMAND_IDS.sendThreadMessage, COMMAND_IDS.inviteGroupMember],
+          { detailCommand: COMMAND_IDS.getThreadHistory },
         );
       case 'leave_group':
         return createGuide(
@@ -667,6 +670,7 @@ export class SocialService {
           'The social graph changed for this target agent, so the plugin pushed lightweight count metadata.',
           `Call ${COMMAND_IDS.listRelationshipsPage} for a small page or ${COMMAND_IDS.listRelationships} only when you need the legacy complete snapshot.`,
           [COMMAND_IDS.listRelationshipsPage, COMMAND_IDS.listRelationships, COMMAND_IDS.respondRequest],
+          { detailCommand: COMMAND_IDS.listRelationshipsPage },
         );
       case 'social_inbox_update':
         return createGuide(
@@ -1344,8 +1348,12 @@ export class SocialService {
       actorAgentId: actor.agentId,
       threadId,
     });
-    const response = await this.getThreadHistory(actor.agentId, { threadId, limit: DEFAULT_THREAD_LIMIT });
-    return this.withGuide(response, this.buildResponseGuide('create_group', response));
+    return this.buildGroupMutationResponse(actor.agentId, thread, {
+      reason: 'create_group',
+      actorAgentId: actor.agentId,
+      threadId,
+      memberAgentIds: targets.map((target) => target.agentId),
+    }, 'create_group');
   }
 
   async renameGroup(actor, input = {}) {
@@ -1410,8 +1418,12 @@ export class SocialService {
       targetAgentId: target.agentId,
       threadId: thread.threadId,
     });
-    const response = await this.getThreadHistory(actor.agentId, { threadId: thread.threadId, limit: DEFAULT_THREAD_LIMIT });
-    return this.withGuide(response, this.buildResponseGuide('invite_group_member', response, { targetAgentId: target.agentId }));
+    return this.buildGroupMutationResponse(actor.agentId, thread, {
+      reason: 'invite_group_member',
+      actorAgentId: actor.agentId,
+      targetAgentId: target.agentId,
+      threadId: thread.threadId,
+    }, 'invite_group_member', { targetAgentId: target.agentId });
   }
 
   async removeGroupMember(actor, input = {}) {
@@ -1439,8 +1451,12 @@ export class SocialService {
       targetAgentId,
       threadId: thread.threadId,
     });
-    const response = await this.getThreadHistory(actor.agentId, { threadId: thread.threadId, limit: DEFAULT_THREAD_LIMIT });
-    return this.withGuide(response, this.buildResponseGuide('remove_group_member', response, { targetAgentId }));
+    return this.buildGroupMutationResponse(actor.agentId, thread, {
+      reason: 'remove_group_member',
+      actorAgentId: actor.agentId,
+      targetAgentId,
+      threadId: thread.threadId,
+    }, 'remove_group_member', { targetAgentId });
   }
 
   async leaveGroup(actor, input = {}) {
@@ -2368,6 +2384,23 @@ export class SocialService {
     return this.withGuide(response, this.buildResponseGuide(guideKind, response, guideContext));
   }
 
+  async buildGroupMutationResponse(agentId, thread, changed, guideKind, guideContext = {}) {
+    const response = {
+      serverTimestamp: now(),
+      threadId: thread.threadId,
+      thread: await this.toThreadSummary(agentId, thread),
+      changed: {
+        reason: changed.reason ?? 'group_changed',
+        actorAgentId: changed.actorAgentId ?? null,
+        threadId: changed.threadId ?? thread.threadId,
+        ...(changed.targetAgentId ? { targetAgentId: changed.targetAgentId } : {}),
+        ...(Array.isArray(changed.memberAgentIds) ? { memberAgentIds: changed.memberAgentIds } : {}),
+      },
+      detailCommand: COMMAND_IDS.getThreadHistory,
+    };
+    return this.withGuide(response, this.buildResponseGuide(guideKind, response, guideContext));
+  }
+
   async fetchAccessibleThreads(agentId) {
     const [threads, members] = await Promise.all([
       this.listRecords('threads'),
@@ -2943,7 +2976,8 @@ export class SocialService {
           targetAgentId: options.targetAgentId ?? null,
           relationshipIds: Array.isArray(options.relationshipIds) ? options.relationshipIds : [],
         },
-        detailCommand: COMMAND_IDS.listRelationships,
+        detailCommand: COMMAND_IDS.listRelationshipsPage,
+        legacyDetailCommand: COMMAND_IDS.listRelationships,
       };
       payload.guide = this.buildPushGuide('social_relationship_update', {
         friendCount: counts.friends,

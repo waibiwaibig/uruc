@@ -143,6 +143,40 @@ function expectLightweightRelationshipMutation(
   expect(result).not.toHaveProperty('blocks');
 }
 
+function expectLightweightGroupMutation(
+  result: Record<string, unknown>,
+  expected: {
+    reason: string;
+    actorAgentId: string;
+    threadId?: string;
+    targetAgentId?: string;
+    memberAgentIds?: string[];
+  },
+) {
+  expect(result).toMatchObject({
+    serverTimestamp: expect.any(Number),
+    threadId: expected.threadId ?? expect.any(String),
+    thread: expect.objectContaining({
+      threadId: expected.threadId ?? expect.any(String),
+      kind: 'group',
+    }),
+    changed: {
+      reason: expected.reason,
+      actorAgentId: expected.actorAgentId,
+      threadId: expected.threadId ?? expect.any(String),
+      ...(expected.targetAgentId ? { targetAgentId: expected.targetAgentId } : {}),
+      ...(expected.memberAgentIds ? { memberAgentIds: expected.memberAgentIds } : {}),
+    },
+    detailCommand: 'uruc.social.get_thread_history@v1',
+    guide: expect.objectContaining({
+      summary: expect.any(String),
+    }),
+  });
+  expect(result).not.toHaveProperty('messages');
+  expect(result).not.toHaveProperty('members');
+  expect(result).not.toHaveProperty('nextCursor');
+}
+
 describe('SocialService', () => {
   let tempDir = '';
   let service: SocialService;
@@ -373,7 +407,8 @@ describe('SocialService', () => {
         targetAgentId: 'agent-c',
         relationshipIds: [expect.any(String)],
       },
-      detailCommand: 'uruc.social.list_relationships@v1',
+      detailCommand: 'uruc.social.list_relationships_page@v1',
+      legacyDetailCommand: 'uruc.social.list_relationships@v1',
     });
     expect(update?.payload).not.toHaveProperty('friends');
     expect(update?.payload).not.toHaveProperty('incomingRequests');
@@ -520,20 +555,40 @@ describe('SocialService', () => {
       title: 'Silk Cabinet',
       memberAgentIds: ['agent-b', 'agent-c'],
     });
+    expectLightweightGroupMutation(created, {
+      reason: 'create_group',
+      actorAgentId: 'agent-a',
+      memberAgentIds: ['agent-b', 'agent-c'],
+    });
     expect(created.thread.kind).toBe('group');
-    expect(created.members.filter((member: SocialThreadMemberSummary) => member.leftAt === null)).toHaveLength(3);
+    const createdHistory = await service.getThreadHistory('agent-a', { threadId: created.thread.threadId });
+    expect(createdHistory.members.filter((member: SocialThreadMemberSummary) => member.leftAt === null)).toHaveLength(3);
 
     const invited = await service.inviteGroupMember(actors['agent-a'], {
       threadId: created.thread.threadId,
       agentId: 'agent-d',
     });
-    expect(invited.members.filter((member: SocialThreadMemberSummary) => member.leftAt === null)).toHaveLength(4);
+    expectLightweightGroupMutation(invited, {
+      reason: 'invite_group_member',
+      actorAgentId: 'agent-a',
+      threadId: created.thread.threadId,
+      targetAgentId: 'agent-d',
+    });
+    const invitedHistory = await service.getThreadHistory('agent-a', { threadId: created.thread.threadId });
+    expect(invitedHistory.members.filter((member: SocialThreadMemberSummary) => member.leftAt === null)).toHaveLength(4);
 
     const removed = await service.removeGroupMember(actors['agent-a'], {
       threadId: created.thread.threadId,
       agentId: 'agent-c',
     });
-    expect(removed.members.find((member: SocialThreadMemberSummary) => member.agentId === 'agent-c')?.leftAt).not.toBeNull();
+    expectLightweightGroupMutation(removed, {
+      reason: 'remove_group_member',
+      actorAgentId: 'agent-a',
+      threadId: created.thread.threadId,
+      targetAgentId: 'agent-c',
+    });
+    const removedHistory = await service.getThreadHistory('agent-a', { threadId: created.thread.threadId });
+    expect(removedHistory.members.find((member: SocialThreadMemberSummary) => member.agentId === 'agent-c')?.leftAt).not.toBeNull();
 
     await expect(
       service.renameGroup(actors['agent-b'], {
