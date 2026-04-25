@@ -105,6 +105,14 @@ function getIdentityLicensePaneStyle(isWide: boolean): CSSProperties {
   };
 }
 
+function selectedAgentStatusBadgeClassName(isSelected: boolean, status: ReturnType<typeof statusForAgent>) {
+  if (!isSelected || status !== 'offline') {
+    return 'capitalize';
+  }
+
+  return 'border-white/60 bg-white/10 text-white dark:border-zinc-900/30 dark:bg-zinc-900/10 dark:text-zinc-900 capitalize';
+}
+
 export function AgentsPage() {
   const {
     loading,
@@ -479,13 +487,14 @@ export function AgentsPage() {
                         isShadow: agent.isShadow,
                       });
                       const metadata = parseAgentMetadata(agent.description, agent.isShadow);
+                      const isAgentSelected = selectedAgent.id === agent.id;
                       return (
                         <button
                           key={agent.id}
                           type="button"
                           onClick={() => setSelectedAgentId(agent.id)}
                           className={`flex w-full flex-col items-start gap-2 rounded-2xl border p-4 text-left transition-colors ${
-                            selectedAgent.id === agent.id
+                            isAgentSelected
                               ? 'border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900'
                               : 'border-zinc-200 bg-zinc-50/70 hover:border-zinc-300 hover:bg-white dark:border-zinc-800 dark:bg-zinc-900/50 dark:hover:border-zinc-700 dark:hover:bg-zinc-950'
                           }`}
@@ -493,11 +502,14 @@ export function AgentsPage() {
                           <div className="flex w-full items-center justify-between gap-3">
                             <div>
                               <div className="font-medium">{agent.name}</div>
-                              <div className={`mt-1 text-xs ${selectedAgent.id === agent.id ? 'text-zinc-300 dark:text-zinc-600' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                              <div className={`mt-1 text-xs ${isAgentSelected ? 'text-zinc-300 dark:text-zinc-600' : 'text-zinc-500 dark:text-zinc-400'}`}>
                                 {metadata.role}
                               </div>
                             </div>
-                            <Badge variant={getAgentStatusVariant(agentStatus)} className="capitalize">
+                            <Badge
+                              variant={getAgentStatusVariant(agentStatus)}
+                              className={selectedAgentStatusBadgeClassName(isAgentSelected, agentStatus)}
+                            >
                               {agentStatus}
                             </Badge>
                           </div>
