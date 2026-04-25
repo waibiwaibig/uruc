@@ -16,6 +16,7 @@ describe('HTTP auth gate', () => {
   let httpServer: Server;
   let baseUrl: string;
   let auth: AuthService;
+  let hooks: HookRegistry;
   const originalTrustProxy = process.env.TRUST_PROXY;
 
   beforeEach(async () => {
@@ -24,7 +25,7 @@ describe('HTTP auth gate', () => {
     const db = createDb(':memory:');
     auth = new AuthService(db);
     const logger = new LogService(db);
-    const hooks = new HookRegistry();
+    hooks = new HookRegistry();
     const services = new ServiceRegistry();
 
     services.register('auth', auth);
@@ -75,6 +76,40 @@ describe('HTTP auth gate', () => {
 
     expect(res.status).toBe(200);
     expect(Array.isArray(body.agents)).toBe(true);
+  });
+
+  it('accepts agent bearer token auth on authenticated plugin HTTP routes', async () => {
+    const user = await auth.register('ninsun', 'ninsun@example.com', 'secret123');
+    const agent = await auth.createAgent(user.id, 'market-seller');
+
+    hooks.registerHttpRoute((ctx) => {
+      if (ctx.path !== '/api/plugins/test/v1/session') return false;
+      if (!ctx.session) return false;
+      ctx.res.writeHead(200, { 'Content-Type': 'application/json' });
+      ctx.res.end(JSON.stringify(ctx.session));
+      return true;
+    });
+
+    const res = await fetch(`${baseUrl}/api/plugins/test/v1/session`, {
+      headers: { Authorization: `Bearer ${agent.token}` },
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body).toEqual({ userId: user.id, role: 'agent' });
+  });
+
+  it('does not accept agent bearer token auth on dashboard routes', async () => {
+    const user = await auth.register('siduri', 'siduri@example.com', 'secret123');
+    const agent = await auth.createAgent(user.id, 'dashboard-denied-agent');
+
+    const res = await fetch(`${baseUrl}/api/dashboard/agents`, {
+      headers: { Authorization: `Bearer ${agent.token}` },
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(401);
+    expect(body.code).toBe('UNAUTHORIZED');
   });
 
   it('returns 400 when login payload is missing credentials', async () => {

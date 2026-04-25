@@ -20,7 +20,7 @@ import { timingSafeEqual } from 'crypto';
 import { readFile } from 'fs/promises';
 import { join, extname, resolve } from 'path';
 
-import { sendJson, sendError, getAuthUser } from './middleware.js';
+import { sendJson, sendError, getAuthUser, getBearerToken } from './middleware.js';
 import { codeForStatus, isAppError, sendHttpError } from './errors.js';
 import { getClientIp, isOperationalError, setSecurityHeaders, setCorsHeaders } from './security.js';
 import { getPublicDir, getUploadsDir } from '../../runtime-paths.js';
@@ -258,13 +258,28 @@ async function handleRequest(
 
   // === Auth gate — everything below requires login ===
   const user = getAuthUser(req);
-  if (!user) return sendError(res, 401, { error: 'Please log in first.', code: 'UNAUTHORIZED', action: 'login' }, req);
-
+  let httpSession: { userId: string; role: string } | null = null;
   let persistedUser: Awaited<ReturnType<AuthService['getUserById']>>;
-  try {
-    persistedUser = await auth.getUserById(user.userId);
-  } catch {
-    return sendError(res, 401, { error: 'Your session has expired. Please log in again.', code: 'UNAUTHORIZED', action: 'login' }, req);
+
+  if (user) {
+    try {
+      persistedUser = await auth.getUserById(user.userId);
+      httpSession = { userId: persistedUser.id, role: user.role };
+    } catch {
+      return sendError(res, 401, { error: 'Your session has expired. Please log in again.', code: 'UNAUTHORIZED', action: 'login' }, req);
+    }
+  } else {
+    const bearerToken = getBearerToken(req);
+    if (!bearerToken || !path.startsWith('/api/plugins/')) {
+      return sendError(res, 401, { error: 'Please log in first.', code: 'UNAUTHORIZED', action: 'login' }, req);
+    }
+    try {
+      const agentSession = await auth.authenticateAgent(bearerToken);
+      persistedUser = await auth.getUserById(agentSession.userId);
+      httpSession = { userId: agentSession.userId, role: agentSession.role };
+    } catch {
+      return sendError(res, 401, { error: 'Invalid or expired credentials.', code: 'UNAUTHORIZED', action: 'auth' }, req);
+    }
   }
 
   if (persistedUser.banned) {
@@ -278,8 +293,8 @@ async function handleRequest(
   // === Try authenticated routes (after auth gate) ===
   {
     const httpCtx = createHttpCtx(req, res, path, method, services, {
-      userId: persistedUser.id,
-      role: persistedUser.role,
+      userId: httpSession.userId,
+      role: httpSession.role,
     });
     const handled = await hooks.handleHttpRequest(httpCtx);
     if (handled) return;

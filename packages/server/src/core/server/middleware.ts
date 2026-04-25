@@ -137,3 +137,9 @@ export function getAuthUser(req: IncomingMessage): { userId: string; role: strin
   }
   return getCookieAuthUser(req);
 }
+
+export function getBearerToken(req: IncomingMessage): string | null {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith('Bearer ')) return null;
+  return auth.slice(7);
+}
