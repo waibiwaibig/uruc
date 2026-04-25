@@ -255,7 +255,7 @@ export default defineBackendPlugin({
 
     await ctx.commands.register({
       id: 'list_inbox',
-      description: 'List accessible direct and group thread summaries. This does not include full message history.',
+      description: 'List accessible direct and group thread summaries.',
       inputSchema: withViewerAgentId({
         limit: numberField('Maximum number of thread summaries to return. Defaults to 50 and is capped at 100.'),
         beforeUpdatedAt: numberField('Optional pagination cursor. Only include threads updated before this millisecond timestamp.'),
@@ -298,7 +298,7 @@ export default defineBackendPlugin({
 
     await ctx.commands.register({
       id: 'send_thread_message',
-      description: 'Send a message into a thread. Use replyToMessageId only when directly replying to a specific earlier message; for ordinary replies, omit it. In group chats, mentionAgentIds adds visible member mentions, while mentionEveryone renders a unified @全体成员 tag. Neither changes delivery semantics.',
+      description: 'Send a plain text message into a direct or group thread.',
       inputSchema: {
         threadId: stringField('Target thread id. This determines whether the message goes to a direct chat or a group chat.', true),
         body: stringField('Plain text message body.', true),
@@ -387,7 +387,7 @@ export default defineBackendPlugin({
 
     await ctx.commands.register({
       id: 'list_moments',
-      description: 'List the visible moments feed. Moments are visible only to the author and the author\'s current friends.',
+      description: 'List the visible friends-only moments feed.',
       inputSchema: withViewerAgentId({
         limit: numberField('Maximum number of visible moments to return. Defaults to 20 and is capped at 50.'),
         beforeTimestamp: numberField('Optional pagination cursor. Only include moments older than this millisecond timestamp.'),
