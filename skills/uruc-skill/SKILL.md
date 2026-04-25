@@ -52,7 +52,7 @@ The OpenClaw profile must provide:
 - `URUC_AGENT_AUTH`
 - `URUC_AGENT_CONTROL_DIR`
 
-OpenClaw Gateway bridge pairing must also be completed; the URUC connection can run without it, but URUC-originated pushes will not reach the OpenClaw agent session reliably until the bridge can call `chat.send`.
+OpenClaw Gateway bridge pairing is part of the same setup. When asking for or confirming these env vars, ask the user once whether to complete bridge pairing too. If the user agrees, set the URUC env vars plus the active profile's `OPENCLAW_CONFIG_PATH`, `OPENCLAW_STATE_DIR`, and `OPENCLAW_GATEWAY_PORT` in the same shell and complete the Bridge Pairing Bootstrap immediately. Setup is not complete until URUC pushes can reach the OpenClaw agent session.
 
 Facts that matter:
 
@@ -126,40 +126,19 @@ The daemon keeps a long-lived URUC WebSocket connection and forwards unsolicited
 
 When multiple pushes arrive together, the body may be a JSON array. Responses to your own requests do not trigger the bridge; unsolicited pushes do.
 
-For bridge health:
-
-```bash
-node scripts/uruc-agent.mjs bridge status --json
-node scripts/uruc-agent.mjs bridge test --json
-node scripts/uruc-agent.mjs logs --json
-```
-
 ### Bridge Pairing Bootstrap
 
-When setting up a new OpenClaw profile, installing this skill into a profile, or diagnosing `pairing required`, actively verify the bridge once:
+Run this during setup after the user has agreed to bridge pairing. Do not split this into multiple user handoffs.
 
 ```bash
 node scripts/uruc-agent.mjs bridge status --json
 node scripts/uruc-agent.mjs bridge test --json
-```
-
-If the bridge still reports `lastWakeError: pairing required` or `pendingWakeCount > 0`, check the active OpenClaw Gateway profile. For non-default profiles, set or verify:
-
-```bash
-OPENCLAW_CONFIG_PATH=/path/to/openclaw.json
-OPENCLAW_STATE_DIR=/path/to/openclaw-state
-OPENCLAW_GATEWAY_PORT=<gateway-port>
-```
-
-Then inspect pending device requests:
-
-```bash
 openclaw devices list --json
 ```
 
-Before approval, tell the user the request id, device id, client id, client mode, role, and requested scopes. Only ask the user to approve a request that matches the active profile's `identity/device.json` and is for `clientId: gateway-client`, `clientMode: backend`, `role: operator`, with `operator.write` included. If extra scopes such as `operator.admin`, `operator.pairing`, or secret access appear, call them out explicitly.
+Approve only the pending request for the active profile device with `clientId: gateway-client`, `clientMode: backend`, `role: operator`, and `operator.write`. Before approval, show the user the request id and requested scopes; if extra scopes such as `operator.admin`, `operator.pairing`, or secret access appear, include them in that same consent question. Never silently approve and never use `--latest` unless the user explicitly requested it after seeing the request details.
 
-Never silently approve a device request, and never use `openclaw devices approve --latest` unless the user explicitly instructs that exact shortcut after seeing the request details. After explicit user approval, run:
+After the one user approval, finish the work yourself:
 
 ```bash
 openclaw devices approve <requestId>
@@ -167,7 +146,7 @@ node scripts/uruc-agent.mjs bridge test --json
 node scripts/uruc-agent.mjs bridge status --json
 ```
 
-The repair is complete only when `lastWakeError` is empty and `pendingWakeCount` is `0`.
+The setup is complete only when `lastWakeError` is empty and `pendingWakeCount` is `0`.
 
 If bridge status reports `lastWakeError: pairing required`, treat it as an OpenClaw Gateway auth or trust problem for the active profile. Check the profile config, local device identity, and stored `identity/device-auth.json`; do not invent a URUC-side fix.
 

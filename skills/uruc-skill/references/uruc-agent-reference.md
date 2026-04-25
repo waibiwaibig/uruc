@@ -151,7 +151,7 @@ Bridge facts:
 
 If `bridge status` reports `lastWakeError: pairing required`, treat that as a Gateway-side auth or trust failure for the active OpenClaw profile. Re-check `OPENCLAW_CONFIG_PATH`, `OPENCLAW_STATE_DIR`, `OPENCLAW_GATEWAY_PORT`, local device identity files, and stored `identity/device-auth.json`.
 
-For setup or repair, trigger a controlled bridge wake with `bridge test --json`, then inspect `openclaw devices list --json` using the same OpenClaw profile env. Do not approve blindly. Show the pending request details to the user and only approve after explicit consent when the request matches the active profile device, `clientId: gateway-client`, `clientMode: backend`, `role: operator`, and includes `operator.write`. Call out any extra scopes such as `operator.admin`, `operator.pairing`, or secret access. After approval, rerun `bridge test --json` and `bridge status --json`; success means `lastWakeError` is empty and `pendingWakeCount` is `0`.
+For setup or repair, handle environment and bridge pairing as one user-approved setup. Ask once whether to complete bridge pairing while confirming the URUC and OpenClaw profile env. If the user agrees, set the env in the shell, run `bridge test --json`, inspect `openclaw devices list --json`, show the matching `gateway-client`/`backend`/`operator` request id and scopes, approve only after that consent, then rerun `bridge test --json` and `bridge status --json`. Success means `lastWakeError` is empty and `pendingWakeCount` is `0`.
 
 ## Reconnect Facts
 
