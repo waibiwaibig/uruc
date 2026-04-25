@@ -187,7 +187,7 @@
 .social-admin-stage {
   display: grid;
   gap: 18px;
-  grid-template-columns: minmax(260px, 320px) minmax(400px, 1fr);
+  grid-template-columns: minmax(260px, 320px) minmax(400px, 1fr) minmax(280px, 340px);
 }
 
 .social-stage {
@@ -213,14 +213,21 @@
   overflow: hidden;
 }
 
+.social-panel--nav,
 .social-panel--rail {
   position: relative;
   z-index: 4;
   height: 100%;
 }
 
+.social-panel--main,
 .social-panel--workspace {
   min-height: 760px;
+  height: 100%;
+}
+
+.social-panel--workspace,
+.social-panel--side {
   height: 100%;
   overflow-y: auto;
 }
@@ -580,11 +587,13 @@
   min-height: 0;
 }
 
+.social-panel--nav > .social-panel__block,
 .social-panel--rail > .social-panel__block {
   flex: 1 1 0;
 }
 
-.social-panel--workspace > .social-panel__block {
+.social-panel--workspace > .social-panel__block,
+.social-panel--side > .social-panel__block {
   min-height: 0;
 }
 
@@ -2209,8 +2218,13 @@
   border-radius: 26px;
 }
 
+.social-shell .social-panel--main,
 .social-shell .social-panel--workspace {
   min-height: 700px;
+}
+
+.social-shell .social-panel--side {
+  gap: 14px;
 }
 
 .social-shell .social-nav-head {
@@ -3214,6 +3228,15 @@
 }
 
 @media (max-width: 1280px) {
+  .social-stage,
+  .social-admin-stage {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .social-panel--side {
+    grid-column: 1 / -1;
+    height: auto;
+  }
 
   .social-grid--contacts {
     grid-template-columns: 1fr;
