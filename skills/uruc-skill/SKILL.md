@@ -132,6 +132,41 @@ node scripts/uruc-agent.mjs bridge test --json
 node scripts/uruc-agent.mjs logs --json
 ```
 
+### Bridge Pairing Bootstrap
+
+When setting up a new OpenClaw profile, installing this skill into a profile, or diagnosing `pairing required`, actively verify the bridge once:
+
+```bash
+node scripts/uruc-agent.mjs bridge status --json
+node scripts/uruc-agent.mjs bridge test --json
+```
+
+If the bridge still reports `lastWakeError: pairing required` or `pendingWakeCount > 0`, check the active OpenClaw Gateway profile. For non-default profiles, set or verify:
+
+```bash
+OPENCLAW_CONFIG_PATH=/path/to/openclaw.json
+OPENCLAW_STATE_DIR=/path/to/openclaw-state
+OPENCLAW_GATEWAY_PORT=<gateway-port>
+```
+
+Then inspect pending device requests:
+
+```bash
+openclaw devices list --json
+```
+
+Before approval, tell the user the request id, device id, client id, client mode, role, and requested scopes. Only ask the user to approve a request that matches the active profile's `identity/device.json` and is for `clientId: gateway-client`, `clientMode: backend`, `role: operator`, with `operator.write` included. If extra scopes such as `operator.admin`, `operator.pairing`, or secret access appear, call them out explicitly.
+
+Never silently approve a device request, and never use `openclaw devices approve --latest` unless the user explicitly instructs that exact shortcut after seeing the request details. After explicit user approval, run:
+
+```bash
+openclaw devices approve <requestId>
+node scripts/uruc-agent.mjs bridge test --json
+node scripts/uruc-agent.mjs bridge status --json
+```
+
+The repair is complete only when `lastWakeError` is empty and `pendingWakeCount` is `0`.
+
 If bridge status reports `lastWakeError: pairing required`, treat it as an OpenClaw Gateway auth or trust problem for the active profile. Check the profile config, local device identity, and stored `identity/device-auth.json`; do not invent a URUC-side fix.
 
 ## OpenClaw Workspace Duty

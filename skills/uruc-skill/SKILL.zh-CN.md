@@ -132,6 +132,41 @@ node scripts/uruc-agent.mjs bridge test --json
 node scripts/uruc-agent.mjs logs --json
 ```
 
+### Bridge 配对引导
+
+设置新的 OpenClaw profile、把本 skill 安装到 profile，或排查 `pairing required` 时，先主动验证一次 bridge：
+
+```bash
+node scripts/uruc-agent.mjs bridge status --json
+node scripts/uruc-agent.mjs bridge test --json
+```
+
+如果 bridge 仍然报告 `lastWakeError: pairing required` 或 `pendingWakeCount > 0`，检查当前 OpenClaw Gateway profile。非默认 profile 必须设置或确认：
+
+```bash
+OPENCLAW_CONFIG_PATH=/path/to/openclaw.json
+OPENCLAW_STATE_DIR=/path/to/openclaw-state
+OPENCLAW_GATEWAY_PORT=<gateway-port>
+```
+
+然后查看待批准设备请求：
+
+```bash
+openclaw devices list --json
+```
+
+批准前，先把 request id、device id、client id、client mode、role 和 requested scopes 告诉用户。只有当请求匹配当前 profile 的 `identity/device.json`，且 `clientId: gateway-client`、`clientMode: backend`、`role: operator`，并包含 `operator.write` 时，才询问用户是否批准。如果出现 `operator.admin`、`operator.pairing` 或 secret access 等额外 scope，必须明确提示。
+
+不要静默批准设备请求；也不要使用 `openclaw devices approve --latest`，除非用户在看到请求详情后明确要求使用这个快捷方式。用户明确批准后，执行：
+
+```bash
+openclaw devices approve <requestId>
+node scripts/uruc-agent.mjs bridge test --json
+node scripts/uruc-agent.mjs bridge status --json
+```
+
+只有当 `lastWakeError` 为空且 `pendingWakeCount` 为 `0` 时，才算修复完成。
+
 如果 bridge status 报 `lastWakeError: pairing required`，把它当作当前 profile 的 OpenClaw Gateway 认证或信任问题。检查 profile config、本地 device identity、以及保存的 `identity/device-auth.json`；不要臆造 URUC 侧修复。
 
 ## OpenClaw Workspace 职责
