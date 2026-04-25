@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 import { buildBootstrapConfig } from '../../../../skills/uruc-skill/scripts/lib/common.mjs';
 import { ensureBootstrap, main, resolveBootstrapInput } from '../../../../skills/uruc-skill/scripts/uruc-agent.mjs';
@@ -148,6 +151,7 @@ test('help lists current protocol query commands and omits removed legacy querie
   assert.match(output, /what_state_am_i/);
   assert.match(output, /where_can_i_go/);
   assert.match(output, /what_can_i_do/);
+  assert.match(output, /plugin_http upload/);
   assert.doesNotMatch(output, /\n\s+session\s+/);
   assert.doesNotMatch(output, /\n\s+commands\s+/);
 });
@@ -324,6 +328,87 @@ test('what_can_i_do forwards detail scopes using current protocol payloads', asy
 test('removed legacy session and commands entrypoints now error immediately', async () => {
   await assert.rejects(() => main(['session'], { env: {} }), /未知命令: session/);
   await assert.rejects(() => main(['commands'], { env: {} }), /未知命令: commands/);
+});
+
+test('plugin_http upload posts multipart files to generic plugin routes', async () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), 'uruc-agent-plugin-upload-'));
+  const imagePath = path.join(tempDir, 'shirt.png');
+  writeFileSync(imagePath, Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+
+  const state = {
+    connectionStatus: 'connected',
+    authenticated: true,
+    wsUrl: 'ws://127.0.0.1:3001',
+    baseUrl: 'http://127.0.0.1:3000',
+  };
+  const calls = [];
+
+  try {
+    const output = await captureStdout(async () => {
+      await main([
+        'plugin_http',
+        'upload',
+        '--plugin-id',
+        'uruc.fleamarket',
+        '--path',
+        '/assets/listings',
+        '--file',
+        imagePath,
+        '--agent-id',
+        'agent-seller',
+        '--query',
+        '{"purpose":"listing"}',
+        '--json',
+      ], {
+        env: {
+          URUC_AGENT_BASE_URL: state.baseUrl,
+          URUC_AGENT_AUTH: 'agent-token',
+        },
+        readConfig: () => buildBootstrapConfig({
+          baseUrl: state.baseUrl,
+          wsUrl: state.wsUrl,
+          auth: 'agent-token',
+        }),
+        isDaemonRunning: async () => true,
+        startDaemon: async () => {
+          throw new Error('daemon should not start');
+        },
+        callDaemon: async (action) => {
+          calls.push({ action });
+          if (action === 'status') return state;
+          throw new Error(`unexpected action: ${action}`);
+        },
+        fetch: async (url, options) => {
+          calls.push({ action: 'fetch', url, options });
+          return {
+            ok: true,
+            status: 200,
+            headers: { get: () => 'application/json' },
+            json: async () => ({ ok: true, asset: { assetId: 'asset-uploaded' } }),
+            text: async () => '',
+          };
+        },
+      });
+    });
+
+    const fetchCall = calls.find((call) => call.action === 'fetch');
+    assert.equal(fetchCall.url, 'http://127.0.0.1:3000/api/plugins/uruc.fleamarket/v1/assets/listings?purpose=listing&agentId=agent-seller');
+    assert.equal(fetchCall.options.method, 'POST');
+    assert.equal(fetchCall.options.headers.Authorization, 'Bearer agent-token');
+    assert.match(fetchCall.options.headers['Content-Type'], /^multipart\/form-data; boundary=/);
+    assert.match(fetchCall.options.body.toString('latin1'), /name="file"; filename="shirt\.png"/);
+    assert.match(fetchCall.options.body.toString('latin1'), /Content-Type: image\/png/);
+    assert.deepEqual(JSON.parse(output), {
+      ok: true,
+      pluginId: 'uruc.fleamarket',
+      path: '/assets/listings',
+      asset: { assetId: 'asset-uploaded' },
+      assetId: 'asset-uploaded',
+      result: { ok: true, asset: { assetId: 'asset-uploaded' } },
+    });
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 async function captureStdout(run) {

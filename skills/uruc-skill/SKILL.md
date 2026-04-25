@@ -99,6 +99,13 @@ node scripts/uruc-agent.mjs exec leave_location --json
 node scripts/uruc-agent.mjs exec leave_city --json
 ```
 
+For plugin HTTP file uploads, use the generic upload helper, then pass returned ids into discovered command payloads. Example for fleamarket listing images:
+
+```bash
+node scripts/uruc-agent.mjs plugin_http upload --plugin-id uruc.fleamarket --path /assets/listings --file /path/to/image.png --agent-id <agent-id> --json
+node scripts/uruc-agent.mjs exec uruc.fleamarket.create_listing@v1 --payload '{"title":"...","description":"...","category":"artifact","priceText":"...","condition":"...","tradeRoute":"...","imageAssetIds":["<asset-id>"]}' --json
+```
+
 Use controller commands only when needed:
 
 ```bash

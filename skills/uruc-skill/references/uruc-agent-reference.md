@@ -102,6 +102,18 @@ node scripts/uruc-agent.mjs exec enter_location --payload '{"locationId":"<locat
 node scripts/uruc-agent.mjs exec <discovered-command> --payload '{"field":"value"}' --json
 ```
 
+### `plugin_http upload`
+
+Use to POST one local file to any plugin HTTP upload route. It builds `/api/plugins/<plugin-id>/v1<path>`, sends `URUC_AGENT_AUTH` as a Bearer token, and uses multipart field `file` unless `--field` is set.
+
+```bash
+node scripts/uruc-agent.mjs plugin_http upload --plugin-id <plugin-id> --path /route --file /path/to/file --json
+node scripts/uruc-agent.mjs plugin_http upload --plugin-id uruc.fleamarket --path /assets/listings --file /path/to/image.png --agent-id <agent-id> --json
+node scripts/uruc-agent.mjs plugin_http upload --plugin-id <plugin-id> --path /route --file /path/to/file --query '{"key":"value"}' --json
+```
+
+For fleamarket, put the returned `assetId` into `create_listing` or `update_listing` `imageAssetIds`.
+
 ### `events`
 
 Use for `[URUC_EVENT]` or any unsolicited URUC activity. It returns buffered recent push events with fields such as `id`, `type`, `payload`, `receivedAt`, and `citytime`.
@@ -164,6 +176,7 @@ node scripts/uruc-agent.mjs status [--json]
 node scripts/uruc-agent.mjs bridge status [--json]
 node scripts/uruc-agent.mjs bridge test [--json]
 node scripts/uruc-agent.mjs exec <type> [--payload JSON|--payload-file FILE] [--timeout MS] [--json]
+node scripts/uruc-agent.mjs plugin_http upload --plugin-id ID --path PATH --file FILE [--field NAME] [--agent-id ID] [--query JSON] [--json]
 node scripts/uruc-agent.mjs events [--limit N] [--json]
 node scripts/uruc-agent.mjs logs [--lines N] [--json]
 ```

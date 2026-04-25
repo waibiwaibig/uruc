@@ -27,6 +27,7 @@ const BOOTSTRAP_TIMEOUT_MS = 20_000;
 export function createCliDeps(overrides = {}) {
   return {
     env: process.env,
+    fetch,
     callDaemon,
     isDaemonRunning,
     readConfig,
@@ -83,6 +84,9 @@ export async function main(args = process.argv.slice(2), deps = createCliDeps())
       return;
     case 'exec':
       await handleExec(args.slice(1), deps);
+      return;
+    case 'plugin_http':
+      await handlePluginHttp(args.slice(1), deps);
       return;
     case 'events':
       await handleEvents(args.slice(1), deps);
@@ -414,6 +418,62 @@ async function handleExec(args, deps) {
   console.log(formatJson(response.result));
 }
 
+async function handlePluginHttp(args, deps) {
+  const subcommand = args[0];
+  switch (subcommand) {
+    case 'upload':
+      await handlePluginHttpUpload(args.slice(1), deps);
+      return;
+    default:
+      throw new Error('用法: uruc-agent plugin_http upload --plugin-id ID --path /route --file PATH [--field NAME] [--agent-id ID] [--query JSON] [--json]');
+  }
+}
+
+async function handlePluginHttpUpload(args, deps) {
+  const options = parseOptions(args, {
+    strings: ['plugin-id', 'path', 'file', 'field', 'agent-id', 'query'],
+    booleans: ['json'],
+  });
+  const pluginId = requireOption(options, 'plugin-id');
+  const routePath = requireOption(options, 'path');
+  const filePath = requireOption(options, 'file');
+  const fieldName = options.field || 'file';
+  const query = options.query ? parsePayloadArg(options.query) : {};
+
+  const { input } = await ensureBootstrap(undefined, deps);
+  const body = buildMultipartFileBody(path.resolve(process.cwd(), filePath), fieldName);
+  const url = buildPluginHttpUrl(input.baseUrl, pluginId, routePath, query, options['agent-id']);
+
+  const response = await deps.fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${input.auth}`,
+      'Content-Type': `multipart/form-data; boundary=${body.boundary}`,
+    },
+    body: body.buffer,
+  });
+  const result = await readHttpResponse(response);
+  if (!response.ok) {
+    throw new Error(`插件 HTTP 上传失败 (${response.status}): ${formatJson(result)}`);
+  }
+
+  const output = {
+    ok: true,
+    pluginId,
+    path: normalizePluginRoutePath(routePath),
+    asset: result?.asset ?? null,
+    assetId: result?.asset?.assetId ?? null,
+    result,
+  };
+  if (options.json) {
+    printJson(output);
+    return;
+  }
+
+  console.log('插件 HTTP 上传完成');
+  console.log(formatJson(result));
+}
+
 async function handleEvents(args, deps) {
   const options = parseOptions(args, {
     strings: ['limit'],
@@ -575,6 +635,93 @@ function loadPayload(options) {
   return parsePayloadArg(options.payload);
 }
 
+function requireOption(options, key) {
+  const value = options[key];
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  throw new Error(`缺少参数 --${key}`);
+}
+
+function buildPluginHttpUrl(baseUrl, pluginId, routePath, query = {}, agentId) {
+  if (!/^[A-Za-z0-9._-]+$/.test(pluginId)) {
+    throw new Error('plugin-id 只能包含字母、数字、点、下划线和连字符');
+  }
+  const normalizedPath = normalizePluginRoutePath(routePath);
+  const url = new URL(`/api/plugins/${encodeURIComponent(pluginId)}/v1${normalizedPath}`, baseUrl);
+  appendQueryParams(url, parseRouteInlineQuery(routePath));
+  appendQueryParams(url, query);
+  if (agentId) url.searchParams.set('agentId', agentId);
+  return url.toString();
+}
+
+function normalizePluginRoutePath(routePath) {
+  const [pathPart] = String(routePath).split('?', 1);
+  if (!pathPart.startsWith('/')) throw new Error('--path 必须是插件内绝对路径，例如 /assets/listings');
+  if (pathPart.startsWith('/api/')) throw new Error('--path 应该是插件内路径，不要包含 /api/plugins 前缀');
+  if (pathPart.includes('..')) throw new Error('--path 不能包含 ..');
+  return pathPart;
+}
+
+function parseRouteInlineQuery(routePath) {
+  const queryStart = String(routePath).indexOf('?');
+  if (queryStart === -1) return {};
+  return Object.fromEntries(new URLSearchParams(String(routePath).slice(queryStart + 1)));
+}
+
+function appendQueryParams(url, query) {
+  if (!query || typeof query !== 'object' || Array.isArray(query)) {
+    throw new Error('--query 必须是 JSON object');
+  }
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) url.searchParams.append(key, String(item));
+      continue;
+    }
+    url.searchParams.set(key, String(value));
+  }
+}
+
+function buildMultipartFileBody(filePath, fieldName) {
+  const boundary = `----uruc-agent-${Date.now().toString(36)}`;
+  const fileName = path.basename(filePath);
+  const contentType = mimeTypeForPath(filePath);
+  const data = readFileSync(filePath);
+  const buffer = Buffer.concat([
+    Buffer.from(`--${boundary}\r\n`),
+    Buffer.from(`Content-Disposition: form-data; name="${escapeMultipartValue(fieldName)}"; filename="${escapeMultipartValue(fileName)}"\r\n`),
+    Buffer.from(`Content-Type: ${contentType}\r\n\r\n`),
+    Buffer.from(data),
+    Buffer.from(`\r\n--${boundary}--\r\n`),
+  ]);
+  return { boundary, buffer };
+}
+
+function mimeTypeForPath(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === '.png') return 'image/png';
+  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+  if (ext === '.webp') return 'image/webp';
+  if (ext === '.gif') return 'image/gif';
+  return 'application/octet-stream';
+}
+
+function escapeMultipartValue(value) {
+  return String(value).replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+}
+
+async function readHttpResponse(response) {
+  const contentType = response.headers?.get?.('content-type') ?? '';
+  if (contentType.includes('application/json') || typeof response.json === 'function') {
+    try {
+      return await response.json();
+    } catch {
+      // Fall through to text for non-JSON error bodies.
+    }
+  }
+  if (typeof response.text === 'function') return { error: await response.text() };
+  return {};
+}
+
 function parseOptions(args, spec) {
   const strings = new Set(spec.strings ?? []);
   const booleans = new Set(spec.booleans ?? []);
@@ -648,6 +795,7 @@ Commands:
   where_can_i_go             Fetch the current place and reachable locations
   what_can_i_do              Fetch command discovery summary or detail payloads
   exec <type>                Execute any discovered Uruc command
+  plugin_http upload         Upload a local file to a plugin HTTP route
   events                     Show recent unsolicited events buffered by the daemon
   logs                       Show recent daemon log lines
 
@@ -661,6 +809,11 @@ Common flags:
   --plugin-id ID             Plugin id for what_can_i_do --scope plugin
   --payload JSON             JSON payload for exec
   --payload-file FILE        Read exec payload JSON from a file
+  --path PATH                Plugin HTTP route path for plugin_http
+  --file PATH                Local file for plugin_http upload
+  --field NAME               Multipart field name for plugin_http upload (default: file)
+  --agent-id ID              Optional agentId query parameter for plugin_http upload
+  --query JSON               Extra query parameters for plugin_http upload
 `);
 }
 

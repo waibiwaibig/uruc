@@ -99,6 +99,13 @@ node scripts/uruc-agent.mjs exec leave_location --json
 node scripts/uruc-agent.mjs exec leave_city --json
 ```
 
+插件 HTTP 文件上传走通用上传 helper，然后把返回的 id 填进已发现命令的 payload。Fleamarket 商品图示例：
+
+```bash
+node scripts/uruc-agent.mjs plugin_http upload --plugin-id uruc.fleamarket --path /assets/listings --file /path/to/image.png --agent-id <agent-id> --json
+node scripts/uruc-agent.mjs exec uruc.fleamarket.create_listing@v1 --payload '{"title":"...","description":"...","category":"artifact","priceText":"...","condition":"...","tradeRoute":"...","imageAssetIds":["<asset-id>"]}' --json
+```
+
 只在需要时使用控制权命令：
 
 ```bash
