@@ -28,7 +28,6 @@ import { TokenTable } from '../dashboard/TokenTable';
 import { CommandCenterDialog } from '../workspace/CommandCenterDialog';
 import { DestinationLaunchDialog } from '../workspace/DestinationLaunchDialog';
 import { Sidebar } from './Sidebar';
-import { TopBar } from './TopBar';
 import { WorkspaceSurfaceProvider } from '../../context/WorkspaceSurfaceContext';
 import { useNotifications } from '../../notifications/NotificationProvider';
 import {
@@ -106,10 +105,6 @@ function buildTimeLabel(index: number): string {
   return index === 0 ? 'Just now' : `${index + 1} updates ago`;
 }
 
-export function getTopBarFrameClassName(isDesktopSidebarOpen: boolean): string {
-  return isDesktopSidebarOpen ? 'shrink-0' : 'shrink-0 lg:hidden';
-}
-
 export function getDesktopSidebarFrameClassName(): string {
   return 'relative z-30 shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out';
 }
@@ -122,7 +117,7 @@ export function getDesktopSidebarFrameStyle(isDesktopSidebarOpen: boolean, isDes
 }
 
 export function shouldRenderFloatingShellToggle(isDesktopSidebarOpen: boolean, isDesktopViewport: boolean): boolean {
-  return !isDesktopSidebarOpen && isDesktopViewport;
+  return !isDesktopViewport || !isDesktopSidebarOpen;
 }
 
 function getIsDesktopViewport(): boolean {
@@ -608,6 +603,10 @@ export function WorkspaceLayout({
 
   const handleFloatingShellToggleClick = () => {
     if (floatingShellDragMovedRef.current) return;
+    if (!isDesktopViewport) {
+      setIsMobileMenuOpen(true);
+      return;
+    }
     setIsDesktopSidebarOpen(true);
   };
 
@@ -641,19 +640,6 @@ export function WorkspaceLayout({
       }}
     >
       <div className="flex h-screen w-full flex-col overflow-hidden bg-white font-sans text-zinc-950 antialiased transition-colors duration-200 selection:bg-zinc-900 selection:text-white dark:bg-[#09090B] dark:text-zinc-50 dark:selection:bg-white dark:selection:text-zinc-900">
-        <div className={getTopBarFrameClassName(isDesktopSidebarOpen)}>
-          <TopBar
-            isDark={isDark}
-            toggleTheme={toggleTheme}
-            onMenuClick={() => setIsMobileMenuOpen((current) => !current)}
-            onOpenTokens={() => setIsTokenTableOpen(true)}
-            onOpenCommand={() => setIsCommandOpen(true)}
-            onOpenSettings={() => navigate('/workspace/settings')}
-            session={session}
-            onSignOut={() => logout()}
-          />
-        </div>
-
         <TokenTable isOpen={isTokenTableOpen} onClose={() => setIsTokenTableOpen(false)} />
         <CommandCenterDialog
           open={isCommandOpen}
@@ -726,6 +712,13 @@ export function WorkspaceLayout({
                 availableDestinations={mergedDestinations}
                 onRequestLaunchDestination={requestDestinationLaunch}
                 onToggleLinkedDestination={toggleLinkedDestination}
+                onOpenCommand={() => setIsCommandOpen(true)}
+                onOpenTokens={() => setIsTokenTableOpen(true)}
+                toggleTheme={toggleTheme}
+                isDark={isDark}
+                session={session}
+                onSignOut={() => logout()}
+                onOpenSettings={() => navigate('/workspace/settings')}
                 onClose={() => setIsDesktopSidebarOpen(false)}
               />
             </div>
@@ -769,6 +762,13 @@ export function WorkspaceLayout({
                   availableDestinations={mergedDestinations}
                   onRequestLaunchDestination={requestDestinationLaunch}
                   onToggleLinkedDestination={toggleLinkedDestination}
+                  onOpenCommand={() => setIsCommandOpen(true)}
+                  onOpenTokens={() => setIsTokenTableOpen(true)}
+                  toggleTheme={toggleTheme}
+                  isDark={isDark}
+                  session={session}
+                  onSignOut={() => logout()}
+                  onOpenSettings={() => navigate('/workspace/settings')}
                   onClose={() => setIsMobileMenuOpen(false)}
                 />
               </div>

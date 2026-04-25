@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { PanelLeftClose, Plus, Terminal } from "lucide-react";
+import { Bell, BookOpen, Command, Moon, PanelLeftClose, Plus, Search, Sun } from "lucide-react";
 
 import type { CityPulse, WorkspaceSection, Destination } from "../../workspace-data";
 import { workspaceSections } from "../../workspace-data";
 import { cn } from "../../utils/cn";
+import { AccountControls, type SessionUser } from "./AccountControls";
 import { Button } from "../ui/Button";
 import { Checkbox } from "../ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
@@ -20,6 +21,13 @@ type SidebarProps = {
   availableDestinations?: Destination[];
   onRequestLaunchDestination?: (destination: Destination) => Promise<void> | void;
   onToggleLinkedDestination?: (destinationId: string) => void;
+  onOpenCommand?: () => void;
+  onOpenTokens?: () => void;
+  toggleTheme?: () => void;
+  isDark?: boolean;
+  session?: SessionUser | null;
+  onSignOut?: () => void;
+  onOpenSettings?: () => void;
   onClose?: () => void;
 };
 
@@ -33,6 +41,13 @@ export function Sidebar({
   availableDestinations,
   onRequestLaunchDestination,
   onToggleLinkedDestination,
+  onOpenCommand,
+  onOpenTokens,
+  toggleTheme,
+  isDark = false,
+  session = null,
+  onSignOut,
+  onOpenSettings,
   onClose,
 }: SidebarProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -58,9 +73,12 @@ export function Sidebar({
         className="pointer-events-none absolute inset-y-0 right-0 z-0 w-14 bg-gradient-to-l from-white/20 via-white/10 to-transparent dark:from-white/5 dark:via-white/[0.03]"
       />
       <div className="relative z-10 flex h-14 items-center gap-3 border-b border-white/35 px-4 dark:border-white/10">
-        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-sm">
-          <Terminal size={14} className="stroke-[2.5]" />
-        </div>
+        <AccountControls
+          session={session}
+          onSignOut={onSignOut ?? (() => undefined)}
+          onOpenSettings={onOpenSettings ?? (() => undefined)}
+          className="ml-0 shrink-0"
+        />
         <span className="flex-1 text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 truncate">Uruc Workspace</span>
         
         {onClose && (
@@ -74,6 +92,20 @@ export function Sidebar({
       </div>
 
       <div className="relative z-10 flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
+        <button
+          type="button"
+          onClick={onOpenCommand}
+          data-workspace-search-trigger="sidebar"
+          className="relative mb-3 flex h-10 w-full items-center rounded-md border border-white/45 bg-white/45 pr-11 pl-9 text-left text-xs font-medium text-zinc-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.58)] backdrop-blur-xl transition-colors hover:border-white/60 hover:bg-white/65 hover:text-zinc-700 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400 dark:hover:border-white/20 dark:hover:bg-white/10 dark:hover:text-zinc-200"
+        >
+          <Search className="absolute left-3 h-4 w-4" />
+          <span className="truncate">Search workspace...</span>
+          <div className="pointer-events-none absolute top-2.5 right-2 flex h-5 select-none items-center gap-0.5 rounded border border-white/50 bg-white/65 px-1 font-mono text-[10px] font-medium text-zinc-500 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/10 dark:text-zinc-400">
+            <Command className="h-3 w-3" />
+            <span>K</span>
+          </div>
+        </button>
+
         {workspaceSections.map((item) => {
           const Icon = item.icon;
           const isActive = item.id === activeSection;
@@ -177,6 +209,37 @@ export function Sidebar({
       </div>
 
       <div className="relative z-10 mt-auto shrink-0 border-t border-white/35 p-4 dark:border-white/10">
+        <div className="mb-3 flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onOpenTokens}
+            className="h-10 flex-1 justify-start border-white/45 bg-white/40 text-sm font-medium text-zinc-700 shadow-sm backdrop-blur-xl hover:bg-white/60 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
+          >
+            <BookOpen className="mr-2 h-4 w-4" />
+            View Guide
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 shrink-0 text-zinc-500 hover:bg-white/50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/10 dark:hover:text-zinc-100"
+          >
+            <Bell className="h-4 w-4" />
+            <span className="sr-only">Notifications</span>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="h-10 w-10 shrink-0 text-zinc-500 hover:bg-white/50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/10 dark:hover:text-zinc-100"
+          >
+            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            <span className="sr-only">Toggle theme</span>
+          </Button>
+        </div>
         <div className="relative overflow-hidden rounded-xl border border-white/45 bg-white/35 p-4 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
           
           {/* Cyber Deco Background */}

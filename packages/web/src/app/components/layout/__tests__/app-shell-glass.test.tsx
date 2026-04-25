@@ -1,19 +1,17 @@
 // @vitest-environment jsdom
 
-import { act } from 'react';
+import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { CityPulse } from '../../../workspace-data';
 import { Sidebar } from '../Sidebar';
-import { TopBar } from '../TopBar';
 import {
   clampAppShellAnchor,
   getDesktopSidebarFrameClassName,
   getDesktopSidebarFrameStyle,
   getDefaultAppShellAnchor,
-  getTopBarFrameClassName,
   shouldRenderFloatingShellToggle,
 } from '../WorkspaceLayout';
 
@@ -52,30 +50,6 @@ async function renderAppShell(element: React.ReactNode) {
 }
 
 describe('workspace app shell glass surfaces', () => {
-  it('renders the top bar with a lighter saturated glass surface', async () => {
-    const { container, cleanup } = await renderAppShell(
-      <TopBar
-        toggleTheme={() => undefined}
-        isDark={false}
-        onMenuClick={() => undefined}
-        onOpenTokens={() => undefined}
-        onOpenCommand={() => undefined}
-        onOpenSettings={() => undefined}
-        session={null}
-        onSignOut={() => undefined}
-      />,
-    );
-
-    const topBar = container.querySelector('header');
-
-    expect(topBar?.className).toContain('bg-white/55');
-    expect(topBar?.className).toContain('backdrop-blur-2xl');
-    expect(topBar?.className).toContain('backdrop-saturate-150');
-    expect(topBar?.className).toContain('shadow-[0_1px_0_rgba(255,255,255,0.55),0_18px_42px_rgba(15,23,42,0.08)]');
-
-    await cleanup();
-  });
-
   it('renders the sidebar as a translucent glass rail with a soft edge', async () => {
     const { container, cleanup } = await renderAppShell(
       <Sidebar
@@ -100,9 +74,101 @@ describe('workspace app shell glass surfaces', () => {
     await cleanup();
   });
 
-  it('hides the desktop top bar when the desktop sidebar is collapsed', () => {
-    expect(getTopBarFrameClassName(false)).toContain('lg:hidden');
-    expect(getTopBarFrameClassName(true)).not.toContain('lg:hidden');
+  it('renders the account menu in the sidebar header before the workspace title', async () => {
+    const { container, cleanup } = await renderAppShell(
+      <Sidebar
+        activeSection="home"
+        onNavigate={() => undefined}
+        cityPulse={cityPulse}
+        alertCount={0}
+        linkedDestinations={[]}
+        availableDestinations={[]}
+        session={{ name: 'Workspace User', initials: 'W' }}
+        onSignOut={() => undefined}
+        onOpenSettings={() => undefined}
+      />,
+    );
+
+    const accountButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Open account menu'));
+    const workspaceTitle = Array.from(container.querySelectorAll('span')).find((span) => span.textContent === 'Uruc Workspace');
+
+    expect(accountButton).toBeDefined();
+    expect(accountButton?.textContent).toContain('W');
+    expect(workspaceTitle).toBeDefined();
+    expect(accountButton!.compareDocumentPosition(workspaceTitle!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+    await cleanup();
+  });
+
+  it('renders the command search trigger above the workspace navigation in the sidebar', async () => {
+    const onOpenCommand = vi.fn();
+    const { container, cleanup } = await renderAppShell(
+      <Sidebar
+        activeSection="home"
+        onNavigate={() => undefined}
+        cityPulse={cityPulse}
+        alertCount={0}
+        linkedDestinations={[]}
+        availableDestinations={[]}
+        onOpenCommand={onOpenCommand}
+      />,
+    );
+
+    const searchTrigger = container.querySelector<HTMLButtonElement>('[data-workspace-search-trigger="sidebar"]');
+    const homeButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Home'));
+
+    expect(searchTrigger).not.toBeNull();
+    expect(homeButton).toBeDefined();
+    expect(searchTrigger?.textContent).toContain('Search workspace...');
+    expect(searchTrigger!.compareDocumentPosition(homeButton!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+    await act(async () => {
+      searchTrigger?.click();
+    });
+
+    expect(onOpenCommand).toHaveBeenCalledTimes(1);
+
+    await cleanup();
+  });
+
+  it('renders guide, notifications, and theme actions above city pulse in the sidebar', async () => {
+    const onOpenTokens = vi.fn();
+    const toggleTheme = vi.fn();
+    const { container, cleanup } = await renderAppShell(
+      <Sidebar
+        activeSection="home"
+        onNavigate={() => undefined}
+        cityPulse={cityPulse}
+        alertCount={0}
+        linkedDestinations={[]}
+        availableDestinations={[]}
+        onOpenTokens={onOpenTokens}
+        toggleTheme={toggleTheme}
+      />,
+    );
+
+    const guideButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('View Guide'));
+    const notificationsButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Notifications'));
+    const themeButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Toggle theme'));
+    const cityPulseLabel = Array.from(container.querySelectorAll('span')).find((span) => span.textContent === 'City Pulse');
+
+    expect(guideButton).toBeDefined();
+    expect(notificationsButton).toBeDefined();
+    expect(themeButton).toBeDefined();
+    expect(cityPulseLabel).toBeDefined();
+    expect(guideButton!.compareDocumentPosition(cityPulseLabel!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(notificationsButton!.compareDocumentPosition(cityPulseLabel!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(themeButton!.compareDocumentPosition(cityPulseLabel!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+    await act(async () => {
+      guideButton?.click();
+      themeButton?.click();
+    });
+
+    expect(onOpenTokens).toHaveBeenCalledTimes(1);
+    expect(toggleTheme).toHaveBeenCalledTimes(1);
+
+    await cleanup();
   });
 
   it('keeps desktop shell visibility out of global Tailwind display utilities', () => {
@@ -114,10 +180,11 @@ describe('workspace app shell glass surfaces', () => {
     expect(getDesktopSidebarFrameStyle(true, false)).toEqual({ width: '16rem', display: 'none' });
   });
 
-  it('only renders the floating shell toggle when the desktop shell is collapsed on desktop', () => {
+  it('renders the floating shell toggle for collapsed desktop and mobile shell access', () => {
     expect(shouldRenderFloatingShellToggle(false, true)).toBe(true);
     expect(shouldRenderFloatingShellToggle(true, true)).toBe(false);
-    expect(shouldRenderFloatingShellToggle(false, false)).toBe(false);
+    expect(shouldRenderFloatingShellToggle(false, false)).toBe(true);
+    expect(shouldRenderFloatingShellToggle(true, false)).toBe(true);
   });
 
   it('defaults the collapsed shell toggle near the lower left viewport edge', () => {

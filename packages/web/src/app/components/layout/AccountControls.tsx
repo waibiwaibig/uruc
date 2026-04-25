@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { LogOut, Settings2 } from 'lucide-react';
 
+import { cn } from '../../utils/cn';
 import { Button } from '../ui/Button';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import {
@@ -23,16 +24,18 @@ type AccountControlsProps = {
   session: SessionUser | null;
   onSignOut: () => void;
   onOpenSettings: () => void;
+  className?: string;
 };
 
 export function AccountControls({
   session,
   onSignOut,
   onOpenSettings,
+  className,
 }: AccountControlsProps) {
   if (!session) {
     return (
-      <div className="ml-2 flex items-center gap-2">
+      <div className={cn("ml-2 flex items-center gap-2", className)}>
         <Button asChild variant="ghost" size="sm" className="h-9 rounded-full px-4">
           <Link to="/auth/register">Create account</Link>
         </Button>
@@ -49,7 +52,10 @@ export function AccountControls({
         <Button
           variant="ghost"
           size="icon"
-          className="ml-2 size-9 rounded-full border border-zinc-200 p-0 shadow-none transition-[background-color,border-color,box-shadow] hover:border-zinc-300 hover:bg-zinc-50 hover:shadow-sm focus-visible:ring-0 focus-visible:ring-offset-0 data-[state=open]:border-zinc-300 data-[state=open]:bg-zinc-50 data-[state=open]:shadow-sm dark:border-zinc-800 dark:hover:border-zinc-700 dark:hover:bg-zinc-900 dark:hover:shadow-none dark:data-[state=open]:border-zinc-700 dark:data-[state=open]:bg-zinc-900 dark:data-[state=open]:shadow-none"
+          className={cn(
+            "ml-2 size-9 rounded-full border border-zinc-200 p-0 shadow-none transition-[background-color,border-color,box-shadow] hover:border-zinc-300 hover:bg-zinc-50 hover:shadow-sm focus-visible:ring-0 focus-visible:ring-offset-0 data-[state=open]:border-zinc-300 data-[state=open]:bg-zinc-50 data-[state=open]:shadow-sm dark:border-zinc-800 dark:hover:border-zinc-700 dark:hover:bg-zinc-900 dark:hover:shadow-none dark:data-[state=open]:border-zinc-700 dark:data-[state=open]:bg-zinc-900 dark:data-[state=open]:shadow-none",
+            className,
+          )}
         >
           <Avatar className="size-9">
             <AvatarFallback className="bg-zinc-900 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900">
