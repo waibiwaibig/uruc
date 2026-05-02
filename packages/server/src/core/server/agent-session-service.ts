@@ -21,6 +21,7 @@ export interface AgentSessionSnapshot {
 
 interface ClaimResult {
   claimed: boolean;
+  acquired?: boolean;
   restored: boolean;
   replacedConnectionId: string | null;
   snapshot: AgentSessionSnapshot;
@@ -60,6 +61,16 @@ export class AgentSessionService {
     return session.controllerConnectionId === connectionId && session.controllerConnected;
   }
 
+  holdsActionLease(agentId: string, connectionId: string): boolean {
+    return this.isController(agentId, connectionId);
+  }
+
+  acquireAvailableActionLease(agentId: string, connectionId: string): ClaimResult | null {
+    const result = this.claimAvailable(agentId, connectionId);
+    if (result) result.acquired = result.claimed;
+    return result;
+  }
+
   claimAvailable(agentId: string, connectionId: string): ClaimResult | null {
     const session = this.getOrCreate(agentId);
     this.expireDisconnectedSession(session);
@@ -67,6 +78,7 @@ export class AgentSessionService {
     if (session.controllerConnectionId === connectionId && session.controllerConnected) {
       return {
         claimed: true,
+        acquired: true,
         restored: false,
         replacedConnectionId: null,
         snapshot: this.getSnapshot(agentId, connectionId),
@@ -84,6 +96,7 @@ export class AgentSessionService {
 
     return {
       claimed: true,
+      acquired: true,
       restored,
       replacedConnectionId: null,
       snapshot: this.getSnapshot(agentId, connectionId),

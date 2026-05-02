@@ -72,7 +72,7 @@ describe('WSGateway control connection', () => {
     gateway = new WSGateway({ port: 0 }, hooks, new ServiceRegistry(), auth);
   });
 
-  it('auto-claims control on the first gameplay command and rejects a second connection', async () => {
+  it('auto-acquires the same-resident action lease on the first write command and rejects a second writer', async () => {
     const user = await auth.register('gilgamesh', 'gilgamesh@example.com', 'secret-123');
     const token = signToken(user.id, 'user');
     const sentA: SentEnvelope[] = [];
@@ -103,10 +103,14 @@ describe('WSGateway control connection', () => {
     });
 
     expect(sentB.at(-1)?.type).toBe('error');
-    expect(sentB.at(-1)?.payload?.code).toBe('CONTROLLED_ELSEWHERE');
+    expect(sentB.at(-1)?.payload).toMatchObject({
+      code: 'ACTION_LEASE_HELD',
+      action: 'acquire_action_lease',
+      error: 'This resident already has an active action lease in another session.',
+    });
   });
 
-  it('restores city state when a new connection claims control within the grace window', async () => {
+  it('restores city state when a new connection acquires the action lease within the grace window', async () => {
     const user = await auth.register('enkidu', 'enkidu@example.com', 'secret-123');
     const token = signToken(user.id, 'user');
     const sentA: SentEnvelope[] = [];
@@ -132,19 +136,19 @@ describe('WSGateway control connection', () => {
 
     (gateway as any).cleanupClient('client-a', clientA);
 
-    await (gateway as any).handleMessage('client-b', { id: 'claim-b', type: 'claim_control', payload: {} });
+    await (gateway as any).handleMessage('client-b', { id: 'lease-b', type: 'acquire_action_lease', payload: {} });
 
     expect(sentB.some((message) => message.type === 'session_restored')).toBe(false);
-    const claimResult = sentB.find((message) => message.type === 'result');
-    expect(claimResult?.payload).toMatchObject({
-      claimed: true,
+    const leaseResult = sentB.find((message) => message.type === 'result');
+    expect(leaseResult?.payload).toMatchObject({
+      actionLeaseAcquired: true,
       restored: true,
       inCity: true,
       currentLocation: 'uruc.chess.chess-club',
     });
   });
 
-  it('sends control_replaced to the previous controller when another connection explicitly takes over', async () => {
+  it('notifies the previous action lease holder when another same-resident session acquires it', async () => {
     const user = await auth.register('ishtar', 'ishtar@example.com', 'secret-123');
     const token = signToken(user.id, 'user');
     const sentA: SentEnvelope[] = [];
@@ -162,7 +166,7 @@ describe('WSGateway control connection', () => {
     sentB.length = 0;
 
     await (gateway as any).handleMessage('client-a', { id: 'enter-a', type: 'enter_city', payload: {} });
-    await (gateway as any).handleMessage('client-b', { id: 'claim-b', type: 'claim_control', payload: {} });
+    await (gateway as any).handleMessage('client-b', { id: 'lease-b', type: 'acquire_action_lease', payload: {} });
 
     expect(sentA.some((message) => message.type === 'control_replaced')).toBe(true);
     expect(clientA.ws.close).not.toHaveBeenCalled();
@@ -237,7 +241,53 @@ describe('WSGateway control connection', () => {
     expect(sent.at(-1)?.payload).not.toHaveProperty('availableCommands');
   });
 
-  it('includes citytime in control_replaced pushes', async () => {
+  it('discovers action lease commands instead of controller commands', async () => {
+    const user = await auth.register('nanna', 'nanna@example.com', 'secret-123');
+    const token = signToken(user.id, 'user');
+    const sent: SentEnvelope[] = [];
+    const client = createClient(sent);
+
+    (gateway as any).clients.set('client-a', client);
+
+    await (gateway as any).handleAgentAuth('client-a', client, { id: 'auth-a', type: 'auth', payload: token });
+    sent.length = 0;
+
+    await (gateway as any).handleMessage('client-a', { id: 'discover-a', type: 'what_can_i_do', payload: { scope: 'city' } });
+
+    const payload = sent.find((message) => message.type === 'result')?.payload as { commands?: Array<{ type: string; description: string }> } | undefined;
+    const commandTypes = payload?.commands?.map((command) => command.type) ?? [];
+    expect(commandTypes).toContain('acquire_action_lease');
+    expect(commandTypes).toContain('release_action_lease');
+    expect(commandTypes).not.toContain('claim_control');
+    expect(commandTypes).not.toContain('release_control');
+    expect(payload?.commands?.find((command) => command.type === 'acquire_action_lease')?.description).toContain('action lease');
+  });
+
+  it('rejects action lease release from a session that does not hold the lease', async () => {
+    const user = await auth.register('utu', 'utu@example.com', 'secret-123');
+    const token = signToken(user.id, 'user');
+    const sent: SentEnvelope[] = [];
+    const client = createClient(sent);
+
+    (gateway as any).clients.set('client-a', client);
+
+    await (gateway as any).handleAgentAuth('client-a', client, { id: 'auth-a', type: 'auth', payload: token });
+    sent.length = 0;
+
+    await (gateway as any).handleMessage('client-a', { id: 'release-a', type: 'release_action_lease', payload: {} });
+
+    expect(sent.at(-1)).toMatchObject({
+      id: 'release-a',
+      type: 'error',
+      payload: {
+        code: 'NOT_ACTION_LEASE_HOLDER',
+        action: 'acquire_action_lease',
+        error: 'This session does not hold the active action lease.',
+      },
+    });
+  });
+
+  it('includes citytime in action lease replacement pushes', async () => {
     const user = await auth.register('dumuzid', 'dumuzid@example.com', 'secret-123');
     const token = signToken(user.id, 'user');
     const sentA: SentEnvelope[] = [];
@@ -255,11 +305,11 @@ describe('WSGateway control connection', () => {
     sentB.length = 0;
 
     await (gateway as any).handleMessage('client-a', { id: 'enter-a', type: 'enter_city', payload: {} });
-    await (gateway as any).handleMessage('client-b', { id: 'claim-b', type: 'claim_control', payload: {} });
+    await (gateway as any).handleMessage('client-b', { id: 'lease-b', type: 'acquire_action_lease', payload: {} });
 
     expect(sentA.find((message) => message.type === 'control_replaced')?.payload).toMatchObject({
       citytime: expect.any(Number),
-      error: 'This agent has been taken over by another connection.',
+      error: 'This resident action lease moved to another session.',
     });
   });
 });

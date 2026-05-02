@@ -252,11 +252,11 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const claimControl = useCallback(async () => {
-    return transportRef.current.send<RuntimeSnapshot>('claim_control');
+    return transportRef.current.send<RuntimeSnapshot>('acquire_action_lease');
   }, []);
 
   const releaseControl = useCallback(async () => {
-    return transportRef.current.send<RuntimeSnapshot>('release_control');
+    return transportRef.current.send<RuntimeSnapshot>('release_action_lease');
   }, []);
 
   const enterCity = useCallback(async () => {
