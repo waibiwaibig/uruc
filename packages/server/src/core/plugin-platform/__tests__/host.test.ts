@@ -1403,6 +1403,101 @@ export default {
     await host.stopAll();
   });
 
+  it('exposes resident protocol metadata on command schemas without changing dispatch behavior', async () => {
+    const pluginPath = await mkdtemp(path.join(os.tmpdir(), 'uruc-resident-protocol-plugin-'));
+    tempDirs.push(pluginPath);
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'uruc.protocol',
+      packageName: '@uruc/plugin-protocol',
+      version: '0.1.0',
+      publisher: 'uruc',
+      body: `import { defineBackendPlugin } from '@uruc/plugin-sdk/backend';
+
+export default defineBackendPlugin({
+  pluginId: 'uruc.protocol',
+  async setup(ctx) {
+    await ctx.commands.register({
+      id: 'echo',
+      description: 'Return a protocol metadata fixture result.',
+      inputSchema: {},
+      controlPolicy: { controllerRequired: false },
+      protocol: {
+        subject: 'resident',
+        request: { type: 'uruc.protocol.echo.request@v1' },
+        receipt: { type: 'uruc.protocol.echo.receipt@v1', statuses: ['accepted', 'rejected'] },
+        venue: { id: 'uruc.protocol' },
+        migration: {
+          currentTerm: 'command',
+          removalIssue: '#4',
+          note: 'Command remains the transport registration term until request declarations land.',
+        },
+      },
+      handler: async () => ({ ok: true }),
+    });
+  },
+});\n`,
+    });
+
+    const sent: unknown[] = [];
+    const gateway = createGateway(sent);
+    const { host, hooks } = await startSinglePluginHost(
+      'uruc.protocol',
+      '@uruc/plugin-protocol',
+      pluginPath,
+      (services) => {
+        services.register('ws-gateway', gateway as any);
+      },
+    );
+
+    const schema = hooks.getWSCommandSchema('uruc.protocol.echo@v1');
+    expect(schema).toMatchObject({
+      type: 'uruc.protocol.echo@v1',
+      pluginName: 'uruc.protocol',
+      protocol: {
+        subject: 'resident',
+        request: { type: 'uruc.protocol.echo.request@v1' },
+        receipt: { type: 'uruc.protocol.echo.receipt@v1', statuses: ['accepted', 'rejected'] },
+        venue: { id: 'uruc.protocol' },
+        migration: {
+          currentTerm: 'command',
+          removalIssue: '#4',
+        },
+      },
+    });
+
+    await hooks.handleWSCommand('uruc.protocol.echo@v1', {
+      ws: {},
+      session: {
+        userId: 'user-1',
+        agentId: 'agent-1',
+        agentName: 'Agent One',
+        role: 'agent' as const,
+        trustMode: 'full' as const,
+      },
+      inCity: true,
+      currentLocation: null,
+      isController: true,
+      hasController: true,
+      currentTable: null,
+      gateway,
+      setLocation() {},
+      setInCity() {},
+    } as any, {
+      id: 'echo-1',
+      type: 'uruc.protocol.echo@v1',
+      payload: {},
+    });
+
+    expect(sent.at(-1)).toEqual({
+      id: 'echo-1',
+      type: 'result',
+      payload: { ok: true },
+    });
+
+    await host.stopAll();
+  });
+
   it('loads the native V2 social package and serves asset upload/download routes', async () => {
     const socialPluginPath = path.resolve(process.cwd(), '..', 'plugins', 'social');
     const { host, hooks, services, db } = await startSinglePluginHost(

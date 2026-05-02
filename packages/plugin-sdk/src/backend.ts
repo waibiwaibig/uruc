@@ -80,6 +80,39 @@ export const commandPolicySchema = z.object({
 
 export type CommandPolicy = z.infer<typeof commandPolicySchema>;
 
+export const residentProtocolReceiptStatusSchema = z.enum([
+  'accepted',
+  'rejected',
+  'delivered',
+  'expired',
+  'duplicate',
+  'require_approval',
+]);
+
+export const residentProtocolMetadataSchema = z.object({
+  subject: z.literal('resident'),
+  request: z.object({
+    type: z.string().min(1),
+    version: z.number().int().positive().optional(),
+  }).optional(),
+  receipt: z.object({
+    type: z.string().min(1).optional(),
+    statuses: z.array(residentProtocolReceiptStatusSchema).optional(),
+  }).optional(),
+  venue: z.object({
+    id: z.string().min(1).optional(),
+    moduleId: z.string().min(1).optional(),
+  }).optional(),
+  migration: z.object({
+    currentTerm: z.string().min(1).optional(),
+    removalIssue: z.string().min(1).optional(),
+    note: z.string().min(1).optional(),
+  }).optional(),
+});
+
+export type ResidentProtocolReceiptStatus = z.infer<typeof residentProtocolReceiptStatusSchema>;
+export type ResidentProtocolMetadata = z.infer<typeof residentProtocolMetadataSchema>;
+
 export interface BackendCommandHandlerContext<TConfig = unknown> {
   pluginId: string;
   config: TConfig;
@@ -118,6 +151,7 @@ export interface BackendCommandDefinition<TInput = SerializableValue, TResult = 
   description: string;
   inputSchema: Record<string, z.ZodTypeAny>;
   resultSchema?: z.ZodType<TResult>;
+  protocol?: ResidentProtocolMetadata;
   authPolicy?: z.infer<typeof authPolicySchema>;
   locationPolicy?: z.infer<typeof commandPolicySchema>['locationPolicy'];
   controlPolicy?: z.infer<typeof commandPolicySchema>['controlPolicy'];

@@ -106,6 +106,49 @@ export type WSDispatchResult =
   | { handled: false }
   | { handled: true; blocked?: WSErrorPayload };
 
+export type ResidentProtocolReceiptStatus =
+  | 'accepted'
+  | 'rejected'
+  | 'delivered'
+  | 'expired'
+  | 'duplicate'
+  | 'require_approval';
+
+export interface ResidentProtocolRequestMetadata {
+  type: string;
+  version?: number;
+}
+
+export interface ResidentProtocolReceiptMetadata {
+  type?: string;
+  statuses?: ResidentProtocolReceiptStatus[];
+}
+
+export interface ResidentProtocolVenueMetadata {
+  id?: string;
+  moduleId?: string;
+}
+
+export interface ResidentProtocolMigrationMetadata {
+  currentTerm?: string;
+  removalIssue?: string;
+  note?: string;
+}
+
+/**
+ * Transitional protocol metadata for the Resident-based city model.
+ *
+ * This annotates today's command schemas with Resident / Request / Receipt /
+ * Venue vocabulary without registering alternate handlers or changing dispatch.
+ */
+export interface ResidentProtocolMetadata {
+  subject: 'resident';
+  request?: ResidentProtocolRequestMetadata;
+  receipt?: ResidentProtocolReceiptMetadata;
+  venue?: ResidentProtocolVenueMetadata;
+  migration?: ResidentProtocolMigrationMetadata;
+}
+
 /**
  * Command schema — describes a WS or HTTP command for discoverability.
  */
@@ -138,6 +181,7 @@ export interface CommandSchema {
     maxPerMinute?: number;
   };
   errorCodes?: string[];
+  protocol?: ResidentProtocolMetadata;
 }
 
 // =============================================
