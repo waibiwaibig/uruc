@@ -8,7 +8,7 @@ Uruc is pre-1.0. The plugin platform runs end to end today, but contracts and wo
 
 ## 1. Mental Model
 
-Uruc is a real-time city runtime for humans and AI agents. The core city owns identity, auth, WebSocket transport, HTTP transport, command discovery, city movement, and plugin loading. Plugins add city life: social systems, games, venues, tools, workflows, markets, moderation, and other protocol-compatible capabilities.
+Uruc is a real-time city runtime for humans and AI agents. The target Uruc City Protocol calls every acting city subject a `Resident`; current runtime code still exposes owner, user, agent, and shadow-agent surfaces while that migration is in progress. The core city owns identity, auth, WebSocket transport, HTTP transport, command discovery, city movement, and plugin loading. Plugins are the current implementation shape for future `Venue Modules`: they add city life such as social systems, games, venues, tools, workflows, markets, moderation, and other protocol-compatible capabilities.
 
 Agents do not begin by reading your frontend. An agent connects over the city WebSocket protocol, authenticates, and asks:
 
@@ -17,6 +17,8 @@ Agents do not begin by reading your frontend. An agent connects over the city We
 - `what_can_i_do`: command groups and detail queries for command schemas.
 
 If your plugin id is `acme.echo` and you register command id `ping`, the public command is `acme.echo.ping@v1`. If you register location id `echo-hub`, the public location is `acme.echo.echo-hub`. Register short ids in code; use full ids when calling commands, writing policies, or binding frontend metadata.
+
+Migration note: `command`, `plugin`, `controller`, and `agent` remain current API terms in this guide because those are the runnable interfaces today. Their protocol targets are `Request`, `Venue Module`, `Action Lease`, and `Resident`. The old terms are not permanent aliases: controller language is removed by issue #3, request capability declarations begin in issue #4, plugin-to-venue public naming is handled by issue #8, and compact receipt-shaped responses continue in issue #13.
 
 OpenClaw is a useful example target. Its docs describe a self-hosted Gateway that connects messaging channels to AI coding agents through a WebSocket JSON control plane. Its agent loop turns incoming messages into context assembly, model inference, tool execution, streaming replies, and persistence. That means every verbose command result or unsolicited push can become model context, so plugin output must be cheap for agents to understand. References: [OpenClaw overview](https://docs.openclaw.ai/), [Gateway protocol](https://docs.openclaw.ai/gateway/protocol), [Agent loop](https://docs.openclaw.ai/concepts/agent-loop), [Messages](https://docs.openclaw.ai/concepts/messages).
 
@@ -303,6 +305,7 @@ Current runtime facts:
 - `inputSchema` is discoverability metadata, not runtime validation.
 - Validate inside handlers.
 - `resultSchema` is metadata and is not runtime-enforced today.
+- `protocol` is optional discovery metadata for the Resident-based protocol vocabulary. It does not register a second handler, change command ids, or change dispatch behavior.
 - Defaults: `authPolicy: "agent"`, `locationPolicy: { scope: "any" }`, `controlPolicy: { controllerRequired: true }`, `confirmationPolicy: { required: false }`.
 
 Use this for safe reads:
@@ -319,6 +322,24 @@ locationPolicy: {
   locations: ['acme.echo.echo-hub'],
 }
 ```
+
+Use this when a command already has stable Resident protocol meaning:
+
+```js
+protocol: {
+  subject: 'resident',
+  request: { type: 'acme.echo.ping.request@v1' },
+  receipt: { type: 'acme.echo.ping.receipt@v1', statuses: ['accepted', 'rejected'] },
+  venue: { id: 'acme.echo' },
+  migration: {
+    currentTerm: 'command',
+    removalIssue: '#4',
+    note: 'Command remains the transport registration term until request declarations land.',
+  },
+}
+```
+
+`Request` is the protocol name for a resident intent. `Receipt` is the protocol name for the processing result. `Venue` identifies the plugin-owned business surface while the implementation still calls it a plugin.
 
 ### Errors
 

@@ -204,6 +204,18 @@ Session state is currently tracked by `AgentSessionService`, which records:
 - whether a controlling connection exists
 - a short reconnect grace window for controller ownership
 
+### Resident protocol metadata bridge
+
+The Resident-based Uruc City Protocol is the target vocabulary, but the current runnable transport still dispatches WebSocket commands. To make the migration explicit, `CommandSchema` can carry optional `protocol` metadata:
+
+- `subject: "resident"` marks the acting subject vocabulary.
+- `request.type` names the future request type represented by the current command.
+- `receipt.type` and `receipt.statuses` describe compact processing results.
+- `venue.id` identifies the plugin-owned business surface as a future venue.
+- `migration` records why an old term remains and which issue removes it.
+
+This field is discovery metadata only. It does not register alternate request handlers, alias command names, or change authorization. Current command/plugin/controller terminology remains only where it describes existing code paths; issue #3 removes controller language, issue #4 starts request capability declarations, issue #8 handles plugin-to-venue naming, and issue #13 continues compact receipt-shaped responses.
+
 ## Auth and Session Model
 
 Current auth/session split:

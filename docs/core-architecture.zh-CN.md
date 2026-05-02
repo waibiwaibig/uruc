@@ -204,6 +204,18 @@
 - 是否存在控制连接
 - 控制权的短暂重连宽限窗口
 
+### Resident 协议 metadata 桥接
+
+Resident-based Uruc City Protocol 是目标词汇，但当前可运行传输层仍分发 WebSocket 命令。为了让迁移路径明确，`CommandSchema` 可以携带可选的 `protocol` metadata：
+
+- `subject: "resident"` 标记行动主体词汇。
+- `request.type` 命名当前命令所代表的未来 request 类型。
+- `receipt.type` 和 `receipt.statuses` 描述紧凑处理结果。
+- `venue.id` 把插件拥有的业务表面标识为未来 venue。
+- `migration` 记录旧术语为什么仍存在，以及哪个 issue 会移除它。
+
+该字段只用于发现 metadata。它不会注册替代 request handler，不会给命令名加别名，也不会改变授权。当前 `command` / `plugin` / `controller` 术语只在描述现有代码路径时保留；issue #3 移除 controller 语言，issue #4 开始 request capability declaration，issue #8 处理 plugin 到 venue 的命名，issue #13 继续推进紧凑 receipt 形态响应。
+
 ## 鉴权与会话模型
 
 当前鉴权 / 会话拆分如下：

@@ -9,7 +9,17 @@ import { sql } from 'drizzle-orm';
 
 import { parseBody, sendError, sendJson } from '../server/middleware.js';
 import { setCorsHeaders, setSecurityHeaders } from '../server/security.js';
-import type { HttpContext, HookDisposable, CommandSchema, WSContext, WSMessage, HookRegistry, HttpHandler } from '../plugin-system/hook-registry.js';
+import type {
+  HttpContext,
+  HookDisposable,
+  CommandSchema,
+  ResidentProtocolMetadata,
+  ResidentProtocolReceiptStatus,
+  WSContext,
+  WSMessage,
+  HookRegistry,
+  HttpHandler,
+} from '../plugin-system/hook-registry.js';
 import { readCityConfig, readCityLock, writeCityLock } from './config.js';
 import { resolveConfiguredPlugin } from './inspection.js';
 import { readPluginPackageManifest } from './manifest.js';
@@ -236,7 +246,7 @@ function buildCommandSchema(pluginId: string, definition: Record<string, any>): 
     }),
   );
 
-  return {
+  const schema: CommandSchema = {
     type: namespacePluginCommand(pluginId, definition.id),
     description: String(definition.description ?? definition.id),
     pluginName: pluginId,
@@ -250,6 +260,82 @@ function buildCommandSchema(pluginId: string, definition: Record<string, any>): 
     errorCodes: Array.isArray(definition.errorCodes) ? definition.errorCodes : [],
     requiresConfirmation: definition.confirmationPolicy?.required ?? false,
   };
+  const protocol = normalizeResidentProtocolMetadata(definition.protocol);
+  if (protocol) schema.protocol = protocol;
+  return schema;
+}
+
+const RESIDENT_PROTOCOL_RECEIPT_STATUSES = new Set<ResidentProtocolReceiptStatus>([
+  'accepted',
+  'rejected',
+  'delivered',
+  'expired',
+  'duplicate',
+  'require_approval',
+]);
+
+function getRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  return value as Record<string, unknown>;
+}
+
+function getString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined;
+}
+
+function normalizeResidentProtocolMetadata(value: unknown): ResidentProtocolMetadata | undefined {
+  const input = getRecord(value);
+  if (!input || input.subject !== 'resident') return undefined;
+
+  const protocol: ResidentProtocolMetadata = { subject: 'resident' };
+  const request = getRecord(input.request);
+  const requestType = getString(request?.type);
+  if (requestType) {
+    protocol.request = {
+      type: requestType,
+      ...(typeof request?.version === 'number' && Number.isInteger(request.version) && request.version > 0
+        ? { version: request.version }
+        : {}),
+    };
+  }
+
+  const receipt = getRecord(input.receipt);
+  const receiptType = getString(receipt?.type);
+  const receiptStatuses = Array.isArray(receipt?.statuses)
+    ? receipt.statuses.filter((status): status is ResidentProtocolReceiptStatus => (
+        typeof status === 'string' && RESIDENT_PROTOCOL_RECEIPT_STATUSES.has(status as ResidentProtocolReceiptStatus)
+      ))
+    : [];
+  if (receiptType || receiptStatuses.length > 0) {
+    protocol.receipt = {
+      ...(receiptType ? { type: receiptType } : {}),
+      ...(receiptStatuses.length > 0 ? { statuses: receiptStatuses } : {}),
+    };
+  }
+
+  const venue = getRecord(input.venue);
+  const venueId = getString(venue?.id);
+  const venueModuleId = getString(venue?.moduleId);
+  if (venueId || venueModuleId) {
+    protocol.venue = {
+      ...(venueId ? { id: venueId } : {}),
+      ...(venueModuleId ? { moduleId: venueModuleId } : {}),
+    };
+  }
+
+  const migration = getRecord(input.migration);
+  const currentTerm = getString(migration?.currentTerm);
+  const removalIssue = getString(migration?.removalIssue);
+  const note = getString(migration?.note);
+  if (currentTerm || removalIssue || note) {
+    protocol.migration = {
+      ...(currentTerm ? { currentTerm } : {}),
+      ...(removalIssue ? { removalIssue } : {}),
+      ...(note ? { note } : {}),
+    };
+  }
+
+  return protocol;
 }
 
 function buildQueryObject(url: URL): Record<string, string | string[]> {
