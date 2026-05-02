@@ -117,6 +117,7 @@ export type ResidentProtocolReceiptStatus =
 export interface ResidentProtocolRequestMetadata {
   type: string;
   version?: number;
+  requiredCapabilities?: string[];
 }
 
 export interface ResidentProtocolReceiptMetadata {

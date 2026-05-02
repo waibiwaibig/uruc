@@ -283,6 +283,19 @@ function getString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? value : undefined;
 }
 
+function getStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of value) {
+    const stringValue = getString(item);
+    if (!stringValue || seen.has(stringValue)) continue;
+    seen.add(stringValue);
+    result.push(stringValue);
+  }
+  return result;
+}
+
 function normalizeResidentProtocolMetadata(value: unknown): ResidentProtocolMetadata | undefined {
   const input = getRecord(value);
   if (!input || input.subject !== 'resident') return undefined;
@@ -290,12 +303,14 @@ function normalizeResidentProtocolMetadata(value: unknown): ResidentProtocolMeta
   const protocol: ResidentProtocolMetadata = { subject: 'resident' };
   const request = getRecord(input.request);
   const requestType = getString(request?.type);
+  const requiredCapabilities = getStringList(request?.requiredCapabilities);
   if (requestType) {
     protocol.request = {
       type: requestType,
       ...(typeof request?.version === 'number' && Number.isInteger(request.version) && request.version > 0
         ? { version: request.version }
         : {}),
+      ...(requiredCapabilities.length > 0 ? { requiredCapabilities } : {}),
     };
   }
 

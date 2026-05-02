@@ -1498,6 +1498,161 @@ export default defineBackendPlugin({
     await host.stopAll();
   });
 
+  it('exposes one required capability for a venue request through command discovery', async () => {
+    const pluginPath = await mkdtemp(path.join(os.tmpdir(), 'uruc-capability-plugin-'));
+    tempDirs.push(pluginPath);
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'uruc.capability',
+      packageName: '@uruc/plugin-capability',
+      version: '0.1.0',
+      publisher: 'uruc',
+      body: `export default {
+  kind: 'uruc.backend-plugin@v2',
+  pluginId: 'uruc.capability',
+  apiVersion: 2,
+  async setup(ctx) {
+    await ctx.commands.register({
+      id: 'send_dm',
+      description: 'Send one direct message through the capability fixture.',
+      inputSchema: {},
+      controlPolicy: { controllerRequired: false },
+      protocol: {
+        subject: 'resident',
+        request: {
+          type: 'uruc.capability.dm.send.request@v1',
+          requiredCapabilities: ['uruc.capability.dm.send@v1'],
+        },
+        venue: { id: 'uruc.capability' },
+      },
+      handler: async () => ({ ok: true }),
+    });
+  },
+};\n`,
+    });
+
+    const sent: any[] = [];
+    const gateway = createGateway(sent);
+    const { host, hooks } = await startSinglePluginHost(
+      'uruc.capability',
+      '@uruc/plugin-capability',
+      pluginPath,
+      (services) => {
+        services.register('ws-gateway', gateway as any);
+      },
+    );
+
+    expect(host.getPluginDiagnostics()).toContainEqual(expect.objectContaining({
+      pluginId: 'uruc.capability',
+      state: 'active',
+    }));
+    expect(hooks.hasWSCommand('uruc.capability.send_dm@v1')).toBe(true);
+
+    await hooks.handleWSCommand('what_can_i_do', {
+      ws: {},
+      session: {
+        userId: 'user-capability',
+        agentId: 'agent-capability',
+        agentName: 'Capability Agent',
+        role: 'agent' as const,
+        trustMode: 'full' as const,
+      },
+      inCity: true,
+      currentLocation: null,
+      isController: true,
+      hasController: true,
+      currentTable: null,
+      gateway,
+      setLocation() {},
+      setInCity() {},
+    } as any, {
+      id: 'discover-capability',
+      type: 'what_can_i_do',
+      payload: { scope: 'plugin', pluginId: 'uruc.capability' },
+    });
+
+    expect(sent.at(-1)).toMatchObject({
+      id: 'discover-capability',
+      type: 'result',
+      payload: {
+        level: 'detail',
+        commands: [
+          expect.objectContaining({
+            type: 'uruc.capability.send_dm@v1',
+            protocol: expect.objectContaining({
+              subject: 'resident',
+              request: {
+                type: 'uruc.capability.dm.send.request@v1',
+                requiredCapabilities: ['uruc.capability.dm.send@v1'],
+              },
+            }),
+          }),
+        ],
+      },
+    });
+
+    await host.stopAll();
+  });
+
+  it('exposes multiple required capabilities for one venue request through command schemas', async () => {
+    const pluginPath = await mkdtemp(path.join(os.tmpdir(), 'uruc-multi-capability-plugin-'));
+    tempDirs.push(pluginPath);
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'uruc.multi',
+      packageName: '@uruc/plugin-multi-capability',
+      version: '0.1.0',
+      publisher: 'uruc',
+      body: `export default {
+  kind: 'uruc.backend-plugin@v2',
+  pluginId: 'uruc.multi',
+  apiVersion: 2,
+  async setup(ctx) {
+    await ctx.commands.register({
+      id: 'publish_listing',
+      description: 'Publish one listing through the capability fixture.',
+      inputSchema: {},
+      controlPolicy: { controllerRequired: false },
+      protocol: {
+        subject: 'resident',
+        request: {
+          type: 'uruc.multi.listing.publish.request@v1',
+          requiredCapabilities: [
+            'uruc.multi.listing.write@v1',
+            'uruc.multi.market.publish@v1',
+          ],
+        },
+        venue: { id: 'uruc.multi' },
+      },
+      handler: async () => ({ ok: true }),
+    });
+  },
+};\n`,
+    });
+
+    const { host, hooks } = await startSinglePluginHost(
+      'uruc.multi',
+      '@uruc/plugin-multi-capability',
+      pluginPath,
+    );
+
+    expect(hooks.getWSCommandSchema('uruc.multi.publish_listing@v1')).toMatchObject({
+      type: 'uruc.multi.publish_listing@v1',
+      protocol: {
+        subject: 'resident',
+        request: {
+          type: 'uruc.multi.listing.publish.request@v1',
+          requiredCapabilities: [
+            'uruc.multi.listing.write@v1',
+            'uruc.multi.market.publish@v1',
+          ],
+        },
+      },
+    });
+
+    await host.stopAll();
+  });
+
   it('loads the native V2 social package and serves asset upload/download routes', async () => {
     const socialPluginPath = path.resolve(process.cwd(), '..', 'plugins', 'social');
     const { host, hooks, services, db } = await startSinglePluginHost(
