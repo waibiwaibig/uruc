@@ -22,7 +22,7 @@ import type { AuthService } from '../auth/service.js';
 import type { AgentSession, WSMessage } from '../../types/index.js';
 import { getCookieAuthUser, verifyToken } from './middleware.js';
 import { AgentSessionService, type AgentSessionSnapshot } from './agent-session-service.js';
-import { AppError, CORE_ERROR_CODES, resolveError } from './errors.js';
+import { AppError, CORE_ERROR_CODES, compactErrorPayload, resolveError } from './errors.js';
 
 /**
  * Typed interface for admin operations on the gateway.
@@ -294,13 +294,13 @@ export class WSGateway implements WSGatewayPublic {
       return this.handleStateQuery(clientId, client, msg);
     }
 
-    // `claim_control` is kept as a hidden compatibility alias for existing web runtimes.
-    // Discovery exposes acquire_action_lease; remove the alias after clients migrate.
+    // Hidden compatibility alias for pre-action-lease clients. Discovery only exposes
+    // acquire_action_lease; remove this after issue #8 migrates checked-in clients.
     if (msg.type === 'acquire_action_lease' || msg.type === 'claim_control') {
       return this.handleClaimControl(clientId, client, msg);
     }
 
-    // `release_control` follows the same temporary compatibility path as claim_control.
+    // Hidden compatibility alias for pre-action-lease clients; same removal target as above.
     if (msg.type === 'release_action_lease' || msg.type === 'release_control') {
       return this.handleReleaseControl(clientId, client, msg);
     }
@@ -470,11 +470,13 @@ export class WSGateway implements WSGatewayPublic {
       if (replaced) {
         this.sendCore(replaced.ws, {
           id: '',
-          type: 'control_replaced',
+          type: 'action_lease_moved',
           payload: {
             ...this.buildSessionState(client.session.agentId, result.replacedConnectionId),
             error: 'This resident action lease moved to another session.',
             agentId: client.session.agentId,
+            nextAction: 'acquire_action_lease',
+            detailRequest: { type: 'what_state_am_i' },
           },
         });
       }
@@ -486,7 +488,6 @@ export class WSGateway implements WSGatewayPublic {
       payload: {
         ...this.buildSessionState(client.session.agentId, clientId),
         actionLeaseAcquired: true,
-        claimed: true,
         restored: result.restored,
       },
     });
@@ -560,7 +561,14 @@ export class WSGateway implements WSGatewayPublic {
     for (const [clientId, client] of this.clients) {
       if (client.session?.agentId !== agentId) continue;
       if (excludedClientId && clientId === excludedClientId) continue;
-      this.sendCore(client.ws, { id: '', type: 'session_state', payload: this.buildSessionState(agentId, clientId) });
+      this.sendCore(client.ws, {
+        id: '',
+        type: 'session_state',
+        payload: {
+          ...this.buildSessionState(agentId, clientId),
+          detailRequest: { type: 'what_state_am_i' },
+        },
+      });
     }
   }
 
@@ -635,12 +643,16 @@ export class WSGateway implements WSGatewayPublic {
       return payload;
     }
 
+    const base = ('error' in (payload as Record<string, unknown>) && 'code' in (payload as Record<string, unknown>))
+      ? compactErrorPayload(payload as any)
+      : payload as Record<string, unknown>;
+
     if ('citytime' in (payload as Record<string, unknown>)) {
-      return payload;
+      return base;
     }
 
     return {
-      ...(payload as Record<string, unknown>),
+      ...base,
       citytime: Date.now(),
     };
   }

@@ -160,8 +160,8 @@ function field(type, description, required = false) {
   return { type, description, ...(required ? { required: true } : {}) };
 }
 
-function fail(message, code, action, details) {
-  return Object.assign(new Error(message), { code, action, details, statusCode: 400 });
+function fail(message, code, nextAction, details) {
+  return Object.assign(new Error(message), { code, nextAction, details, statusCode: 400 });
 }
 
 export default defineBackendPlugin({
@@ -352,13 +352,15 @@ Throw structured errors:
 ```js
 throw Object.assign(new Error('text is required.'), {
   code: 'INVALID_PARAMS',
-  action: 'retry',
+  nextAction: 'retry',
   details: { field: 'text' },
   statusCode: 400,
 });
 ```
 
-The host forwards `error`, `code`, `action`, `details`, and HTTP `statusCode`. Good actions are short: `auth`, `retry`, `shorten`, `acquire_action_lease`, `enter_city`, `enter_location`, `fetch_detail`.
+The host forwards `error`, compact `text`, stable `code`, `nextAction`, `details`, and HTTP `statusCode`. Good next actions are short: `auth`, `retry`, `shorten`, `acquire_action_lease`, `enter_city`, `enter_location`, `fetch_detail`.
+
+Migration note for #13: current plugins may still throw `action`; the host mirrors it to `nextAction` for protocol-facing responses. New code should emit and read `nextAction`. The legacy `action` field is removed once checked-in plugins and plugin examples no longer produce it.
 
 ### Storage, events, push, lifecycle
 

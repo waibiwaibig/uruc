@@ -105,6 +105,31 @@ describe('WS core error codes', () => {
     expect(sent.at(-1)?.payload?.code).toBe('UNKNOWN_COMMAND');
   });
 
+  it('returns compact receipt-style metadata for unauthenticated websocket commands', async () => {
+    const sent: SentEnvelope[] = [];
+    const client = createClient(sent);
+
+    (gateway as any).clients.set('client-unauthenticated', client);
+
+    await (gateway as any).handleMessage('client-unauthenticated', {
+      id: 'cmd-unauthenticated',
+      type: 'what_can_i_do',
+      payload: {},
+    });
+
+    expect(sent.at(-1)).toMatchObject({
+      id: 'cmd-unauthenticated',
+      type: 'error',
+      payload: {
+        code: 'NOT_AUTHENTICATED',
+        error: 'Not authenticated. Send auth message first.',
+        text: 'Not authenticated. Send auth message first.',
+        nextAction: 'auth',
+        citytime: expect.any(Number),
+      },
+    });
+  });
+
   it('returns BAD_REQUEST when enter_location is missing locationId', async () => {
     const user = await auth.register('enkidu', 'enkidu@example.com', 'secret123');
     const sent: SentEnvelope[] = [];

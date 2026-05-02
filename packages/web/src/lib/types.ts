@@ -108,9 +108,11 @@ export type WsConnectionStatus =
 
 export interface WsErrorPayload {
   error: string;
+  text?: string;
   code?: string;
   retryable?: boolean;
   action?: string;
+  nextAction?: string;
   details?: Record<string, unknown>;
 }
 
@@ -127,11 +129,29 @@ export interface RuntimeSnapshot {
   inCity: boolean;
   currentLocation: string | null;
   citytime: number;
+  detailRequest?: DetailRequestRef;
+}
+
+export interface PaginationInfo {
+  limit: number;
+  returned: number;
+  total: number;
+  nextCursor?: string;
+}
+
+export interface DetailRequestRef<TPayload = Record<string, unknown>> {
+  type: string;
+  payload?: TPayload;
+}
+
+export interface DiscoveryPageParams {
+  cursor?: string;
+  limit?: number;
 }
 
 export type CommandDiscoveryQuery =
-  | { scope: 'city' }
-  | { scope: 'plugin'; pluginId: string };
+  | ({ scope: 'city' } & DiscoveryPageParams)
+  | ({ scope: 'plugin'; pluginId: string } & DiscoveryPageParams);
 
 export interface CommandDiscoveryGroup {
   scope: 'city' | 'plugin';
@@ -145,6 +165,8 @@ export interface CommandDiscoverySummary {
   level: 'summary';
   groups: CommandDiscoveryGroup[];
   detailQueries: CommandDiscoveryQuery[];
+  page?: PaginationInfo;
+  nextDetailRequest?: DetailRequestRef<DiscoveryPageParams>;
   hint: string;
 }
 
@@ -153,6 +175,8 @@ export interface CommandDiscoveryDetail {
   level: 'detail';
   target: CommandDiscoveryQuery;
   commands: CommandSchema[];
+  page?: PaginationInfo;
+  nextDetailRequest?: DetailRequestRef<CommandDiscoveryQuery>;
 }
 
 export type CommandDiscoveryResponse = CommandDiscoverySummary | CommandDiscoveryDetail;
@@ -167,4 +191,6 @@ export interface LocationDiscoveryResult {
   citytime: number;
   current: LocationDiscoveryCurrent;
   locations: LocationDef[];
+  page?: PaginationInfo;
+  nextDetailRequest?: DetailRequestRef<DiscoveryPageParams>;
 }

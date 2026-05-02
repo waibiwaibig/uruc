@@ -143,7 +143,9 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
           pushEvent(i18n.t('runtime:websocket.commandRejectedPrefix', { message: payload.error }));
         }
       }
-      if (envelope.type === 'control_replaced') {
+      // `control_replaced` is a hidden compatibility read path for servers older than
+      // issue #13. Remove it once deployed servers emit action_lease_moved only.
+      if (envelope.type === 'action_lease_moved' || envelope.type === 'control_replaced') {
         const payload = envelope.payload as { error?: string } | undefined;
         const text = payload?.error ?? i18n.t('runtime:websocket.controlReplaced');
         pushEvent(text);

@@ -9,7 +9,7 @@
 
 import type { HookRegistry, WSContext, WSMessage, CommandSchema } from '../plugin-system/hook-registry.js';
 import type { AgentSession } from '../../types/index.js';
-import { CORE_ERROR_CODES, resolveError } from '../server/errors.js';
+import { CORE_ERROR_CODES, compactErrorPayload, resolveError } from '../server/errors.js';
 
 const PROTOCOL_COMMANDS: CommandSchema[] = [
     {
@@ -68,7 +68,18 @@ const CITY_GATE_COMMANDS: CommandSchema[] = [
         type: 'where_can_i_go',
         description: 'List your current place and reachable locations',
         pluginName: 'core',
-        params: {},
+        params: {
+            cursor: {
+                type: 'string',
+                description: 'Optional pagination cursor from the previous response.',
+                required: false,
+            },
+            limit: {
+                type: 'number',
+                description: 'Optional page size. Defaults to 20 and is capped at 50.',
+                required: false,
+            },
+        },
         controlPolicy: { controllerRequired: false },
     },
     {
@@ -86,24 +97,76 @@ const CITY_GATE_COMMANDS: CommandSchema[] = [
                 description: 'Required when scope is "plugin".',
                 required: false,
             },
+            cursor: {
+                type: 'string',
+                description: 'Optional pagination cursor from the previous response.',
+                required: false,
+            },
+            limit: {
+                type: 'number',
+                description: 'Optional page size. Defaults to 20 and is capped at 50.',
+                required: false,
+            },
         },
         controlPolicy: { controllerRequired: false },
     },
 ];
 
 const WORLD_DESCRIPTION = 'Welcome to Uruc. This city is powered by AI agents, with multiple locations for you to explore. You are currently standing outside the city walls, where you can check your state, discover available commands, and see available destinations. When you are ready, send enter_city to begin your adventure.';
+const DEFAULT_PAGE_LIMIT = 20;
+const MAX_PAGE_LIMIT = 50;
+
+type PageInput = { limit?: unknown; cursor?: unknown };
+
+function parsePageLimit(input: PageInput): number {
+    const raw = Number(input.limit ?? DEFAULT_PAGE_LIMIT);
+    if (!Number.isFinite(raw)) return DEFAULT_PAGE_LIMIT;
+    return Math.min(MAX_PAGE_LIMIT, Math.max(1, Math.floor(raw)));
+}
+
+function parsePageOffset(input: PageInput): number {
+    if (typeof input.cursor === 'number' && Number.isFinite(input.cursor)) {
+        return Math.max(0, Math.floor(input.cursor));
+    }
+    if (typeof input.cursor === 'string' && /^\d+$/.test(input.cursor)) {
+        return Number(input.cursor);
+    }
+    return 0;
+}
+
+function paginate<T>(items: T[], input: PageInput): { items: T[]; page: Record<string, unknown>; nextCursor?: string } {
+    const limit = parsePageLimit(input);
+    const offset = parsePageOffset(input);
+    const pageItems = items.slice(offset, offset + limit);
+    const nextOffset = offset + pageItems.length;
+    const nextCursor = nextOffset < items.length ? String(nextOffset) : undefined;
+    return {
+        items: pageItems,
+        page: {
+            limit,
+            returned: pageItems.length,
+            total: items.length,
+            ...(nextCursor ? { nextCursor } : {}),
+        },
+        nextCursor,
+    };
+}
 
 function attachCitytime(payload: unknown): unknown {
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
         return payload;
     }
 
+    const base = ('error' in (payload as Record<string, unknown>) && 'code' in (payload as Record<string, unknown>))
+        ? compactErrorPayload(payload as any)
+        : payload as Record<string, unknown>;
+
     if ('citytime' in (payload as Record<string, unknown>)) {
-        return payload;
+        return base;
     }
 
     return {
-        ...(payload as Record<string, unknown>),
+        ...base,
         citytime: Date.now(),
     };
 }
@@ -315,19 +378,28 @@ export function registerCityCommands(hooks: HookRegistry) {
 
     // --- where_can_i_go ---
     hooks.registerWSCommand('where_can_i_go', async (ctx: WSContext, msg: WSMessage) => {
+        const payload = (msg.payload && typeof msg.payload === 'object') ? msg.payload as PageInput : {};
+        const page = paginate(getAccessibleLocations(ctx, hooks), payload);
         sendCore(ctx, {
             id: msg.id,
             type: 'result',
             payload: {
                 current: buildCurrentPlace(ctx, hooks),
-                locations: getAccessibleLocations(ctx, hooks),
+                locations: page.items,
+                page: page.page,
+                ...(page.nextCursor ? {
+                    nextDetailRequest: {
+                        type: 'where_can_i_go',
+                        payload: { cursor: page.nextCursor, limit: page.page.limit },
+                    },
+                } : {}),
             },
         });
     }, CITY_GATE_COMMANDS[4]);
 
     // --- what_can_i_do ---
     hooks.registerWSCommand('what_can_i_do', async (ctx: WSContext, msg: WSMessage) => {
-        const payload = (msg.payload && typeof msg.payload === 'object') ? msg.payload as { scope?: string; pluginId?: string } : {};
+        const payload = (msg.payload && typeof msg.payload === 'object') ? msg.payload as { scope?: string; pluginId?: string } & PageInput : {};
         const { scope, pluginId } = payload;
         const cityCommands = getCityCommandSchemas(ctx, hooks);
         const pluginGroups = getPluginCommandGroups(ctx, hooks);
@@ -349,18 +421,26 @@ export function registerCityCommands(hooks: HookRegistry) {
                     commandCount: commands.length,
                 });
             }
+            const page = paginate(groups, payload);
 
             sendCore(ctx, {
                 id: msg.id,
                 type: 'result',
                 payload: {
                     level: 'summary',
-                    groups,
-                    detailQueries: groups.map((group) => (
+                    groups: page.items,
+                    page: page.page,
+                    detailQueries: page.items.map((group) => (
                         group.scope === 'city'
                             ? { scope: 'city' }
                             : { scope: 'plugin', pluginId: group.pluginId }
                     )),
+                    ...(page.nextCursor ? {
+                        nextDetailRequest: {
+                            type: 'what_can_i_do',
+                            payload: { cursor: page.nextCursor, limit: page.page.limit },
+                        },
+                    } : {}),
                     hint: 'Pass one of detailQueries back to what_can_i_do for full command schemas.',
                 },
             });
@@ -368,13 +448,21 @@ export function registerCityCommands(hooks: HookRegistry) {
         }
 
         if (scope === 'city') {
+            const page = paginate(cityCommands, payload);
             sendCore(ctx, {
                 id: msg.id,
                 type: 'result',
                 payload: {
                     level: 'detail',
                     target: { scope: 'city' },
-                    commands: cityCommands,
+                    commands: page.items,
+                    page: page.page,
+                    ...(page.nextCursor ? {
+                        nextDetailRequest: {
+                            type: 'what_can_i_do',
+                            payload: { scope: 'city', cursor: page.nextCursor, limit: page.page.limit },
+                        },
+                    } : {}),
                 },
             });
             return;
@@ -406,13 +494,21 @@ export function registerCityCommands(hooks: HookRegistry) {
                 return;
             }
 
+            const page = paginate(commands, payload);
             sendCore(ctx, {
                 id: msg.id,
                 type: 'result',
                 payload: {
                     level: 'detail',
                     target: { scope: 'plugin', pluginId },
-                    commands,
+                    commands: page.items,
+                    page: page.page,
+                    ...(page.nextCursor ? {
+                        nextDetailRequest: {
+                            type: 'what_can_i_do',
+                            payload: { scope: 'plugin', pluginId, cursor: page.nextCursor, limit: page.page.limit },
+                        },
+                    } : {}),
                 },
             });
             return;

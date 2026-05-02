@@ -27,15 +27,18 @@ export type RuntimeListener = (payload: unknown) => void;
 
 export interface PluginCommandErrorPayload {
   error: string;
+  text?: string;
   code?: string;
   retryable?: boolean;
   action?: string;
+  nextAction?: string;
   details?: Record<string, unknown>;
 }
 
 export class PluginCommandError extends Error {
   code?: string;
   action?: string;
+  nextAction?: string;
   retryable?: boolean;
   details?: Record<string, unknown>;
 
@@ -44,6 +47,7 @@ export class PluginCommandError extends Error {
     this.name = 'PluginCommandError';
     this.code = payload.code;
     this.action = payload.action;
+    this.nextAction = payload.nextAction ?? payload.action;
     this.retryable = payload.retryable;
     this.details = payload.details;
   }
@@ -55,7 +59,7 @@ export function isPluginCommandError(error: unknown): error is PluginCommandErro
       typeof error === 'object'
       && error !== null
       && 'message' in error
-      && ('code' in error || 'retryable' in error || 'action' in error || 'details' in error)
+      && ('code' in error || 'retryable' in error || 'action' in error || 'nextAction' in error || 'details' in error)
     );
 }
 
@@ -107,6 +111,7 @@ export interface PluginSessionState {
   inCity: boolean;
   currentLocation: string | null;
   citytime: number;
+  detailRequest?: { type: string; payload?: Record<string, unknown> };
 }
 
 export interface PluginRuntimeApi extends PluginRuntimeSnapshot {

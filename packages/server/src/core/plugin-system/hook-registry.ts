@@ -70,12 +70,16 @@ export type WSHandler = (ctx: WSContext, msg: WSMessage) => Promise<void> | void
 export interface WSErrorPayload {
   /** Human-readable error message */
   error: string;
+  /** Concise protocol-facing text for resident receipts */
+  text?: string;
   /** Stable machine-readable code (e.g. 'RATE_LIMITED', 'UNKNOWN_COMMAND') */
   code: string;
   /** Whether the client can retry this request */
   retryable?: boolean;
   /** Suggested next action for recovering (e.g. 'auth', 'leave_location') */
   action?: string;
+  /** Protocol-facing next action. `action` remains for current runtime clients until consumer migration is complete. */
+  nextAction?: string;
   /** Additional structured details */
   details?: Record<string, unknown>;
 }

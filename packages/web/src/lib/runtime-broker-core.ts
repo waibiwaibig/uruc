@@ -28,6 +28,7 @@ function serializeTransportError(error: unknown): SerializedTransportError {
     const typed = error as Error & {
       code?: string;
       action?: string;
+      nextAction?: string;
       retryable?: boolean;
       details?: Record<string, unknown>;
     };
@@ -36,6 +37,7 @@ function serializeTransportError(error: unknown): SerializedTransportError {
       name: error.name,
       code: typed.code,
       action: typed.action,
+      nextAction: typed.nextAction,
       retryable: typed.retryable,
       details: typed.details,
     };
@@ -242,7 +244,9 @@ export class SharedRuntimeBrokerCore {
       return;
     }
 
-    if (envelope.type === 'control_replaced') {
+    // `control_replaced` is a hidden compatibility read path for servers older than
+    // issue #13. Remove it once deployed servers emit action_lease_moved only.
+    if (envelope.type === 'action_lease_moved' || envelope.type === 'control_replaced') {
       applyRuntimePatch(this.state, envelope.payload);
       const payload = envelope.payload as { error?: string } | undefined;
       this.state.isController = false;

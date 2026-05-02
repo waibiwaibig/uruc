@@ -27,6 +27,7 @@ export interface SerializedTransportError {
   name?: string;
   code?: string;
   action?: string;
+  nextAction?: string;
   retryable?: boolean;
   details?: Record<string, unknown>;
 }

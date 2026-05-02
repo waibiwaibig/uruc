@@ -17,7 +17,7 @@ interface SentEnvelope {
   type: string;
   payload?: {
     citytime?: number;
-    claimed?: boolean;
+    actionLeaseAcquired?: boolean;
     current?: {
       place?: string;
       locationId?: string | null;
@@ -28,6 +28,7 @@ interface SentEnvelope {
     inCity?: boolean;
     error?: string;
     locations?: Array<{ id: string; name: string }>;
+    detailRequest?: { type: string; payload?: Record<string, unknown> };
   };
 }
 
@@ -95,6 +96,9 @@ describe('WSGateway control connection', () => {
     expect(sentA.some((message) => message.type === 'result' && message.payload?.inCity === true)).toBe(true);
     expect(sentA.some((message) => message.type === 'session_state')).toBe(false);
     expect(sentB.some((message) => message.type === 'session_state' && message.payload?.inCity === true)).toBe(true);
+    expect(sentB.find((message) => message.type === 'session_state' && message.payload?.inCity === true)?.payload).toMatchObject({
+      detailRequest: { type: 'what_state_am_i' },
+    });
 
     await (gateway as any).handleMessage('client-b', {
       id: 'enter-location-b',
@@ -168,11 +172,11 @@ describe('WSGateway control connection', () => {
     await (gateway as any).handleMessage('client-a', { id: 'enter-a', type: 'enter_city', payload: {} });
     await (gateway as any).handleMessage('client-b', { id: 'lease-b', type: 'acquire_action_lease', payload: {} });
 
-    expect(sentA.some((message) => message.type === 'control_replaced')).toBe(true);
+    expect(sentA.some((message) => message.type === 'action_lease_moved')).toBe(true);
     expect(clientA.ws.close).not.toHaveBeenCalled();
     expect(sentB.some((message) => message.type === 'control_claimed')).toBe(false);
     expect(sentB.find((message) => message.type === 'result')?.payload).toMatchObject({
-      claimed: true,
+      actionLeaseAcquired: true,
       restored: false,
     });
   });
@@ -307,9 +311,11 @@ describe('WSGateway control connection', () => {
     await (gateway as any).handleMessage('client-a', { id: 'enter-a', type: 'enter_city', payload: {} });
     await (gateway as any).handleMessage('client-b', { id: 'lease-b', type: 'acquire_action_lease', payload: {} });
 
-    expect(sentA.find((message) => message.type === 'control_replaced')?.payload).toMatchObject({
+    expect(sentA.find((message) => message.type === 'action_lease_moved')?.payload).toMatchObject({
       citytime: expect.any(Number),
       error: 'This resident action lease moved to another session.',
+      nextAction: 'acquire_action_lease',
+      detailRequest: { type: 'what_state_am_i' },
     });
   });
 });
