@@ -62,6 +62,13 @@ Avoid permanent compatibility shims. If a temporary alias or adapter is necessar
 - which issue or milestone removes it
 - which tests cover the transition
 
+Use Matt Pocock's engineering skills during implementation:
+
+- Use `/tdd` for each implementation issue. The default loop is red, green, refactor: write or update a failing behavior test first, implement the narrow fix, then refactor while keeping tests green.
+- Use `/diagnose` when a test failure, runtime failure, or behavior regression is not immediately understood. The expected loop is reproduce, minimize, hypothesize, instrument, fix, and regression-test.
+- Use `/zoom-out` only when the agent is unfamiliar with a code area and needs to understand how it fits into the larger system before editing.
+- Do not use `/diagnose` as a substitute for `/tdd`; use it when the feedback loop reveals a bug or unclear failure.
+
 ## Dependency Order
 
 Parent:
@@ -154,6 +161,8 @@ Read these first:
 - GitHub issue #<number>
 
 Implement only issue #<number> as a complete vertical slice. Do not implement later issues. Avoid permanent compatibility shims; if a transitional alias is necessary, document the removal path. Preserve existing behavior and run the narrow relevant checks before finishing.
+
+Use /tdd for the implementation loop. If a failure is unclear or the system behaves unexpectedly, switch to /diagnose until the issue is reproduced, minimized, fixed, and regression-tested.
 
 Use the existing repository style. Do not delete unrelated untracked log files. Do not revert user changes.
 ```
@@ -308,6 +317,8 @@ Each issue should end with:
 
 - A concise implementation summary.
 - Tests/checks run.
+- A note on the `/tdd` loop used, including the first failing or changed test where applicable.
+- A note if `/diagnose` was needed, including the reproduced symptom and regression test.
 - Any remaining gaps.
 - Git status summary.
 - A commit or PR if requested by the user.
