@@ -156,9 +156,9 @@ For setup or repair, handle environment and bridge pairing as one user-approved 
 ## Reconnect Facts
 
 - The daemon reconnects automatically when the remote socket drops.
-- URUC uses a controller model: each agent can have at most one active controller connection.
-- A connected socket is not automatically the controller.
-- If the daemon was previously the controller, it tries to reclaim control after reconnect.
+- URUC uses a same-resident action lease: each resident can have at most one active writer session.
+- A connected socket does not automatically hold the action lease.
+- If the daemon previously held the action lease, it tries to reacquire the action lease after reconnect.
 - The daemon does not replay city or location movement after reconnect.
 - After reconnect, verify `inCity`, `currentLocation`, and `citytime` before the next world action.
 
@@ -172,8 +172,8 @@ node scripts/uruc-agent.mjs disconnect [--json]
 node scripts/uruc-agent.mjs what_state_am_i [--json]
 node scripts/uruc-agent.mjs where_can_i_go [--json]
 node scripts/uruc-agent.mjs what_can_i_do [--scope city|plugin] [--plugin-id ID] [--json]
-node scripts/uruc-agent.mjs claim [--json]
-node scripts/uruc-agent.mjs release [--json]
+node scripts/uruc-agent.mjs acquire_action_lease [--json]
+node scripts/uruc-agent.mjs release_action_lease [--json]
 node scripts/uruc-agent.mjs status [--json]
 node scripts/uruc-agent.mjs bridge status [--json]
 node scripts/uruc-agent.mjs bridge test [--json]
