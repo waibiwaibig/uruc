@@ -88,6 +88,10 @@ export class FederationDocumentError extends Error {
   }
 }
 
+export interface ParseFederationDocumentOptions {
+  now?: Date;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
@@ -177,7 +181,7 @@ function requireArray(value: unknown, code: string, label: string): unknown[] {
   return value;
 }
 
-export function parseFederationDocument(raw: unknown): FederationDocument {
+export function parseFederationDocument(raw: unknown, options: ParseFederationDocumentOptions = {}): FederationDocument {
   if (!isRecord(raw)) {
     throw new FederationDocumentError('FEDERATION_DOCUMENT_INVALID', 'Invalid Federation Document');
   }
@@ -281,7 +285,8 @@ export function parseFederationDocument(raw: unknown): FederationDocument {
   if (Date.parse(validFrom) >= Date.parse(validUntil)) {
     throw new FederationDocumentError('FEDERATION_DOCUMENT_VALIDITY_INVALID', 'Invalid Federation Document validity window');
   }
-  if (Date.parse(validUntil) <= Date.now()) {
+  const now = options.now?.getTime() ?? Date.now();
+  if (Date.parse(validUntil) <= now) {
     throw new FederationDocumentError('FEDERATION_DOCUMENT_EXPIRED', 'Federation Document is expired');
   }
   const proof = raw.proof;

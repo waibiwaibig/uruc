@@ -338,6 +338,31 @@ describe('Federation policy skeleton', () => {
     expect(first.status.digest).toMatch(/^sha256:/);
   });
 
+  it('evaluates fetched Federation Document expiry against the service clock', async () => {
+    const raw = federationDocument({
+      validFrom: '2026-05-03T00:00:00.000Z',
+      validUntil: '2026-05-04T00:00:00.000Z',
+    });
+    const service = new FederationDocumentService({
+      now: () => new Date('2026-05-03T00:00:02.000Z'),
+      fetch: async () => new Response(JSON.stringify(raw), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    });
+
+    await expect(service.fetchDocument({
+      federationId: 'fed.public-alpha',
+      document: 'https://fed.example/.well-known/uruc-federation.json',
+    })).resolves.toMatchObject({
+      status: {
+        status: 'valid',
+        code: 'FEDERATION_DOCUMENT_FETCHED',
+        validUntil: '2026-05-04T00:00:00.000Z',
+      },
+    });
+  });
+
   it('verifies federation policy refs and feed entries into compact trust results', () => {
     const document = parseFederationDocument(federationDocument({
       policyRefs: [{

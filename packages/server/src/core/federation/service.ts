@@ -123,7 +123,10 @@ export class FederationDocumentService {
     if (!response.ok) {
       throw new FederationDocumentError('FEDERATION_DOCUMENT_FETCH_FAILED', `Federation Document fetch failed with HTTP ${response.status}`);
     }
-    const document = parseFederationDocument(parseJson(await readLimitedText(response, this.maxDocumentBytes)));
+    const document = parseFederationDocument(
+      parseJson(await readLimitedText(response, this.maxDocumentBytes)),
+      { now: this.now() },
+    );
     if (document.federationId !== cityPolicy.federationId) {
       throw new FederationDocumentError('FEDERATION_DOCUMENT_ID_MISMATCH', 'Federation Document id does not match city membership');
     }
