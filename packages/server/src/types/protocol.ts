@@ -34,6 +34,8 @@ export interface AgentSession {
   userId: string;
   agentName: string;
   role: 'owner' | 'agent';
+  registrationType: 'regular' | 'principal_backed';
+  accountablePrincipalId: string | null;
   trustMode: 'confirm' | 'full';
   allowedLocations: string[];
 }
@@ -147,4 +149,3 @@ export interface AdminActionRequest {
   widgetId: string;
   params?: Record<string, unknown>;
 }
-

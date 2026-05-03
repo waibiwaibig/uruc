@@ -222,6 +222,153 @@ describe('WSGateway regular resident permission credentials', () => {
     });
   });
 
+  it('allows a principal-backed resident request with an accountable-principal-issued credential', async () => {
+    const user = await auth.register('principal-backed-allow', 'principal-backed-allow@example.com', 'secret-123');
+    const [principal] = await auth.getAgentsByUser(user.id);
+    const resident = await auth.createPrincipalBackedResident({
+      accountablePrincipalId: principal.id,
+      name: 'principal-backed-allow-worker',
+    });
+    await permissions.issuePrincipalCredential({
+      issuerId: principal.id,
+      residentId: resident.id,
+      capabilities: ['uruc.permission.fixture.write@v1'],
+    });
+
+    const handler = vi.fn(async (ctx, msg) => {
+      ctx.gateway.send(ctx.ws, { id: msg.id, type: 'result', payload: { ok: true, agentId: ctx.session?.agentId } });
+    });
+    hooks.registerWSCommand('uruc.permission.principal_write@v1', handler, {
+      type: 'uruc.permission.principal_write@v1',
+      description: 'Write one principal-backed fixture value.',
+      pluginName: 'uruc.permission',
+      params: {},
+      controlPolicy: { controllerRequired: false },
+      protocol: {
+        subject: 'resident',
+        request: {
+          type: 'uruc.permission.principal.write.request@v1',
+          requiredCapabilities: ['uruc.permission.fixture.write@v1'],
+        },
+        venue: { id: 'uruc.permission' },
+      },
+    });
+
+    const sent: SentEnvelope[] = [];
+    const client = createClient(sent);
+    (gateway as any).clients.set('client-a', client);
+    await (gateway as any).handleAgentAuth('client-a', client, {
+      id: 'auth-a',
+      type: 'auth',
+      payload: resident.token,
+    });
+
+    sent.length = 0;
+    await (gateway as any).handleMessage('client-a', {
+      id: 'write-a',
+      type: 'uruc.permission.principal_write@v1',
+      payload: {},
+    });
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(sent.at(-1)).toMatchObject({
+      id: 'write-a',
+      type: 'result',
+      payload: { ok: true, agentId: resident.id },
+    });
+  });
+
+  it('exposes principal-backed registration state during resident session auth', async () => {
+    const user = await auth.register('principal-backed-auth', 'principal-backed-auth@example.com', 'secret-123');
+    const [principal] = await auth.getAgentsByUser(user.id);
+    const resident = await auth.createPrincipalBackedResident({
+      accountablePrincipalId: principal.id,
+      name: 'principal-backed-auth-worker',
+    });
+
+    const sent: SentEnvelope[] = [];
+    const client = createClient(sent);
+    (gateway as any).clients.set('client-a', client);
+    await (gateway as any).handleAgentAuth('client-a', client, {
+      id: 'auth-a',
+      type: 'auth',
+      payload: resident.token,
+    });
+
+    expect(sent.at(-1)).toMatchObject({
+      id: 'auth-a',
+      type: 'result',
+      payload: {
+        agentId: resident.id,
+        registrationType: 'principal_backed',
+        accountablePrincipalId: principal.id,
+      },
+    });
+  });
+
+  it('returns a stable require_approval receipt before principal-backed venue dispatch when permission is missing', async () => {
+    const user = await auth.register('principal-backed-deny', 'principal-backed-deny@example.com', 'secret-123');
+    const [principal] = await auth.getAgentsByUser(user.id);
+    const resident = await auth.createPrincipalBackedResident({
+      accountablePrincipalId: principal.id,
+      name: 'principal-backed-deny-worker',
+    });
+    await permissions.issueCityCredential({
+      residentId: resident.id,
+      capabilities: ['uruc.permission.fixture.write@v1'],
+    });
+    const handler = vi.fn(async (ctx, msg) => {
+      ctx.gateway.send(ctx.ws, { id: msg.id, type: 'result', payload: { ok: true } });
+    });
+    hooks.registerWSCommand('uruc.permission.principal_deny@v1', handler, {
+      type: 'uruc.permission.principal_deny@v1',
+      description: 'Write one principal-backed denied fixture value.',
+      pluginName: 'uruc.permission',
+      params: {},
+      controlPolicy: { controllerRequired: false },
+      protocol: {
+        subject: 'resident',
+        request: {
+          type: 'uruc.permission.principal.deny.request@v1',
+          requiredCapabilities: ['uruc.permission.fixture.write@v1'],
+        },
+        venue: { id: 'uruc.permission' },
+      },
+    });
+
+    const sent: SentEnvelope[] = [];
+    const client = createClient(sent);
+    (gateway as any).clients.set('client-a', client);
+    await (gateway as any).handleAgentAuth('client-a', client, {
+      id: 'auth-a',
+      type: 'auth',
+      payload: resident.token,
+    });
+
+    sent.length = 0;
+    await (gateway as any).handleMessage('client-a', {
+      id: 'write-a',
+      type: 'uruc.permission.principal_deny@v1',
+      payload: {},
+    });
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(sent.at(-1)).toMatchObject({
+      id: 'write-a',
+      type: 'error',
+      payload: {
+        code: 'PERMISSION_REQUIRED',
+        text: 'Principal-backed permission required for this request.',
+        nextAction: 'require_approval',
+        details: {
+          requestType: 'uruc.permission.principal.deny.request@v1',
+          accountablePrincipalId: principal.id,
+          missingCapabilities: ['uruc.permission.fixture.write@v1'],
+        },
+      },
+    });
+  });
+
   it('keeps a venue request runnable when required capabilities are not declared', async () => {
     const user = await auth.register('capability-undeclared', 'capability-undeclared@example.com', 'secret-123');
     const handler = vi.fn(async (ctx, msg) => {

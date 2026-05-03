@@ -71,6 +71,13 @@ export function createDb(dbPath: string = getDbPath()) {
     valid_until INTEGER
   )`);
 
+  db.run(sql`CREATE TABLE IF NOT EXISTS principal_backed_residents (
+    resident_id TEXT PRIMARY KEY REFERENCES agents(id),
+    accountable_principal_id TEXT NOT NULL REFERENCES agents(id),
+    created_at INTEGER NOT NULL,
+    CHECK (resident_id <> accountable_principal_id)
+  )`);
+
   db.run(sql`CREATE TABLE IF NOT EXISTS action_logs (
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL, agent_id TEXT NOT NULL,
     location_id TEXT, action_type TEXT NOT NULL, payload TEXT,
@@ -81,6 +88,7 @@ export function createDb(dbPath: string = getDbPath()) {
   db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique ON users(email)`);
   db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS agents_shadow_unique ON agents(user_id) WHERE is_shadow = 1`);
   db.run(sql`CREATE INDEX IF NOT EXISTS permission_credentials_resident_status ON permission_credentials(resident_id, status)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS principal_backed_residents_principal ON principal_backed_residents(accountable_principal_id)`);
 
   return db;
 }

@@ -35,6 +35,8 @@ export interface WSContext {
     agentId: string;
     agentName: string;
     role: 'owner' | 'agent';
+    registrationType?: 'regular' | 'principal_backed';
+    accountablePrincipalId?: string | null;
     trustMode?: 'confirm' | 'full';
     allowedLocations?: string[];
   } | null;

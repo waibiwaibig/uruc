@@ -15,6 +15,8 @@ export interface Agent {
   name: string;
   token: string;
   isShadow: boolean;
+  registrationType: 'regular' | 'principal_backed';
+  accountablePrincipalId: string | null;
   trustMode?: 'confirm' | 'full';
   allowedLocations?: string[];
   isOnline?: boolean;
@@ -124,6 +126,11 @@ export interface IAuthService {
    * 创建 Agent
    */
   createAgent(userId: string, name: string): Promise<Agent>;
+
+  /**
+   * 创建 Principal-backed Resident
+   */
+  createPrincipalBackedResident(input: { accountablePrincipalId: string; name: string }): Promise<Agent>;
 
   /**
    * 获取或创建用户绑定的 Shadow Agent

@@ -420,6 +420,8 @@ export class WSGateway implements WSGatewayPublic {
         payload: {
           agentId: session.agentId,
           agentName: session.agentName,
+          registrationType: session.registrationType,
+          accountablePrincipalId: session.accountablePrincipalId,
           ...sessionState,
           ...bootstrapData,
         },
@@ -458,7 +460,15 @@ export class WSGateway implements WSGatewayPublic {
 
   private handleStateQuery(clientId: string, client: ConnectedClient, msg: WSMessage): void {
     if (!client.session) return;
-    this.sendCore(client.ws, { id: msg.id, type: 'result', payload: this.buildSessionState(client.session.agentId, clientId) });
+    this.sendCore(client.ws, {
+      id: msg.id,
+      type: 'result',
+      payload: {
+        ...this.buildSessionState(client.session.agentId, clientId),
+        registrationType: client.session.registrationType,
+        accountablePrincipalId: client.session.accountablePrincipalId,
+      },
+    });
   }
 
   private handleClaimControl(clientId: string, client: ConnectedClient, msg: WSMessage): void {
@@ -597,6 +607,8 @@ export class WSGateway implements WSGatewayPublic {
         type: 'session_state',
         payload: {
           ...this.buildSessionState(agentId, clientId),
+          registrationType: client.session.registrationType,
+          accountablePrincipalId: client.session.accountablePrincipalId,
           detailRequest: { type: 'what_state_am_i' },
         },
       });
