@@ -57,10 +57,6 @@ export interface CityPluginSpec {
   devOverridePath?: string;
   topology?: {
     mode: VenueRuntimeTopologyMode;
-    domain?: {
-      endpoint?: string;
-      document?: string;
-    };
   };
   config?: Record<string, unknown>;
 }

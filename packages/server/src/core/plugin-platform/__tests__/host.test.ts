@@ -957,6 +957,98 @@ export default {
     await host.stopAll();
   });
 
+  it('does not let city config override venue domain metadata from the package manifest', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-venue-topology-domain-override-'));
+    tempDirs.push(tempRoot);
+
+    const pluginPath = path.join(tempRoot, 'plugins', 'domain-topology-override');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'acme.domain-override',
+      packageName: '@acme/plugin-domain-override',
+      version: '1.0.0',
+      publisher: 'acme',
+      venue: {
+        moduleId: 'acme.domain-override',
+        namespace: 'acme.domain-override',
+        topology: {
+          mode: 'domain_optional',
+          domain: {
+            endpoint: 'https://domain.example/acme',
+            document: 'https://domain.example/.well-known/uruc-domain.json',
+          },
+        },
+      },
+    });
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.domain-override': {
+          pluginId: 'acme.domain-override',
+          packageName: '@acme/plugin-domain-override',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginPath,
+          topology: {
+            mode: 'domain',
+            domain: {
+              endpoint: 'https://city-config.example/override',
+              document: 'https://city-config.example/override-document.json',
+            },
+          } as { mode: 'domain' },
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await host.syncLockFile();
+    const lock = await readCityLock(lockPath);
+    expect(lock.plugins['acme.domain-override']?.venue?.topology).toEqual({
+      declaration: 'domain_optional',
+      mode: 'domain',
+      domain: {
+        endpoint: 'https://domain.example/acme',
+        document: 'https://domain.example/.well-known/uruc-domain.json',
+      },
+    });
+
+    const hooks = new HookRegistry();
+    const services = new ServiceRegistry();
+    const db = createDb(':memory:');
+    await host.startAll({ db, hooks, services });
+
+    expect(host.listPlugins().find((item) => item.name === 'acme.domain-override')?.venue?.topology).toEqual({
+      declaration: 'domain_optional',
+      mode: 'domain',
+      domain: {
+        endpoint: 'https://domain.example/acme',
+        document: 'https://domain.example/.well-known/uruc-domain.json',
+      },
+    });
+    expect(host.getPluginDiagnostics().find((item) => item.pluginId === 'acme.domain-override')?.venue?.topology).toEqual({
+      declaration: 'domain_optional',
+      mode: 'domain',
+      domain: {
+        endpoint: 'https://domain.example/acme',
+        document: 'https://domain.example/.well-known/uruc-domain.json',
+      },
+    });
+
+    await host.stopAll();
+  });
+
   it('keeps a domain-optional venue local when city config selects local mode', async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-venue-topology-domain-local-'));
     tempDirs.push(tempRoot);
@@ -1107,10 +1199,7 @@ export default {
           enabled: true,
           permissionsGranted: [],
           devOverridePath: pluginPath,
-          topology: {
-            mode: 'domain',
-            domain: { endpoint: 'https://domain.example/acme-unsupported' },
-          },
+          topology: { mode: 'domain' },
         },
       },
     });
