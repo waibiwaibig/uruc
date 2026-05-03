@@ -50,7 +50,6 @@ function includes(value: string | undefined, items: string[] | undefined): boole
 
 function conformanceMissing(subject: TrustPolicySubject, required: string[] | undefined): string[] {
   if (!required || required.length === 0) return [];
-  if (subject.conformanceBadges === undefined) return [];
   const actual = new Set(subject.conformanceBadges ?? []);
   return required.filter((badge) => !actual.has(badge));
 }

@@ -166,7 +166,6 @@ describe('Federation policy skeleton', () => {
         rejectedIssuerIds: ['issuer.blocked'],
         warnRiskLevels: ['medium'],
         rejectRiskLevels: ['high'],
-        requiredConformanceBadges: ['uruc.intercity.v0'],
       },
     };
 
@@ -193,6 +192,27 @@ describe('Federation policy skeleton', () => {
       cityPolicy,
       subject: { kind: 'domain', domainId: 'domain.unclassified' },
     })).toMatchObject({ decision: 'unknown', code: 'FEDERATION_NO_MATCH' });
+  });
+
+  it('warns when city policy requires conformance badges and the subject does not present them', () => {
+    const document = parseFederationDocument(federationDocument());
+    const cityPolicy: CityFederationSpec = {
+      federationId: 'fed.public-alpha',
+      trustPolicy: {
+        mode: 'observe' as const,
+        requiredConformanceBadges: ['uruc.intercity.v0'],
+      },
+    };
+
+    expect(evaluateTrustPolicy({
+      document,
+      cityPolicy,
+      subject: { kind: 'resident', residentId: 'resident-without-conformance' },
+    })).toMatchObject({
+      decision: 'warn',
+      code: 'FEDERATION_CONFORMANCE_MISSING',
+      reasons: ['missing conformance badges: uruc.intercity.v0'],
+    });
   });
 
   it('attaches federation policy results to verification output without deleting or rewriting resident identity', () => {

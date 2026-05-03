@@ -356,7 +356,7 @@ Federation is city trust/governance metadata, not a Domain Service and not Venue
 
 City config may declare membership under `federations[federationId]` with an optional document URL and local `trustPolicy`. The trust-policy skeleton can currently return `accept`, `reject`, `warn`, or `unknown` for city, issuer, resident, or domain verification contexts. It is intentionally not a legal rules engine and does not implement global consensus.
 
-Federation policy results may be attached to resident/domain/city verification output as audit context. They affect admission, permission decisions, risk marking, and conformance badges. They do not delete or rewrite Resident IDs. A city that has not joined a federation returns `unknown` for that federation policy context and does not need to obey it. Domain attachment/dispatch and Venue Domain Protocols remain independent from Federation.
+Federation policy results may be attached to resident/domain/city verification output as audit context. They are intended to feed future admission, permission decision, risk marking, and conformance badge interfaces. They do not delete or rewrite Resident IDs. A city that has not joined a federation returns `unknown` for that federation policy context and does not need to obey it. Domain attachment/dispatch and Venue Domain Protocols remain independent from Federation.
 
 ### Runtime context exposed to backend venue modules
 
