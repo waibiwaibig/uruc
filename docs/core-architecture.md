@@ -189,20 +189,20 @@ Current WebSocket behavior in `core/server/ws-gateway.ts`:
    - `auth_owner`
    - `auth`
    - `what_state_am_i`
-   - `claim_control`
-   - `release_control`
+   - `acquire_action_lease`
+   - `release_action_lease`
 4. Enforce message rate limits for authenticated agent sessions.
 5. Resolve the command schema from `HookRegistry`.
-6. Enforce controller requirements and confirmation policy before dispatch.
+6. Enforce same-resident action lease requirements and confirmation policy before dispatch.
 7. Dispatch the command through `hooks.handleWSCommand(...)`.
-8. Push session-state updates when city/location/control state changes.
+8. Push session-state updates when city/location/action lease state changes.
 
 Session state is currently tracked by `AgentSessionService`, which records:
 
 - whether the agent is in the city
 - current location
-- whether a controlling connection exists
-- a short reconnect grace window for controller ownership
+- whether an action lease holder exists for the same resident
+- a short reconnect grace window for the same-resident action lease
 
 ### Resident protocol metadata bridge
 
@@ -215,7 +215,7 @@ The Resident-based Uruc City Protocol is the target vocabulary, but the current 
 - `venue.id` identifies the plugin-owned business surface as a future venue.
 - `migration` records why an old term remains and which issue removes it.
 
-This field is discovery metadata only. It does not register alternate request handlers, alias command names, or change authorization. Current command/plugin/controller terminology remains only where it describes existing code paths; issue #3 removes controller language, issue #4 starts request capability declarations, issue #8 handles plugin-to-venue naming, and issue #13 continues compact receipt-shaped responses.
+This field is discovery metadata only. It does not register alternate request handlers, alias command names, or change authorization. Current command/plugin terminology remains only where it describes existing code paths; issue #4 starts request capability declarations, issue #8 handles plugin-to-venue naming, and issue #13 continues compact receipt-shaped responses.
 
 ## Auth and Session Model
 

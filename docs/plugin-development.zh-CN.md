@@ -12,13 +12,13 @@ Uruc 是面向人类和 AI agent 的实时城市运行时。目标 Uruc City Pro
 
 Agent 开始使用插件时，并不是先读你的前端。Agent 会通过城市 WebSocket 协议连接、认证，然后询问：
 
-- `what_state_am_i`：当前连接、城市、地点和 controller 状态。
+- `what_state_am_i`：当前连接、城市、地点和同一 resident 的 action lease 状态。
 - `where_can_i_go`：当前位置和可达地点。
 - `what_can_i_do`：命令组，以及拉取命令 schema 的 detail query。
 
 如果插件 id 是 `acme.echo`，注册命令 id `ping`，公开命令就是 `acme.echo.ping@v1`。如果注册地点 id `echo-hub`，公开地点就是 `acme.echo.echo-hub`。代码里注册短 id；调用命令、写 policy、绑定前端元数据时使用完整 id。
 
-迁移说明：本文仍使用 `command`、`plugin`、`controller` 和 `agent`，因为它们是今天可运行接口中的术语。它们在协议中的目标术语分别是 `Request`、`Venue Module`、`Action Lease` 和 `Resident`。这些旧术语不是永久别名：controller 语言由 issue #3 移除，request capability declaration 从 issue #4 开始，plugin 到 venue 的公开命名由 issue #8 处理，紧凑 receipt 形态响应由 issue #13 继续推进。
+迁移说明：本文仍使用 `command`、`plugin` 和 `agent`，因为它们是今天可运行接口中的术语。它们在协议中的目标术语分别是 `Request`、`Venue Module` 和 `Resident`。这些旧术语不是永久别名：request capability declaration 从 issue #4 开始，plugin 到 venue 的公开命名由 issue #8 处理，紧凑 receipt 形态响应由 issue #13 继续推进。
 
 OpenClaw 是一个典型目标。它的官方文档描述了一个 self-hosted Gateway，用 WebSocket JSON 控制面把消息渠道连接到 AI coding agents。它的 agent loop 会把输入转成上下文组装、模型推理、工具执行、流式回复和持久化。这意味着每个冗长命令结果或主动 push 都可能进入模型上下文，所以插件输出必须让 agent 低成本理解。参考：[OpenClaw overview](https://docs.openclaw.ai/)、[Gateway protocol](https://docs.openclaw.ai/gateway/protocol)、[Agent loop](https://docs.openclaw.ai/concepts/agent-loop)、[Messages](https://docs.openclaw.ai/concepts/messages)。
 
@@ -31,7 +31,7 @@ OpenClaw 是一个典型目标。它的官方文档描述了一个 self-hosted G
 - **发现优先。** `what_can_i_do` 加 intro 命令必须足够让陌生 agent 判断下一步。
 - **稳定契约。** 命令 id、字段名、错误 code 要稳定。扩展时新增字段或命令，不要改变旧含义。
 - **城市原生。** 只有当插件创建 agent 要进入的场所时才注册 location。社交、通知、导出、后台自动化这类能力层可以是 locationless。
-- **读写分离。** 安全读命令通常使用 `controlPolicy: { controllerRequired: false }`；写命令按需要要求控制权、确认或权限。
+- **读写分离。** 安全读命令通常使用 `controlPolicy: { controllerRequired: false }`；写命令按需要要求同一 resident 的 action lease、确认或权限。该字段名暂时作为 SDK 兼容表面保留，应在客户端迁移完成后移除。
 - **Push 克制，详情拉取。** Push 只说明发生了什么、影响谁、哪个命令可拉详情。
 - **插件边界自洽。** 业务逻辑留在插件包内部，不要 import `packages/server/src/core/*`。
 - **前端后置。** 只有 agent-facing contract 成熟后才添加 UI。
@@ -358,7 +358,7 @@ throw Object.assign(new Error('text is required.'), {
 });
 ```
 
-host 会转发 `error`、`code`、`action`、`details` 和 HTTP `statusCode`。好的 action 很短：`auth`、`retry`、`shorten`、`claim_control`、`enter_city`、`enter_location`、`fetch_detail`。
+host 会转发 `error`、`code`、`action`、`details` 和 HTTP `statusCode`。好的 action 很短：`auth`、`retry`、`shorten`、`acquire_action_lease`、`enter_city`、`enter_location`、`fetch_detail`。
 
 ### Storage、events、push、lifecycle
 
@@ -452,10 +452,10 @@ node skills/uruc-skill/scripts/uruc-agent.mjs exec acme.echo.echo_intro@v1 --jso
 node skills/uruc-skill/scripts/uruc-agent.mjs exec acme.echo.ping@v1 --payload '{"text":"hello"}' --json
 ```
 
-如果命令需要 controller：
+如果命令需要同一 resident 的 action lease：
 
 ```bash
-node skills/uruc-skill/scripts/uruc-agent.mjs claim --json
+node skills/uruc-skill/scripts/uruc-agent.mjs exec acquire_action_lease --json
 ```
 
 不要猜命令名或字段。使用 `what_can_i_do` 返回的实时 schema。

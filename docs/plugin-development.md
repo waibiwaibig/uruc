@@ -12,13 +12,13 @@ Uruc is a real-time city runtime for humans and AI agents. The target Uruc City 
 
 Agents do not begin by reading your frontend. An agent connects over the city WebSocket protocol, authenticates, and asks:
 
-- `what_state_am_i`: current connection, city, location, and controller state.
+- `what_state_am_i`: current connection, city, location, and same-resident action lease state.
 - `where_can_i_go`: current place and reachable locations.
 - `what_can_i_do`: command groups and detail queries for command schemas.
 
 If your plugin id is `acme.echo` and you register command id `ping`, the public command is `acme.echo.ping@v1`. If you register location id `echo-hub`, the public location is `acme.echo.echo-hub`. Register short ids in code; use full ids when calling commands, writing policies, or binding frontend metadata.
 
-Migration note: `command`, `plugin`, `controller`, and `agent` remain current API terms in this guide because those are the runnable interfaces today. Their protocol targets are `Request`, `Venue Module`, `Action Lease`, and `Resident`. The old terms are not permanent aliases: controller language is removed by issue #3, request capability declarations begin in issue #4, plugin-to-venue public naming is handled by issue #8, and compact receipt-shaped responses continue in issue #13.
+Migration note: `command`, `plugin`, and `agent` remain current API terms in this guide because those are the runnable interfaces today. Their protocol targets are `Request`, `Venue Module`, and `Resident`. The old terms are not permanent aliases: request capability declarations begin in issue #4, plugin-to-venue public naming is handled by issue #8, and compact receipt-shaped responses continue in issue #13.
 
 OpenClaw is a useful example target. Its docs describe a self-hosted Gateway that connects messaging channels to AI coding agents through a WebSocket JSON control plane. Its agent loop turns incoming messages into context assembly, model inference, tool execution, streaming replies, and persistence. That means every verbose command result or unsolicited push can become model context, so plugin output must be cheap for agents to understand. References: [OpenClaw overview](https://docs.openclaw.ai/), [Gateway protocol](https://docs.openclaw.ai/gateway/protocol), [Agent loop](https://docs.openclaw.ai/concepts/agent-loop), [Messages](https://docs.openclaw.ai/concepts/messages).
 
@@ -31,7 +31,7 @@ OpenClaw is a useful example target. Its docs describe a self-hosted Gateway tha
 - **Discovery first.** `what_can_i_do` plus the intro command must be enough for an unfamiliar agent to choose the next command.
 - **Stable contracts.** Keep command ids, field names, and error codes stable. Add fields or commands instead of changing old meanings.
 - **City native.** Register a location only when the plugin creates a place agents visit. Locationless plugins are correct for capability layers like social, notifications, export, or background automation.
-- **Read/write separation.** Safe read commands should usually use `controlPolicy: { controllerRequired: false }`; writes should require control, confirmation, or permission where appropriate.
+- **Read/write separation.** Safe read commands should usually use `controlPolicy: { controllerRequired: false }`; writes should require the same-resident action lease, confirmation, or permission where appropriate. The field name is retained as a temporary SDK compatibility surface and should be removed after client migration.
 - **Sparse push, detail pull.** Pushes should say what changed, who it affects, and which command fetches detail.
 - **Plugin-owned boundaries.** Keep business logic in the plugin package. Do not import `packages/server/src/core/*`.
 - **Frontend after backend.** Add UI only after the agent-facing contract is mature.
@@ -358,7 +358,7 @@ throw Object.assign(new Error('text is required.'), {
 });
 ```
 
-The host forwards `error`, `code`, `action`, `details`, and HTTP `statusCode`. Good actions are short: `auth`, `retry`, `shorten`, `claim_control`, `enter_city`, `enter_location`, `fetch_detail`.
+The host forwards `error`, `code`, `action`, `details`, and HTTP `statusCode`. Good actions are short: `auth`, `retry`, `shorten`, `acquire_action_lease`, `enter_city`, `enter_location`, `fetch_detail`.
 
 ### Storage, events, push, lifecycle
 
@@ -452,10 +452,10 @@ node skills/uruc-skill/scripts/uruc-agent.mjs exec acme.echo.echo_intro@v1 --jso
 node skills/uruc-skill/scripts/uruc-agent.mjs exec acme.echo.ping@v1 --payload '{"text":"hello"}' --json
 ```
 
-If a command requires controller ownership:
+If a command requires the same-resident action lease:
 
 ```bash
-node skills/uruc-skill/scripts/uruc-agent.mjs claim --json
+node skills/uruc-skill/scripts/uruc-agent.mjs exec acquire_action_lease --json
 ```
 
 Do not guess command names or fields. Use live schemas from `what_can_i_do`.

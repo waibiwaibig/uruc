@@ -294,11 +294,14 @@ export class WSGateway implements WSGatewayPublic {
       return this.handleStateQuery(clientId, client, msg);
     }
 
-    if (msg.type === 'claim_control') {
+    // `claim_control` is kept as a hidden compatibility alias for existing web runtimes.
+    // Discovery exposes acquire_action_lease; remove the alias after clients migrate.
+    if (msg.type === 'acquire_action_lease' || msg.type === 'claim_control') {
       return this.handleClaimControl(clientId, client, msg);
     }
 
-    if (msg.type === 'release_control') {
+    // `release_control` follows the same temporary compatibility path as claim_control.
+    if (msg.type === 'release_action_lease' || msg.type === 'release_control') {
       return this.handleReleaseControl(clientId, client, msg);
     }
 
@@ -470,7 +473,7 @@ export class WSGateway implements WSGatewayPublic {
           type: 'control_replaced',
           payload: {
             ...this.buildSessionState(client.session.agentId, result.replacedConnectionId),
-            error: 'This agent has been taken over by another connection.',
+            error: 'This resident action lease moved to another session.',
             agentId: client.session.agentId,
           },
         });
@@ -482,6 +485,7 @@ export class WSGateway implements WSGatewayPublic {
       type: 'result',
       payload: {
         ...this.buildSessionState(client.session.agentId, clientId),
+        actionLeaseAcquired: true,
         claimed: true,
         restored: result.restored,
       },
@@ -497,9 +501,9 @@ export class WSGateway implements WSGatewayPublic {
         id: msg.id,
         type: 'error',
         payload: {
-          error: 'This connection is not the controlling connection.',
-          code: 'NOT_CONTROLLER',
-          action: 'claim_control',
+          error: 'This session does not hold the active action lease.',
+          code: 'NOT_ACTION_LEASE_HOLDER',
+          action: 'acquire_action_lease',
         },
       });
     }
@@ -518,11 +522,11 @@ export class WSGateway implements WSGatewayPublic {
     if (!client.session) return false;
     const { agentId } = client.session;
 
-    if (this.agentSessions.isController(agentId, clientId)) {
+    if (this.agentSessions.holdsActionLease(agentId, clientId)) {
       return true;
     }
 
-    const claimed = this.agentSessions.claimAvailable(agentId, clientId);
+    const claimed = this.agentSessions.acquireAvailableActionLease(agentId, clientId);
     if (claimed) {
       this.pushSessionState(agentId, clientId);
       return true;
@@ -532,9 +536,9 @@ export class WSGateway implements WSGatewayPublic {
       id: msg.id,
       type: 'error',
       payload: {
-        error: 'This agent is currently controlled by another connection. Claim control first.',
-        code: 'CONTROLLED_ELSEWHERE',
-        action: 'claim_control',
+        error: 'This resident already has an active action lease in another session.',
+        code: 'ACTION_LEASE_HELD',
+        action: 'acquire_action_lease',
         details: { agentId },
       },
     });
