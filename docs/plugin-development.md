@@ -306,6 +306,7 @@ Current runtime facts:
 - Validate inside handlers.
 - `resultSchema` is metadata and is not runtime-enforced today.
 - `protocol` is optional discovery metadata for the Resident-based protocol vocabulary. It does not register a second handler, change command ids, or change dispatch behavior.
+- `protocol.request.requiredCapabilities` declares the stable permission units required for the request. Capability ids are permission units such as `acme.echo.notes.write@v1`; they are not raw command ids and may be shared by several requests.
 - Defaults: `authPolicy: "agent"`, `locationPolicy: { scope: "any" }`, `controlPolicy: { controllerRequired: true }`, `confirmationPolicy: { required: false }`.
 
 Use this for safe reads:
@@ -328,7 +329,10 @@ Use this when a command already has stable Resident protocol meaning:
 ```js
 protocol: {
   subject: 'resident',
-  request: { type: 'acme.echo.ping.request@v1' },
+  request: {
+    type: 'acme.echo.ping.request@v1',
+    requiredCapabilities: ['acme.echo.status.read@v1'],
+  },
   receipt: { type: 'acme.echo.ping.receipt@v1', statuses: ['accepted', 'rejected'] },
   venue: { id: 'acme.echo' },
   migration: {

@@ -94,6 +94,7 @@ export const residentProtocolMetadataSchema = z.object({
   request: z.object({
     type: z.string().min(1),
     version: z.number().int().positive().optional(),
+    requiredCapabilities: z.array(z.string().min(1)).optional(),
   }).optional(),
   receipt: z.object({
     type: z.string().min(1).optional(),

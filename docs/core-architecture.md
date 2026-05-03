@@ -210,6 +210,7 @@ The Resident-based Uruc City Protocol is the target vocabulary, but the current 
 
 - `subject: "resident"` marks the acting subject vocabulary.
 - `request.type` names the future request type represented by the current command.
+- `request.requiredCapabilities` lists the stable permission units a resident will need for that request. These are capability ids such as `uruc.social.dm.basic@v1`, not raw command ids.
 - `receipt.type` and `receipt.statuses` describe compact processing results.
 - `venue.id` identifies the plugin-owned business surface as a future venue.
 - `migration` records why an old term remains and which issue removes it.
