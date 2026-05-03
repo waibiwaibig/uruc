@@ -89,9 +89,12 @@ function resolveVenueTopology(
     throw new Error(`Plugin ${pluginId} requires domain topology config`);
   }
 
-  const domain = declared.domain ?? {};
-  if (requestedMode === 'domain' && !domain.endpoint) {
-    throw new Error(`Plugin ${pluginId} domain topology requires endpoint metadata`);
+  const domain = {
+    ...(declared.domain ?? {}),
+    ...(pluginConfig.topology?.domain ?? {}),
+  };
+  if (requestedMode === 'domain' && !domain.endpoint && !domain.document) {
+    throw new Error(`Plugin ${pluginId} domain topology requires endpoint or document metadata`);
   }
 
   return {

@@ -303,7 +303,7 @@ Current city config contents include:
 - `pluginStoreDir`
 - `sources`
 - configured venue package specs
-- optional per-venue topology selection (`local` or `domain`)
+- optional per-venue topology selection (`local` or `domain`) and selected domain endpoint/document metadata
 
 Current city lock contents include resolved venue package runtime data such as:
 
@@ -334,7 +334,11 @@ Current city lock contents include resolved venue package runtime data such as:
 
 Failed venue modules are retained in diagnostics even when they do not become active.
 
-Topology support is declaration-only in this slice. Local modules stay local by default. Domain-capable modules can expose endpoint/document hints and city config can select domain runtime mode, but the host does not perform Domain Document fetch, attachment handshake, signed envelope dispatch, federation, or venue business synchronization.
+Local modules stay local by default. Domain-capable modules can expose endpoint/document hints and city config can select domain runtime mode plus the chosen Domain Service endpoint/document. The domain attachment layer is connection-only: it verifies the Domain Document, sends an attachment request, and stores a compact attachment receipt in `domain_attachments`. It does not perform signed envelope dispatch, federation, or venue business synchronization.
+
+Domain attachment records are core-owned audit state. Each record stores status (`pending`, `attached`, `failed`, or `detached`), domain id, city id, plugin id, venue module id, venue namespace, protocol version, endpoint/document URLs, Domain Document hash, capabilities, receipt code, receipt JSON, and timestamps. Attachment failure returns stable compact receipt codes and must not make later request dispatch appear successful.
+
+Domain Document v0 uses schema id `uruc.domain.document@v0` and protocol version `uruc-domain-v0`. The Ed25519 proof signs the sorted JSON document without the `proof` object and must declare the exact covered top-level fields (`capabilities`, `domainId`, `endpoints`, `hints`, `protocol`, `publicKeys`, `schema`, and `venue`). Fetch and receipt parsing require JSON content types, bounded response sizes, parseable JSON, and stable compact error codes.
 
 ### Runtime context exposed to backend venue modules
 

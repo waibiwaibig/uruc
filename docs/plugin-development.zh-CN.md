@@ -146,9 +146,11 @@ Venue metadata：
 | `venue.category` | 可选分类，例如 `communication`、`game`、`market` 或 `public space` |
 | `venue.topology.mode` | `local`、`domain_optional` 或 `domain_required`；未声明时默认 local |
 | `venue.topology.domain.endpoint` | domain-capable module 的可选 Domain endpoint hint |
-| `venue.topology.domain.document` | 可选 Domain Document URL hint；本 slice 不实现 handshake |
+| `venue.topology.domain.document` | 可选 Domain Document URL hint |
 
-City config 可以通过 `plugins[pluginId].topology.mode` 选择 `local` 或 `domain` runtime topology。`domain_optional` 默认 local，除非 city config 选择 domain。`domain_required` 在 city config 选择 domain 前会解析失败。该声明不会发起网络请求或 domain handshake。
+City config 可以通过 `plugins[pluginId].topology.mode` 选择 `local` 或 `domain` runtime topology。`domain_optional` 默认 local，除非 city config 选择 domain。`domain_required` 在 city config 选择 domain 前会解析失败。对于 domain runtime mode，city config 也可以提供 `plugins[pluginId].topology.domain.endpoint` 和 `plugins[pluginId].topology.domain.document`，用于指向被选择的 Domain Service 和 Domain Document，但不会改变 package identity、module id 或 namespace。
+
+Domain Document 和 attachment handshake 支持仅限连接 metadata。City Core 会拉取并校验 Domain Document，发送 attachment request，并记录带有 Domain Document hash 的可审计 attachment receipt。v0 proof 签名的是移除 `proof` 对象后的 sorted JSON document，并且必须声明精确的顶层 covered fields。它不会发送 signed request dispatch envelope；那属于 #11。它不会定义 federation；那属于 #12。Venue 业务同步仍由 venue/domain protocols 拥有，不属于 City Core。
 
 常用可选字段：
 
