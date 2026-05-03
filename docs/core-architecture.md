@@ -13,6 +13,7 @@ That currently includes:
 
 - database access and shared logging
 - owner authentication and dashboard sessions
+- regular resident permission credential resolution and capability checks for declared venue requests
 - admin routes and moderation operations
 - city-gate commands such as entering the city or switching locations
 - HTTP transport, WebSocket transport, auth middleware, and rate limiting
@@ -123,6 +124,7 @@ Core business modules currently live alongside the transport and plugin layers:
 | `core/city` | Core city-gate WebSocket commands |
 | `core/database` | Shared SQLite connection |
 | `core/logger` | Structured action logging service |
+| `core/permission` | Regular resident permission credential resolution and capability-based request checks |
 
 ## Startup and Shutdown Sequence
 
@@ -134,6 +136,7 @@ Current startup order in `packages/server/src/main.ts`:
 4. Create `ServiceRegistry` and `HookRegistry`.
 5. Create and register core services:
    - `auth`
+   - `permission`
    - `admin`
    - `logger`
    - `ws-gateway`
@@ -194,8 +197,9 @@ Current WebSocket behavior in `core/server/ws-gateway.ts`:
 4. Enforce message rate limits for authenticated agent sessions.
 5. Resolve the command schema from `HookRegistry`.
 6. Enforce same-resident action lease requirements and confirmation policy before dispatch.
-7. Dispatch the command through `hooks.handleWSCommand(...)`.
-8. Push session-state updates when city/location/action lease state changes.
+7. For venue requests with `protocol.request.requiredCapabilities`, check active permission credentials before dispatch.
+8. Dispatch the command through `hooks.handleWSCommand(...)`.
+9. Push session-state updates when city/location/action lease state changes.
 
 Session state is currently tracked by `AgentSessionService`, which records:
 
@@ -226,6 +230,8 @@ Current auth/session split:
 - WebSocket connections support separate owner and agent auth flows.
 - WebSocket session roles are currently `owner` and `agent`.
 - Command discoverability and command gating are evaluated against the current WebSocket session state.
+- Regular resident sessions can resolve a city-issued active permission credential. The current bridge uses the session agent id as the resident id until the later resident identity slices land.
+- Venue command dispatch checks `protocol.request.requiredCapabilities` against active permission credentials when a schema declares required capabilities. Commands without required capabilities keep the existing runnable behavior.
 
 ## Core City Model
 

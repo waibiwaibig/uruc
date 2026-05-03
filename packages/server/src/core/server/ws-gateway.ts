@@ -16,7 +16,7 @@ import type { IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { nanoid } from 'nanoid';
 
-import type { HookRegistry, WSContext, WSGatewayPublic, WSDispatchResult } from '../plugin-system/hook-registry.js';
+import type { CommandSchema, HookRegistry, WSContext, WSGatewayPublic, WSDispatchResult } from '../plugin-system/hook-registry.js';
 import type { ServiceRegistry } from '../plugin-system/service-registry.js';
 import type { AuthService } from '../auth/service.js';
 import type { AgentSession, WSMessage } from '../../types/index.js';
@@ -326,6 +326,9 @@ export class WSGateway implements WSGatewayPublic {
           },
         });
       }
+
+      const canExecute = await this.canExecuteVenueRequest(client, schema, msg);
+      if (!canExecute) return;
     }
 
     const sessionStateBefore = client.session
@@ -540,6 +543,37 @@ export class WSGateway implements WSGatewayPublic {
         details: { agentId },
       },
     });
+    return false;
+  }
+
+  private async canExecuteVenueRequest(client: ConnectedClient, schema: CommandSchema, msg: WSMessage): Promise<boolean> {
+    if (!client.session) return false;
+    if (!schema.pluginName || schema.pluginName === 'core') return true;
+
+    const requiredCapabilities = schema.protocol?.request?.requiredCapabilities ?? [];
+    if (requiredCapabilities.length === 0) return true;
+
+    const permissions = this.services.tryGet('permission');
+    if (!permissions) {
+      this.sendCore(client.ws, {
+        id: msg.id,
+        type: 'error',
+        payload: {
+          error: 'Permission service is not available.',
+          text: 'Permission service is not available.',
+          code: 'PERMISSION_SERVICE_UNAVAILABLE',
+          action: 'retry',
+          nextAction: 'retry',
+          details: { command: msg.type },
+        },
+      });
+      return false;
+    }
+
+    const decision = await permissions.canExecute(client.session, schema);
+    if (decision.status === 'allow') return true;
+
+    this.sendCore(client.ws, { id: msg.id, type: 'error', payload: decision.receipt });
     return false;
   }
 
