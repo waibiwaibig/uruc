@@ -28,6 +28,7 @@ export interface AppErrorOptions {
   status?: number;
   retryable?: boolean;
   action?: string;
+  nextAction?: string;
   details?: Record<string, unknown>;
 }
 
@@ -36,6 +37,7 @@ export class AppError extends Error {
   readonly status: number;
   readonly retryable?: boolean;
   readonly action?: string;
+  readonly nextAction?: string;
   readonly details?: Record<string, unknown>;
 
   constructor(opts: AppErrorOptions) {
@@ -45,6 +47,7 @@ export class AppError extends Error {
     this.status = opts.status ?? 400;
     this.retryable = opts.retryable;
     this.action = opts.action;
+    this.nextAction = opts.nextAction;
     this.details = opts.details;
   }
 }
@@ -58,6 +61,7 @@ type ErrorLikePayload = {
   status?: number;
   retryable?: boolean;
   action?: string;
+  nextAction?: string;
   details?: Record<string, unknown>;
 };
 
@@ -68,6 +72,7 @@ function isErrorLikePayload(error: unknown): error is Error & ErrorLikePayload {
       || typeof (error as ErrorLikePayload).status === 'number'
       || typeof (error as ErrorLikePayload).retryable === 'boolean'
       || typeof (error as ErrorLikePayload).action === 'string'
+      || typeof (error as ErrorLikePayload).nextAction === 'string'
       || typeof (error as ErrorLikePayload).details === 'object'
     );
 }
@@ -93,6 +98,15 @@ export function codeForStatus(status: number): string {
   }
 }
 
+export function compactErrorPayload(payload: WSErrorPayload): WSErrorPayload {
+  const nextAction = payload.nextAction ?? payload.action;
+  return {
+    ...payload,
+    text: payload.text ?? payload.error,
+    ...(nextAction !== undefined ? { nextAction } : {}),
+  };
+}
+
 export function resolveError(
   error: unknown,
   fallback: ErrorFallback,
@@ -100,13 +114,14 @@ export function resolveError(
   if (isAppError(error)) {
     return {
       status: error.status,
-      payload: {
+      payload: compactErrorPayload({
         error: error.message,
         code: error.code,
         ...(error.retryable !== undefined ? { retryable: error.retryable } : {}),
         ...(error.action !== undefined ? { action: error.action } : {}),
+        ...(error.nextAction !== undefined ? { nextAction: error.nextAction } : {}),
         ...(error.details !== undefined ? { details: error.details } : {}),
-      },
+      }),
     };
   }
 
@@ -114,37 +129,40 @@ export function resolveError(
     if (isErrorLikePayload(error)) {
       return {
         status: typeof error.status === 'number' ? error.status : fallback.status,
-        payload: {
+        payload: compactErrorPayload({
           error: error.message,
           code: error.code ?? fallback.code,
           ...((error.retryable ?? fallback.retryable) !== undefined ? { retryable: error.retryable ?? fallback.retryable } : {}),
           ...((error.action ?? fallback.action) !== undefined ? { action: error.action ?? fallback.action } : {}),
+          ...((error.nextAction ?? fallback.nextAction) !== undefined ? { nextAction: error.nextAction ?? fallback.nextAction } : {}),
           ...((error.details ?? fallback.details) !== undefined ? { details: error.details ?? fallback.details } : {}),
-        },
+        }),
       };
     }
 
     return {
       status: fallback.status,
-      payload: {
+      payload: compactErrorPayload({
         error: error.message,
         code: fallback.code,
         ...(fallback.retryable !== undefined ? { retryable: fallback.retryable } : {}),
         ...(fallback.action !== undefined ? { action: fallback.action } : {}),
+        ...(fallback.nextAction !== undefined ? { nextAction: fallback.nextAction } : {}),
         ...(fallback.details !== undefined ? { details: fallback.details } : {}),
-      },
+      }),
     };
   }
 
   return {
     status: fallback.status,
-    payload: {
+    payload: compactErrorPayload({
       error: fallback.error,
       code: fallback.code,
       ...(fallback.retryable !== undefined ? { retryable: fallback.retryable } : {}),
       ...(fallback.action !== undefined ? { action: fallback.action } : {}),
+      ...(fallback.nextAction !== undefined ? { nextAction: fallback.nextAction } : {}),
       ...(fallback.details !== undefined ? { details: fallback.details } : {}),
-    },
+    }),
   };
 }
 

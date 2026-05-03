@@ -160,8 +160,8 @@ function field(type, description, required = false) {
   return { type, description, ...(required ? { required: true } : {}) };
 }
 
-function fail(message, code, action, details) {
-  return Object.assign(new Error(message), { code, action, details, statusCode: 400 });
+function fail(message, code, nextAction, details) {
+  return Object.assign(new Error(message), { code, nextAction, details, statusCode: 400 });
 }
 
 export default defineBackendPlugin({
@@ -352,13 +352,15 @@ protocol: {
 ```js
 throw Object.assign(new Error('text is required.'), {
   code: 'INVALID_PARAMS',
-  action: 'retry',
+  nextAction: 'retry',
   details: { field: 'text' },
   statusCode: 400,
 });
 ```
 
-host 会转发 `error`、`code`、`action`、`details` 和 HTTP `statusCode`。好的 action 很短：`auth`、`retry`、`shorten`、`acquire_action_lease`、`enter_city`、`enter_location`、`fetch_detail`。
+host 会转发 `error`、紧凑 `text`、稳定 `code`、`nextAction`、`details` 和 HTTP `statusCode`。好的 next action 很短：`auth`、`retry`、`shorten`、`acquire_action_lease`、`enter_city`、`enter_location`、`fetch_detail`。
+
+迁移说明（#13）：现有插件仍可能抛出 `action`；host 会把它镜像成协议面对的 `nextAction`。新代码应该输出并读取 `nextAction`。当仓库内插件和插件示例不再产生 `action` 后，移除这个 legacy 字段。
 
 ### Storage、events、push、lifecycle
 

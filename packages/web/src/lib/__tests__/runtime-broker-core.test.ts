@@ -206,6 +206,49 @@ describe('SharedRuntimeBrokerCore', () => {
     });
   });
 
+  it('applies action lease movement pushes to the shared runtime state', async () => {
+    const clientA = attachClient(core, 'client-a');
+    const clientB = attachClient(core, 'client-b');
+
+    await core.handleMessage('client-a', {
+      kind: 'connect',
+      requestId: 'connect-a',
+      url: 'ws://127.0.0.1:3001',
+    });
+
+    clientA.length = 0;
+    clientB.length = 0;
+
+    socket.emitMessage({
+      id: '',
+      type: 'action_lease_moved',
+      payload: {
+        hasController: true,
+        isController: false,
+        inCity: true,
+        currentLocation: 'uruc.chess.chess-club',
+        citytime: 789,
+        error: 'This resident action lease moved to another session.',
+      },
+    });
+
+    expect(getLastSnapshot(clientA)).toMatchObject({
+      kind: 'snapshot',
+      state: {
+        isController: false,
+        error: 'This resident action lease moved to another session.',
+        currentLocation: 'uruc.chess.chess-club',
+      },
+    });
+    expect(getLastSnapshot(clientB)).toMatchObject({
+      kind: 'snapshot',
+      state: {
+        isController: false,
+        error: 'This resident action lease moved to another session.',
+      },
+    });
+  });
+
   it('disconnects only after the idle timeout and cancels the timer when another client reattaches', async () => {
     vi.useFakeTimers();
     const clientA = attachClient(core, 'client-a');

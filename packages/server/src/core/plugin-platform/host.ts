@@ -8,6 +8,7 @@ import { nanoid } from 'nanoid';
 import { sql } from 'drizzle-orm';
 
 import { parseBody, sendError, sendJson } from '../server/middleware.js';
+import { compactErrorPayload } from '../server/errors.js';
 import { setCorsHeaders, setSecurityHeaders } from '../server/security.js';
 import type {
   HttpContext,
@@ -1257,10 +1258,14 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
           id: msg.id,
           type: 'error',
           payload: {
-            error: error?.message ?? error?.error ?? 'Plugin command failed',
-            code: error?.code ?? 'PLUGIN_COMMAND_FAILED',
-            action: error?.action,
-            details: error?.details,
+            ...compactErrorPayload({
+              error: error?.message ?? error?.error ?? 'Plugin command failed',
+              code: error?.code ?? 'PLUGIN_COMMAND_FAILED',
+              action: error?.action,
+              nextAction: error?.nextAction,
+              details: error?.details,
+            }),
+            citytime: Date.now(),
           },
         });
       } finally {
@@ -1329,6 +1334,7 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
           error: error?.message ?? error?.error ?? 'Plugin route failed',
           code: error?.code ?? 'PLUGIN_ROUTE_FAILED',
           action: error?.action,
+          nextAction: error?.nextAction,
           details: error?.details,
         }, httpCtx.req);
       } finally {

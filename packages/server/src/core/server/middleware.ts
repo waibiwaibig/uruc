@@ -124,10 +124,23 @@ export function sendJson(res: ServerResponse, status: number, data: any, req?: I
 
 export function sendError(
   res: ServerResponse, status: number,
-  opts: { error: string; code: string; retryable?: boolean; action?: string; details?: Record<string, unknown> },
+  opts: {
+    error: string;
+    text?: string;
+    code: string;
+    retryable?: boolean;
+    action?: string;
+    nextAction?: string;
+    details?: Record<string, unknown>;
+  },
   req?: IncomingMessage,
 ) {
-  sendJson(res, status, opts, req);
+  const nextAction = opts.nextAction ?? opts.action;
+  sendJson(res, status, {
+    ...opts,
+    text: opts.text ?? opts.error,
+    ...(nextAction !== undefined ? { nextAction } : {}),
+  }, req);
 }
 
 export function getAuthUser(req: IncomingMessage): { userId: string; role: string } | null {
