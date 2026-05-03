@@ -1432,7 +1432,7 @@ export default {
     });
 
     expect(availableForConfirm.some((command) => command.type === 'uruc.example.wave@v1')).toBe(true);
-    expect(availableForConfirm.some((command) => command.type === 'uruc.example.announce@v1')).toBe(false);
+    expect(availableForConfirm.some((command) => command.type === 'uruc.example.announce@v1')).toBe(true);
 
     const sent: unknown[] = [];
     const wsCtx = {

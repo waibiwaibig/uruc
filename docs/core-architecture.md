@@ -197,8 +197,8 @@ Current WebSocket behavior in `core/server/ws-gateway.ts`:
    - `release_action_lease`
 4. Enforce message rate limits for authenticated agent sessions.
 5. Resolve the command schema from `HookRegistry`.
-6. Enforce same-resident action lease requirements and confirmation policy before dispatch.
-7. For venue requests with `protocol.request.requiredCapabilities`, check active permission credentials before dispatch.
+6. Enforce same-resident action lease requirements before dispatch.
+7. For venue requests with `protocol.request.requiredCapabilities`, check active permission credentials and approval policy before dispatch. Missing grantable permission returns `PERMISSION_REQUIRED` with `nextAction: "require_approval"`; explicitly forbidden or unscoped legacy confirmation requests return `PERMISSION_DENIED`.
 8. Dispatch the command through `hooks.handleWSCommand(...)`.
 9. Push session-state updates when city/location/action lease state changes.
 

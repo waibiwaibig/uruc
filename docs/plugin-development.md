@@ -321,9 +321,9 @@ Current runtime facts:
 - `inputSchema` is discoverability metadata, not runtime validation.
 - Validate inside handlers.
 - `resultSchema` is metadata and is not runtime-enforced today.
-- `protocol` is optional discovery metadata for the Resident-based protocol vocabulary. It does not register a second handler, change command ids, or change dispatch behavior.
+- `protocol` is optional metadata for the Resident-based protocol vocabulary. It does not register a second handler or change command ids. When `protocol.request.requiredCapabilities` is present, dispatch checks permission credentials and approval policy before calling the handler.
 - `protocol.request.requiredCapabilities` declares the stable permission units required for the request. Capability ids are permission units such as `acme.echo.notes.write@v1`; they are not raw command ids and may be shared by several requests.
-- Defaults: `authPolicy: "agent"`, `locationPolicy: { scope: "any" }`, `controlPolicy: { controllerRequired: true }`, `confirmationPolicy: { required: false }`.
+- Defaults: `authPolicy: "agent"`, `locationPolicy: { scope: "any" }`, `controlPolicy: { controllerRequired: true }`, `confirmationPolicy: { required: false }`. `confirmationPolicy` is a legacy compatibility field; new approval behavior should be modeled with `protocol.request.requiredCapabilities` and `protocol.request.approval`.
 
 Use this for safe reads:
 

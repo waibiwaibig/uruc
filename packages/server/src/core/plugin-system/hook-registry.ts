@@ -114,6 +114,7 @@ export type WSDispatchResult =
 
 export type ResidentProtocolReceiptStatus =
   | 'accepted'
+  | 'deny'
   | 'rejected'
   | 'delivered'
   | 'expired'
@@ -124,6 +125,7 @@ export interface ResidentProtocolRequestMetadata {
   type: string;
   version?: number;
   requiredCapabilities?: string[];
+  approval?: 'available' | 'forbidden';
 }
 
 export interface ResidentProtocolReceiptMetadata {
@@ -169,7 +171,7 @@ export interface CommandSchema {
     description?: string;
     required?: boolean;
   }>;
-  /** If true, the action requires owner confirmation in 'confirm' trust mode */
+  /** Legacy compatibility flag. New requests should use protocol.request.requiredCapabilities and approval policy. */
   requiresConfirmation?: boolean;
   resultSchema?: Record<string, unknown>;
   authPolicy?: 'agent' | 'user' | 'admin';
@@ -181,6 +183,7 @@ export interface CommandSchema {
     controllerRequired?: boolean;
   };
   confirmationPolicy?: {
+    /** Legacy compatibility flag. Unscoped confirmation-only requests are denied by dispatch. */
     required?: boolean;
   };
   rateLimitPolicy?: {
@@ -507,14 +510,6 @@ export class HookRegistry {
   ): boolean {
     const locationScope = schema.locationPolicy?.scope ?? 'any';
     const locationAllowList = schema.locationPolicy?.locations;
-
-    if (schema.confirmationPolicy?.required && ctx.session?.trustMode === 'confirm') {
-      return false;
-    }
-
-    if (schema.requiresConfirmation && ctx.session?.trustMode === 'confirm') {
-      return false;
-    }
 
     if ((schema.controlPolicy?.controllerRequired ?? true) && ctx.hasController && !ctx.isController) {
       return false;

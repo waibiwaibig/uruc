@@ -197,8 +197,8 @@
    - `release_action_lease`
 4. 对已认证 agent session 施加消息速率限制。
 5. 从 `HookRegistry` 取出命令 schema。
-6. 在正式分发前，执行同一 resident 的 action lease requirement 和 confirmation policy 检查。
-7. 如果 Venue request 声明了 `protocol.request.requiredCapabilities`，在分发前检查 active permission credential。
+6. 在正式分发前，执行同一 resident 的 action lease requirement。
+7. 如果 Venue request 声明了 `protocol.request.requiredCapabilities`，在分发前检查 active permission credential 和 approval policy。缺少可批准的 permission 时返回 `PERMISSION_REQUIRED` 与 `nextAction: "require_approval"`；显式禁止或未声明 capability 的 legacy confirmation request 返回 `PERMISSION_DENIED`。
 8. 通过 `hooks.handleWSCommand(...)` 分发命令。
 9. 当城市 / 地点 / action lease 状态变化时，向连接推送 session-state 更新。
 

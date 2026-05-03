@@ -311,17 +311,20 @@ export class WSGateway implements WSGatewayPublic {
       }
 
       const requiresConfirmation = schema.confirmationPolicy?.required ?? schema.requiresConfirmation ?? false;
-      if (requiresConfirmation && client.session.trustMode === 'confirm') {
+      const requiredCapabilities = schema.protocol?.request?.requiredCapabilities ?? [];
+      if (requiresConfirmation && requiredCapabilities.length === 0) {
         return this.sendCore(client.ws, {
           id: msg.id,
           type: 'error',
           payload: {
-            error: 'This command requires owner confirmation for the current trust mode.',
-            code: 'CONFIRMATION_REQUIRED',
-            action: 'request_confirmation',
+            error: 'Permission policy denies this request.',
+            text: 'Permission policy denies this request.',
+            code: 'PERMISSION_DENIED',
+            action: 'deny',
+            nextAction: 'deny',
             details: {
               command: msg.type,
-              trustMode: client.session.trustMode,
+              reason: 'confirmation_policy_without_capability',
             },
           },
         });
