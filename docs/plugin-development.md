@@ -146,9 +146,11 @@ Venue metadata:
 | `venue.category` | Optional category such as `communication`, `game`, `market`, or `public space` |
 | `venue.topology.mode` | `local`, `domain_optional`, or `domain_required`; omitted metadata defaults to local |
 | `venue.topology.domain.endpoint` | Optional domain endpoint hint for domain-capable modules |
-| `venue.topology.domain.document` | Optional Domain Document URL hint; the handshake itself is not implemented in this slice |
+| `venue.topology.domain.document` | Optional Domain Document URL hint |
 
-City config may select runtime topology with `plugins[pluginId].topology.mode` as `local` or `domain`. `domain_optional` modules default to local unless city config selects domain. `domain_required` modules fail resolution until city config selects domain. This declaration does not perform a network call or domain handshake.
+City config may select runtime topology with `plugins[pluginId].topology.mode` as `local` or `domain`. `domain_optional` modules default to local unless city config selects domain. `domain_required` modules fail resolution until city config selects domain. For domain runtime mode, city config may also provide `plugins[pluginId].topology.domain.endpoint` and `plugins[pluginId].topology.domain.document` to point at the chosen Domain Service and Domain Document without changing package identity, module id, or namespace.
+
+Domain Document and attachment handshake support is limited to connection metadata. City Core fetches and validates the Domain Document, sends an attachment request, and records an auditable attachment receipt. It does not send signed request dispatch envelopes; that belongs to #11. It does not define federation; that belongs to #12. Venue business synchronization remains owned by venue/domain protocols, not City Core.
 
 Useful optional fields:
 

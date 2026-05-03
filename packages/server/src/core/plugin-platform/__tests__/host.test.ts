@@ -957,7 +957,7 @@ export default {
     await host.stopAll();
   });
 
-  it('does not let city config override venue domain metadata from the package manifest', async () => {
+  it('lets city config point at a selected domain without changing venue identity', async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-venue-topology-domain-override-'));
     tempDirs.push(tempRoot);
 
@@ -1019,9 +1019,13 @@ export default {
       declaration: 'domain_optional',
       mode: 'domain',
       domain: {
-        endpoint: 'https://domain.example/acme',
-        document: 'https://domain.example/.well-known/uruc-domain.json',
+        endpoint: 'https://city-config.example/override',
+        document: 'https://city-config.example/override-document.json',
       },
+    });
+    expect(lock.plugins['acme.domain-override']?.venue).toMatchObject({
+      moduleId: 'acme.domain-override',
+      namespace: 'acme.domain-override',
     });
 
     const hooks = new HookRegistry();
@@ -1033,16 +1037,16 @@ export default {
       declaration: 'domain_optional',
       mode: 'domain',
       domain: {
-        endpoint: 'https://domain.example/acme',
-        document: 'https://domain.example/.well-known/uruc-domain.json',
+        endpoint: 'https://city-config.example/override',
+        document: 'https://city-config.example/override-document.json',
       },
     });
     expect(host.getPluginDiagnostics().find((item) => item.pluginId === 'acme.domain-override')?.venue?.topology).toEqual({
       declaration: 'domain_optional',
       mode: 'domain',
       domain: {
-        endpoint: 'https://domain.example/acme',
-        document: 'https://domain.example/.well-known/uruc-domain.json',
+        endpoint: 'https://city-config.example/override',
+        document: 'https://city-config.example/override-document.json',
       },
     });
 

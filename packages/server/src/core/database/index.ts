@@ -78,6 +78,26 @@ export function createDb(dbPath: string = getDbPath()) {
     CHECK (resident_id <> accountable_principal_id)
   )`);
 
+  db.run(sql`CREATE TABLE IF NOT EXISTS domain_attachments (
+    id TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    domain_id TEXT NOT NULL,
+    city_id TEXT NOT NULL,
+    plugin_id TEXT NOT NULL,
+    venue_module_id TEXT NOT NULL,
+    venue_namespace TEXT NOT NULL,
+    protocol_version TEXT NOT NULL,
+    endpoint TEXT NOT NULL,
+    document_url TEXT NOT NULL,
+    capabilities TEXT NOT NULL,
+    receipt_code TEXT NOT NULL,
+    receipt TEXT NOT NULL,
+    issued_at INTEGER,
+    valid_until INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`);
+
   db.run(sql`CREATE TABLE IF NOT EXISTS action_logs (
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL, agent_id TEXT NOT NULL,
     location_id TEXT, action_type TEXT NOT NULL, payload TEXT,
@@ -89,6 +109,7 @@ export function createDb(dbPath: string = getDbPath()) {
   db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS agents_shadow_unique ON agents(user_id) WHERE is_shadow = 1`);
   db.run(sql`CREATE INDEX IF NOT EXISTS permission_credentials_resident_status ON permission_credentials(resident_id, status)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS principal_backed_residents_principal ON principal_backed_residents(accountable_principal_id)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS domain_attachments_venue_status ON domain_attachments(plugin_id, venue_module_id, status)`);
 
   return db;
 }

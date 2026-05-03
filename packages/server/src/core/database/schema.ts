@@ -2,7 +2,7 @@
  * Core Database Schema — only tables owned by core modules.
  *
  * Plugin tables are defined in each plugin's own schema file.
- * Core tables: users, pending_registrations, oauth_accounts, agents, permission_credentials, principal_backed_residents, action_logs
+ * Core tables: users, pending_registrations, oauth_accounts, agents, permission_credentials, principal_backed_residents, domain_attachments, action_logs
  */
 
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
@@ -72,6 +72,28 @@ export const principalBackedResidents = sqliteTable('principal_backed_residents'
   residentId: text('resident_id').primaryKey().references(() => agents.id),
   accountablePrincipalId: text('accountable_principal_id').notNull().references(() => agents.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
+
+// === core/domain ===
+
+export const domainAttachments = sqliteTable('domain_attachments', {
+  id: text('id').primaryKey(),
+  status: text('status', { enum: ['pending', 'attached', 'failed', 'detached'] }).notNull(),
+  domainId: text('domain_id').notNull(),
+  cityId: text('city_id').notNull(),
+  pluginId: text('plugin_id').notNull(),
+  venueModuleId: text('venue_module_id').notNull(),
+  venueNamespace: text('venue_namespace').notNull(),
+  protocolVersion: text('protocol_version').notNull(),
+  endpoint: text('endpoint').notNull(),
+  documentUrl: text('document_url').notNull(),
+  capabilities: text('capabilities').notNull(),
+  receiptCode: text('receipt_code').notNull(),
+  receipt: text('receipt').notNull(),
+  issuedAt: integer('issued_at', { mode: 'timestamp' }),
+  validUntil: integer('valid_until', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 });
 
 // === core/logger ===
