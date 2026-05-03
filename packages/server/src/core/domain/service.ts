@@ -336,10 +336,12 @@ export class DomainAttachmentService {
       venueNamespace: input.input.venue.namespace,
       protocolVersion: input.document.protocol.version,
       endpoint: input.document.endpoints.attachment,
+      dispatchEndpoint: input.document.endpoints.dispatch ?? null,
       documentUrl: input.documentUrl,
       documentHash: createHash('sha256')
         .update(canonicalDomainDocumentPayload(input.document as unknown as Record<string, unknown>))
         .digest('hex'),
+      publicKeys: JSON.stringify(input.document.publicKeys),
       capabilities: JSON.stringify(input.capabilities),
       receiptCode: input.receiptCode,
       receipt: JSON.stringify(input.receipt),

@@ -11,6 +11,7 @@ import { PluginPlatformHost } from './core/plugin-platform/host.js';
 
 import { AuthService } from './core/auth/service.js';
 import { PermissionCredentialService } from './core/permission/service.js';
+import { DomainDispatchService } from './core/domain/dispatch.js';
 import { LogService } from './core/logger/service.js';
 import { registerAuthRoutes } from './core/auth/auth-routes.js';
 import { registerDashboardRoutes } from './core/auth/dashboard-routes.js';
@@ -75,6 +76,11 @@ export async function runMain() {
     packageRoot: getPackageRoot(),
     pluginStoreDir: getPluginStoreDir(),
   });
+  const domainDispatch = new DomainDispatchService(db, {
+    cityId: process.env.URUC_CITY_ID ?? 'uruc.city.local',
+    pluginPlatform: loader,
+  });
+  services.register('domain-dispatch', domainDispatch);
 
   await loader.startAll({ db, services, hooks });
 

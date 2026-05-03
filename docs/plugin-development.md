@@ -150,7 +150,9 @@ Venue metadata:
 
 City config may select runtime topology with `plugins[pluginId].topology.mode` as `local` or `domain`. `domain_optional` modules default to local unless city config selects domain. `domain_required` modules fail resolution until city config selects domain. For domain runtime mode, city config may also provide `plugins[pluginId].topology.domain.endpoint` and `plugins[pluginId].topology.domain.document` to point at the chosen Domain Service and Domain Document without changing package identity, module id, or namespace.
 
-Domain Document and attachment handshake support is limited to connection metadata. City Core fetches and validates the Domain Document, sends an attachment request, and records an auditable attachment receipt with the Domain Document hash. The v0 proof signs the sorted JSON document without the `proof` object and must declare the exact covered top-level fields. It does not send signed request dispatch envelopes; that belongs to #11. It does not define federation; that belongs to #12. Venue business synchronization remains owned by venue/domain protocols, not City Core.
+Domain Document and attachment handshake support is limited to connection metadata. City Core fetches and validates the Domain Document, sends an attachment request, and records an auditable attachment receipt with the Domain Document hash. The v0 proof signs the sorted JSON document without the `proof` object and must declare the exact covered top-level fields.
+
+For domain runtime mode, request dispatch is City-to-Domain only after the attachment is `attached`. City Core runs the same action lease and permission checks as local requests, signs an envelope around the request/event payload and proof refs, posts it to the Domain dispatch endpoint, verifies the signed Domain receipt, and stores audit records. The envelope is a transport/audit wrapper; City Core does not parse or synchronize Venue business state. Federation remains #12.
 
 Useful optional fields:
 

@@ -199,8 +199,9 @@ Current WebSocket behavior in `core/server/ws-gateway.ts`:
 5. Resolve the command schema from `HookRegistry`.
 6. Enforce same-resident action lease requirements before dispatch.
 7. For venue requests with `protocol.request.requiredCapabilities`, check active permission credentials and approval policy before dispatch. Missing grantable permission returns `PERMISSION_REQUIRED` with `nextAction: "require_approval"`; explicitly forbidden or unscoped legacy confirmation requests return `PERMISSION_DENIED`.
-8. Dispatch the command through `hooks.handleWSCommand(...)`.
-9. Push session-state updates when city/location/action lease state changes.
+8. For domain topology venues with an active attachment, wrap the authorized request in a signed City-to-Domain dispatch envelope and record the Domain receipt in `domain_dispatch_audits`.
+9. For local topology venues, dispatch the command through `hooks.handleWSCommand(...)`.
+10. Push session-state updates when city/location/action lease state changes.
 
 Session state is currently tracked by `AgentSessionService`, which records:
 
@@ -339,6 +340,8 @@ Local modules stay local by default. Domain-capable modules can expose endpoint/
 Domain attachment records are core-owned audit state. Each record stores status (`pending`, `attached`, `failed`, or `detached`), domain id, city id, plugin id, venue module id, venue namespace, protocol version, endpoint/document URLs, Domain Document hash, capabilities, receipt code, receipt JSON, and timestamps. Attachment failure returns stable compact receipt codes and must not make later request dispatch appear successful.
 
 Domain Document v0 uses schema id `uruc.domain.document@v0` and protocol version `uruc-domain-v0`. The Ed25519 proof signs the sorted JSON document without the `proof` object and must declare the exact covered top-level fields (`capabilities`, `domainId`, `endpoints`, `hints`, `protocol`, `publicKeys`, `schema`, and `venue`). Fetch and receipt parsing require JSON content types, bounded response sizes, parseable JSON, and stable compact error codes.
+
+Signed domain dispatch is limited to attached domain topology. City Core performs its normal action lease and permission checks first, then signs an envelope containing the current request id/type/payload, resident id, city id, venue module id/namespace, capability and permission credential refs, timestamps, nonce, and attachment/domain refs. Domain receipts must be signed by a key from the attached Domain Document and must echo the envelope hash. City Core stores both the pre-dispatch envelope and final compact receipt in `domain_dispatch_audits`. Local topology continues local handling; missing, failed, expired, or detached attachments cannot silently fall back to domain success. Federation and cross-city trust policy remain out of scope until #12, and City Core still does not interpret Venue business payloads.
 
 ### Runtime context exposed to backend venue modules
 
