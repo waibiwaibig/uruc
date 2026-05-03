@@ -197,8 +197,8 @@ Current WebSocket behavior in `core/server/ws-gateway.ts`:
    - `release_action_lease`
 4. Enforce message rate limits for authenticated agent sessions.
 5. Resolve the command schema from `HookRegistry`.
-6. Enforce same-resident action lease requirements and confirmation policy before dispatch.
-7. For venue requests with `protocol.request.requiredCapabilities`, check active permission credentials before dispatch.
+6. Enforce same-resident action lease requirements before dispatch.
+7. For venue requests with `protocol.request.requiredCapabilities`, check active permission credentials and approval policy before dispatch. Missing grantable permission returns `PERMISSION_REQUIRED` with `nextAction: "require_approval"`; explicitly forbidden or unscoped legacy confirmation requests return `PERMISSION_DENIED`.
 8. Dispatch the command through `hooks.handleWSCommand(...)`.
 9. Push session-state updates when city/location/action lease state changes.
 
@@ -233,7 +233,7 @@ Current auth/session split:
 - Command discoverability and command gating are evaluated against the current WebSocket session state.
 - Regular resident sessions can resolve a city-issued active permission credential. The current bridge uses the session agent id as the resident id until the later resident identity slices land.
 - Principal-backed residents are a registration type on the current agent-backed resident bridge. They keep their own agent/session identity and carry one `accountablePrincipalId`; that binding is not owner control, controller takeover, or cross-resident operation.
-- Principal-backed resident permissions are checked against active credentials issued by their accountable principal. Missing principal-backed permission returns a compact `PERMISSION_REQUIRED` receipt with `nextAction: "require_approval"`; the approval flow itself remains a later slice.
+- Principal-backed resident permissions are checked against active credentials issued by their accountable principal. Missing principal-backed permission returns a compact `PERMISSION_REQUIRED` receipt with `nextAction: "require_approval"`; approval issues a scoped, time-bound permission credential from that accountable principal.
 - Venue command dispatch checks `protocol.request.requiredCapabilities` against active permission credentials when a schema declares required capabilities. Commands without required capabilities keep the existing runnable behavior.
 
 ## Core City Model

@@ -12,6 +12,7 @@ import type { IncomingMessage } from 'http';
 import type { HookRegistry, HttpContext } from '../plugin-system/hook-registry.js';
 import type { AuthService } from './service.js';
 import type { LogService } from '../logger/service.js';
+import type { PermissionCredentialService } from '../permission/service.js';
 import { parseBody, sendError, sendJson } from '../server/middleware.js';
 import { AppError, CORE_ERROR_CODES, sendHttpError } from '../server/errors.js';
 import { getUploadsDir } from '../../runtime-paths.js';
@@ -78,6 +79,34 @@ export function registerDashboardRoutes(hooks: HookRegistry, auth: AuthService, 
                 sendJson(res, 201, { resident }, req);
             } catch (error) {
                 sendHttpError(res, req, error, { status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: 'Unable to register principal-backed resident.' });
+            }
+            return true;
+        }
+
+        if (path === '/api/dashboard/permission-approvals' && method === 'POST') {
+            const permissions = ctx.services.tryGet<PermissionCredentialService>('permission');
+            if (!permissions) {
+                sendError(res, 503, { error: 'Permission service is not available.', code: 'PERMISSION_SERVICE_UNAVAILABLE', retryable: true, action: 'retry' }, req);
+                return true;
+            }
+
+            const { residentId, capabilities, validFrom, validUntil } = await parseBody(req);
+            if (!residentId || !Array.isArray(capabilities)) {
+                sendError(res, 400, { error: 'Please provide residentId and capabilities.', code: CORE_ERROR_CODES.BAD_REQUEST }, req);
+                return true;
+            }
+
+            try {
+                const credential = await permissions.approveCredential({
+                    authorityUserId: session.userId,
+                    residentId,
+                    capabilities,
+                    validFrom: validFrom ? new Date(validFrom) : undefined,
+                    validUntil: validUntil ? new Date(validUntil) : null,
+                });
+                sendJson(res, 201, { credential }, req);
+            } catch (error) {
+                sendHttpError(res, req, error, { status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: 'Unable to approve permission credential.' });
             }
             return true;
         }

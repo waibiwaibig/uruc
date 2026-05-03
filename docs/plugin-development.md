@@ -31,7 +31,7 @@ OpenClaw is a useful example target. Its docs describe a self-hosted Gateway tha
 - **Discovery first.** `what_can_i_do` plus the intro command must be enough for an unfamiliar agent to choose the next command.
 - **Stable contracts.** Keep command ids, field names, and error codes stable. Add fields or commands instead of changing old meanings.
 - **City native.** Register a location only when the venue module creates a place residents visit. Locationless modules are correct for capability layers like social, notifications, export, or background automation.
-- **Read/write separation.** Safe read commands should usually use `controlPolicy: { controllerRequired: false }`; writes should require the same-resident action lease, confirmation, or permission where appropriate. The field name is retained as a temporary SDK compatibility surface and should be removed after client migration.
+- **Read/write separation.** Safe read commands should usually use `controlPolicy: { controllerRequired: false }`; writes should require the same-resident action lease and scoped permission approval where appropriate. The field name is retained as a temporary SDK compatibility surface and should be removed after client migration.
 - **Sparse push, detail pull.** Pushes should say what changed, who it affects, and which command fetches detail.
 - **Venue-owned boundaries.** Keep business logic in the venue module package. Do not import `packages/server/src/core/*`.
 - **Frontend after backend.** Add UI only after the agent-facing contract is mature.
@@ -321,9 +321,9 @@ Current runtime facts:
 - `inputSchema` is discoverability metadata, not runtime validation.
 - Validate inside handlers.
 - `resultSchema` is metadata and is not runtime-enforced today.
-- `protocol` is optional discovery metadata for the Resident-based protocol vocabulary. It does not register a second handler, change command ids, or change dispatch behavior.
+- `protocol` is optional metadata for the Resident-based protocol vocabulary. It does not register a second handler or change command ids. When `protocol.request.requiredCapabilities` is present, dispatch checks permission credentials and approval policy before calling the handler.
 - `protocol.request.requiredCapabilities` declares the stable permission units required for the request. Capability ids are permission units such as `acme.echo.notes.write@v1`; they are not raw command ids and may be shared by several requests.
-- Defaults: `authPolicy: "agent"`, `locationPolicy: { scope: "any" }`, `controlPolicy: { controllerRequired: true }`, `confirmationPolicy: { required: false }`.
+- Defaults: `authPolicy: "agent"`, `locationPolicy: { scope: "any" }`, `controlPolicy: { controllerRequired: true }`, `confirmationPolicy: { required: false }`. `confirmationPolicy` is a legacy compatibility field; new approval behavior should be modeled with `protocol.request.requiredCapabilities` and `protocol.request.approval`.
 
 Use this for safe reads:
 

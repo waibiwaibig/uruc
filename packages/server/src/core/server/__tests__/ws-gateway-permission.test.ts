@@ -4,7 +4,7 @@ vi.mock('../../auth/email.js', () => ({
   sendVerificationEmail: vi.fn(async () => undefined),
 }));
 
-import { createDb } from '../../database/index.js';
+import { createDb, schema } from '../../database/index.js';
 import { AuthService } from '../../auth/service.js';
 import { PermissionCredentialService } from '../../permission/service.js';
 import { HookRegistry } from '../../plugin-system/hook-registry.js';
@@ -48,6 +48,7 @@ function createClient(sent: SentEnvelope[]) {
 }
 
 describe('WSGateway regular resident permission credentials', () => {
+  let db: ReturnType<typeof createDb>;
   let auth: AuthService;
   let permissions: PermissionCredentialService;
   let hooks: HookRegistry;
@@ -55,7 +56,7 @@ describe('WSGateway regular resident permission credentials', () => {
   let gateway: WSGateway;
 
   beforeEach(() => {
-    const db = createDb(':memory:');
+    db = createDb(':memory:');
     auth = new AuthService(db);
     permissions = new PermissionCredentialService(db);
     hooks = new HookRegistry();
@@ -116,7 +117,8 @@ describe('WSGateway regular resident permission credentials', () => {
   it('allows a venue request when the resident has every required capability', async () => {
     const user = await auth.register('capability-allow', 'capability-allow@example.com', 'secret-123');
     const [shadow] = await auth.getAgentsByUser(user.id);
-    await permissions.issueCityCredential({
+    await permissions.approveCredential({
+      authorityUserId: user.id,
       residentId: shadow.id,
       capabilities: ['uruc.permission.fixture.write@v1'],
     });
@@ -212,7 +214,7 @@ describe('WSGateway regular resident permission credentials', () => {
       payload: {
         code: 'PERMISSION_REQUIRED',
         text: 'Permission required for this request.',
-        nextAction: 'request_permission',
+        nextAction: 'require_approval',
         details: {
           requestType: 'uruc.permission.fixture.write.request@v1',
           requiredCapabilities: ['uruc.permission.fixture.write@v1'],
@@ -222,15 +224,15 @@ describe('WSGateway regular resident permission credentials', () => {
     });
   });
 
-  it('allows a principal-backed resident request with an accountable-principal-issued credential', async () => {
+  it('allows a principal-backed resident request after accountable-principal approval', async () => {
     const user = await auth.register('principal-backed-allow', 'principal-backed-allow@example.com', 'secret-123');
     const [principal] = await auth.getAgentsByUser(user.id);
     const resident = await auth.createPrincipalBackedResident({
       accountablePrincipalId: principal.id,
       name: 'principal-backed-allow-worker',
     });
-    await permissions.issuePrincipalCredential({
-      issuerId: principal.id,
+    await permissions.approveCredential({
+      authorityUserId: user.id,
       residentId: resident.id,
       capabilities: ['uruc.permission.fixture.write@v1'],
     });
@@ -363,6 +365,182 @@ describe('WSGateway regular resident permission credentials', () => {
         details: {
           requestType: 'uruc.permission.principal.deny.request@v1',
           accountablePrincipalId: principal.id,
+          missingCapabilities: ['uruc.permission.fixture.write@v1'],
+        },
+      },
+    });
+  });
+
+  it('ignores expired approval credentials during venue dispatch', async () => {
+    const user = await auth.register('expired-approval', 'expired-approval@example.com', 'secret-123');
+    const [principal] = await auth.getAgentsByUser(user.id);
+    const resident = await auth.createPrincipalBackedResident({
+      accountablePrincipalId: principal.id,
+      name: 'expired-approval-worker',
+    });
+    await db.insert(schema.permissionCredentials).values({
+      id: 'perm_expired_approval',
+      residentId: resident.id,
+      issuerId: principal.id,
+      status: 'active',
+      capabilities: JSON.stringify(['uruc.permission.fixture.write@v1']),
+      issuedAt: new Date(Date.now() - 3_000),
+      validFrom: new Date(Date.now() - 3_000),
+      validUntil: new Date(Date.now() - 1_000),
+    });
+    const handler = vi.fn(async (ctx, msg) => {
+      ctx.gateway.send(ctx.ws, { id: msg.id, type: 'result', payload: { ok: true } });
+    });
+    hooks.registerWSCommand('uruc.permission.expired_approval@v1', handler, {
+      type: 'uruc.permission.expired_approval@v1',
+      description: 'Write one expired approval fixture value.',
+      pluginName: 'uruc.permission',
+      params: {},
+      controlPolicy: { controllerRequired: false },
+      protocol: {
+        subject: 'resident',
+        request: {
+          type: 'uruc.permission.expired-approval.write.request@v1',
+          requiredCapabilities: ['uruc.permission.fixture.write@v1'],
+        },
+        venue: { id: 'uruc.permission' },
+      },
+    });
+
+    const sent: SentEnvelope[] = [];
+    const client = createClient(sent);
+    (gateway as any).clients.set('client-a', client);
+    await (gateway as any).handleAgentAuth('client-a', client, {
+      id: 'auth-a',
+      type: 'auth',
+      payload: resident.token,
+    });
+
+    sent.length = 0;
+    await (gateway as any).handleMessage('client-a', {
+      id: 'write-a',
+      type: 'uruc.permission.expired_approval@v1',
+      payload: {},
+    });
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(sent.at(-1)).toMatchObject({
+      id: 'write-a',
+      type: 'error',
+      payload: {
+        code: 'PERMISSION_REQUIRED',
+        nextAction: 'require_approval',
+        details: {
+          requestType: 'uruc.permission.expired-approval.write.request@v1',
+          missingCapabilities: ['uruc.permission.fixture.write@v1'],
+        },
+      },
+    });
+  });
+
+  it('returns deny instead of require_approval when request policy forbids approval', async () => {
+    const user = await auth.register('capability-deny-policy', 'capability-deny-policy@example.com', 'secret-123');
+    const handler = vi.fn(async (ctx, msg) => {
+      ctx.gateway.send(ctx.ws, { id: msg.id, type: 'result', payload: { ok: true } });
+    });
+    hooks.registerWSCommand('uruc.permission.policy_denied@v1', handler, {
+      type: 'uruc.permission.policy_denied@v1',
+      description: 'Write one policy-denied fixture value.',
+      pluginName: 'uruc.permission',
+      params: {},
+      controlPolicy: { controllerRequired: false },
+      protocol: {
+        subject: 'resident',
+        request: {
+          type: 'uruc.permission.policy-denied.write.request@v1',
+          requiredCapabilities: ['uruc.permission.fixture.write@v1'],
+          approval: 'forbidden',
+        },
+        venue: { id: 'uruc.permission' },
+      },
+    });
+
+    const sent: SentEnvelope[] = [];
+    const client = createClient(sent);
+    (gateway as any).clients.set('client-a', client);
+    await (gateway as any).handleAgentAuth('client-a', client, {
+      id: 'auth-a',
+      type: 'auth',
+      payload: signToken(user.id, 'user'),
+    });
+
+    sent.length = 0;
+    await (gateway as any).handleMessage('client-a', {
+      id: 'write-a',
+      type: 'uruc.permission.policy_denied@v1',
+      payload: {},
+    });
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(sent.at(-1)).toMatchObject({
+      id: 'write-a',
+      type: 'error',
+      payload: {
+        code: 'PERMISSION_DENIED',
+        text: 'Permission policy denies this request.',
+        nextAction: 'deny',
+        details: {
+          requestType: 'uruc.permission.policy-denied.write.request@v1',
+          missingCapabilities: ['uruc.permission.fixture.write@v1'],
+        },
+      },
+    });
+  });
+
+  it('uses permission approval instead of confirmation for capability-scoped requests', async () => {
+    const user = await auth.register('confirmation-migration', 'confirmation-migration@example.com', 'secret-123');
+    const handler = vi.fn(async (ctx, msg) => {
+      ctx.gateway.send(ctx.ws, { id: msg.id, type: 'result', payload: { ok: true } });
+    });
+    hooks.registerWSCommand('uruc.permission.confirmation_migrated@v1', handler, {
+      type: 'uruc.permission.confirmation_migrated@v1',
+      description: 'Write one confirmation-migrated fixture value.',
+      pluginName: 'uruc.permission',
+      params: {},
+      controlPolicy: { controllerRequired: false },
+      confirmationPolicy: { required: true },
+      protocol: {
+        subject: 'resident',
+        request: {
+          type: 'uruc.permission.confirmation-migrated.write.request@v1',
+          requiredCapabilities: ['uruc.permission.fixture.write@v1'],
+        },
+        venue: { id: 'uruc.permission' },
+      },
+    });
+
+    const sent: SentEnvelope[] = [];
+    const client = createClient(sent);
+    (gateway as any).clients.set('client-a', client);
+    await (gateway as any).handleAgentAuth('client-a', client, {
+      id: 'auth-a',
+      type: 'auth',
+      payload: signToken(user.id, 'user'),
+    });
+    client.session.trustMode = 'confirm';
+
+    sent.length = 0;
+    await (gateway as any).handleMessage('client-a', {
+      id: 'write-a',
+      type: 'uruc.permission.confirmation_migrated@v1',
+      payload: {},
+    });
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(sent.at(-1)).toMatchObject({
+      id: 'write-a',
+      type: 'error',
+      payload: {
+        code: 'PERMISSION_REQUIRED',
+        text: 'Permission required for this request.',
+        nextAction: 'require_approval',
+        details: {
+          requestType: 'uruc.permission.confirmation-migrated.write.request@v1',
           missingCapabilities: ['uruc.permission.fixture.write@v1'],
         },
       },

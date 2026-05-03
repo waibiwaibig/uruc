@@ -4,9 +4,11 @@ import { nanoid } from 'nanoid';
 import { type UrucDb, schema } from '../database/index.js';
 import type { CommandSchema, WSErrorPayload } from '../plugin-system/hook-registry.js';
 import type { AgentSession } from '../../types/index.js';
+import { AppError, CORE_ERROR_CODES } from '../server/errors.js';
 
 const CITY_ISSUER_ID = 'uruc.city';
 const BASIC_REGULAR_CAPABILITY = 'uruc.city.basic@v1';
+const DEFAULT_APPROVAL_TTL_MS = 60 * 60 * 1000;
 
 declare module '../plugin-system/service-registry.js' {
   interface ServiceMap {
@@ -27,7 +29,8 @@ export interface PermissionCredential {
 
 export type CanExecuteDecision =
   | { status: 'allow'; credentials: PermissionCredential[] }
-  | { status: 'require_approval'; receipt: WSErrorPayload; missingCapabilities: string[] };
+  | { status: 'require_approval'; receipt: WSErrorPayload; missingCapabilities: string[] }
+  | { status: 'deny'; receipt: WSErrorPayload; missingCapabilities: string[] };
 
 function parseCapabilities(raw: string): string[] {
   try {
@@ -41,6 +44,12 @@ function parseCapabilities(raw: string): string[] {
 
 function normalizeCapabilities(capabilities: string[]): string[] {
   return Array.from(new Set(capabilities.filter((capability) => capability.length > 0))).sort();
+}
+
+function assertValidDate(value: Date | undefined | null, field: string): void {
+  if (value && Number.isNaN(value.getTime())) {
+    throw new AppError({ status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: `${field} must be a valid date` });
+  }
 }
 
 export class PermissionCredentialService {
@@ -91,6 +100,71 @@ export class PermissionCredentialService {
     return this.issueCredential(input);
   }
 
+  async approveCredential(input: {
+    authorityUserId: string;
+    residentId: string;
+    capabilities: string[];
+    validFrom?: Date;
+    validUntil?: Date | null;
+  }): Promise<PermissionCredential> {
+    if (!input.residentId || typeof input.residentId !== 'string') {
+      throw new AppError({ status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: 'residentId is required' });
+    }
+    if (!Array.isArray(input.capabilities) || input.capabilities.some((capability) => typeof capability !== 'string')) {
+      throw new AppError({ status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: 'capabilities must be an array of strings' });
+    }
+    const capabilities = normalizeCapabilities(input.capabilities);
+    if (capabilities.length === 0) {
+      throw new AppError({ status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: 'at least one capability is required' });
+    }
+    assertValidDate(input.validFrom, 'validFrom');
+    assertValidDate(input.validUntil, 'validUntil');
+    const now = Date.now();
+    const validFrom = input.validFrom ?? new Date(now);
+    const validUntil = input.validUntil ?? new Date(now + DEFAULT_APPROVAL_TTL_MS);
+    if (validUntil.getTime() <= validFrom.getTime()) {
+      throw new AppError({ status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: 'validUntil must be after validFrom' });
+    }
+
+    const [resident] = await this.db.select()
+      .from(schema.agents)
+      .where(eq(schema.agents.id, input.residentId));
+    if (!resident) {
+      throw new AppError({ status: 404, code: CORE_ERROR_CODES.NOT_FOUND, error: 'Resident not found' });
+    }
+
+    const [backing] = await this.db.select()
+      .from(schema.principalBackedResidents)
+      .where(eq(schema.principalBackedResidents.residentId, input.residentId));
+
+    if (!backing) {
+      if (resident.userId !== input.authorityUserId) {
+        throw new AppError({ status: 403, code: CORE_ERROR_CODES.FORBIDDEN, error: 'You cannot approve permissions for this resident' });
+      }
+      return this.issueCityCredential({
+        residentId: input.residentId,
+        capabilities,
+        validFrom,
+        validUntil,
+      });
+    }
+
+    const [principal] = await this.db.select()
+      .from(schema.agents)
+      .where(eq(schema.agents.id, backing.accountablePrincipalId));
+    if (!principal || principal.userId !== input.authorityUserId) {
+      throw new AppError({ status: 403, code: CORE_ERROR_CODES.FORBIDDEN, error: 'You cannot approve permissions for this resident' });
+    }
+
+    return this.issueCredential({
+      issuerId: principal.id,
+      residentId: input.residentId,
+      capabilities,
+      validFrom,
+      validUntil,
+    });
+  }
+
   private async issueCredential(input: {
     issuerId: string;
     residentId: string;
@@ -99,16 +173,26 @@ export class PermissionCredentialService {
     validUntil?: Date | null;
   }): Promise<PermissionCredential> {
     const now = new Date();
+    const capabilities = normalizeCapabilities(input.capabilities);
     const credential = {
       id: `perm_${nanoid(16)}`,
       residentId: input.residentId,
       issuerId: input.issuerId,
       status: 'active' as const,
-      capabilities: normalizeCapabilities(input.capabilities),
+      capabilities,
       issuedAt: now,
       validFrom: input.validFrom ?? now,
       validUntil: input.validUntil ?? null,
     };
+
+    await this.db.update(schema.permissionCredentials)
+      .set({ status: 'revoked' })
+      .where(and(
+        eq(schema.permissionCredentials.residentId, credential.residentId),
+        eq(schema.permissionCredentials.issuerId, credential.issuerId),
+        eq(schema.permissionCredentials.status, 'active'),
+        eq(schema.permissionCredentials.capabilities, JSON.stringify(capabilities)),
+      ));
 
     await this.db.insert(schema.permissionCredentials).values({
       id: credential.id,
@@ -141,6 +225,24 @@ export class PermissionCredentialService {
       return { status: 'allow', credentials };
     }
 
+    if (schema.protocol?.request?.approval === 'forbidden') {
+      return {
+        status: 'deny',
+        missingCapabilities,
+        receipt: {
+          error: 'Permission policy denies this request.',
+          text: 'Permission policy denies this request.',
+          code: 'PERMISSION_DENIED',
+          action: 'deny',
+          nextAction: 'deny',
+          details: {
+            requestType: schema.protocol?.request?.type ?? schema.type,
+            missingCapabilities,
+          },
+        },
+      };
+    }
+
     const isPrincipalBacked = session.registrationType === 'principal_backed';
     return {
       status: 'require_approval',
@@ -153,8 +255,8 @@ export class PermissionCredentialService {
           ? 'Principal-backed permission required for this request.'
           : 'Permission required for this request.',
         code: 'PERMISSION_REQUIRED',
-        action: isPrincipalBacked ? 'require_approval' : 'request_permission',
-        nextAction: isPrincipalBacked ? 'require_approval' : 'request_permission',
+        action: 'require_approval',
+        nextAction: 'require_approval',
         details: {
           requestType: schema.protocol?.request?.type ?? schema.type,
           ...(isPrincipalBacked ? { accountablePrincipalId: session.accountablePrincipalId } : {}),

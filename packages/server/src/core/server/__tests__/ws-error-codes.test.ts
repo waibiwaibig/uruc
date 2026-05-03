@@ -171,7 +171,7 @@ describe('WS core error codes', () => {
     }
   });
 
-  it('includes citytime in confirmation-required core errors', async () => {
+  it('includes citytime when legacy confirmation policy denies an unscoped request', async () => {
     hooks.registerWSCommand('confirm_me', () => undefined, {
       type: 'confirm_me',
       description: 'Needs confirmation',
@@ -198,7 +198,8 @@ describe('WS core error codes', () => {
     await (gateway as any).handleMessage('client-4', { id: 'confirm-1', type: 'confirm_me', payload: {} });
 
     expect(sent.at(-1)?.payload).toMatchObject({
-      code: 'CONFIRMATION_REQUIRED',
+      code: 'PERMISSION_DENIED',
+      nextAction: 'deny',
       citytime: expect.any(Number),
     });
   });

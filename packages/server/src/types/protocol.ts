@@ -113,7 +113,7 @@ export interface BroadcastEvent {
   timestamp: number;
 }
 
-// === Pending Operation (for owner confirmation) ===
+// === Legacy Pending Operation (pre-permission approval flow) ===
 
 export interface PendingOperation {
   id: string;

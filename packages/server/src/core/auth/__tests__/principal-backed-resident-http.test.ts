@@ -7,8 +7,9 @@ vi.mock('../email.js', () => ({
   sendVerificationEmail: vi.fn(async () => undefined),
 }));
 
-import { createDb } from '../../database/index.js';
+import { createDb, schema } from '../../database/index.js';
 import { LogService } from '../../logger/service.js';
+import { PermissionCredentialService } from '../../permission/service.js';
 import { HookRegistry } from '../../plugin-system/hook-registry.js';
 import { ServiceRegistry } from '../../plugin-system/service-registry.js';
 import { createHttpServer } from '../../server/http-server.js';
@@ -17,19 +18,22 @@ import { registerDashboardRoutes } from '../dashboard-routes.js';
 import { AuthService } from '../service.js';
 
 describe('principal-backed resident HTTP registration', () => {
+  let db: ReturnType<typeof createDb>;
   let auth: AuthService;
   let httpServer: Server;
   let baseUrl: string;
 
   beforeEach(async () => {
-    const db = createDb(':memory:');
+    db = createDb(':memory:');
     auth = new AuthService(db);
     const hooks = new HookRegistry();
     const services = new ServiceRegistry();
     const logger = new LogService(db);
+    const permissions = new PermissionCredentialService(db);
 
     services.register('auth', auth);
     services.register('logger', logger);
+    services.register('permission', permissions);
     registerDashboardRoutes(hooks, auth, logger);
     httpServer = createHttpServer({ auth, hooks, services });
 
@@ -88,5 +92,130 @@ describe('principal-backed resident HTTP registration', () => {
 
     expect(multiple.status).toBe(400);
     expect(multipleBody.code).toBe('BAD_REQUEST');
+  });
+
+  it('lets the accountable principal approve a time-bound permission credential', async () => {
+    const user = await auth.register('api-approval', 'api-approval@example.com', 'secret-123');
+    const [principal] = await auth.getAgentsByUser(user.id);
+    const resident = await auth.createPrincipalBackedResident({
+      accountablePrincipalId: principal.id,
+      name: 'approval-backed-worker',
+    });
+    const token = signToken(user.id, 'user');
+    const validUntil = new Date(Date.now() + 60_000).toISOString();
+
+    const res = await fetch(`${baseUrl}/api/dashboard/permission-approvals`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        residentId: resident.id,
+        capabilities: ['uruc.permission.fixture.write@v1'],
+        validUntil,
+      }),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(body.credential).toMatchObject({
+      residentId: resident.id,
+      issuerId: principal.id,
+      status: 'active',
+      capabilities: ['uruc.permission.fixture.write@v1'],
+    });
+    expect(body.credential.validUntil).toBe(validUntil);
+  });
+
+  it('defaults approvals to time-bound credentials and revokes duplicate active grants', async () => {
+    const user = await auth.register('api-approval-duplicate', 'api-approval-duplicate@example.com', 'secret-123');
+    const [principal] = await auth.getAgentsByUser(user.id);
+    const resident = await auth.createPrincipalBackedResident({
+      accountablePrincipalId: principal.id,
+      name: 'approval-duplicate-worker',
+    });
+    const token = signToken(user.id, 'user');
+    const request = {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        residentId: resident.id,
+        capabilities: ['uruc.permission.fixture.write@v1'],
+      }),
+    };
+
+    const first = await fetch(`${baseUrl}/api/dashboard/permission-approvals`, request);
+    const firstBody = await first.json();
+    const second = await fetch(`${baseUrl}/api/dashboard/permission-approvals`, request);
+    const secondBody = await second.json();
+    const rows = await db.select().from(schema.permissionCredentials);
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect(firstBody.credential.validUntil).toEqual(expect.any(String));
+    expect(secondBody.credential.validUntil).toEqual(expect.any(String));
+    expect(new Date(firstBody.credential.validUntil).getTime()).toBeGreaterThan(Date.now());
+    expect(rows.filter((row) => row.status === 'active')).toHaveLength(1);
+    expect(rows.filter((row) => row.status === 'revoked')).toHaveLength(1);
+    expect(rows.find((row) => row.id === firstBody.credential.id)?.status).toBe('revoked');
+    expect(rows.find((row) => row.id === secondBody.credential.id)?.status).toBe('active');
+  });
+
+  it('rejects invalid approval credential dates', async () => {
+    const user = await auth.register('api-approval-date', 'api-approval-date@example.com', 'secret-123');
+    const [principal] = await auth.getAgentsByUser(user.id);
+    const resident = await auth.createPrincipalBackedResident({
+      accountablePrincipalId: principal.id,
+      name: 'approval-date-worker',
+    });
+    const token = signToken(user.id, 'user');
+
+    const res = await fetch(`${baseUrl}/api/dashboard/permission-approvals`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        residentId: resident.id,
+        capabilities: ['uruc.permission.fixture.write@v1'],
+        validUntil: 'not-a-date',
+      }),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.code).toBe('BAD_REQUEST');
+  });
+
+  it('rejects permission approval from a dashboard user that is not the accountable principal', async () => {
+    const user = await auth.register('api-approval-owner', 'api-approval-owner@example.com', 'secret-123');
+    const [principal] = await auth.getAgentsByUser(user.id);
+    const resident = await auth.createPrincipalBackedResident({
+      accountablePrincipalId: principal.id,
+      name: 'approval-owned-worker',
+    });
+    const other = await auth.register('api-approval-other', 'api-approval-other@example.com', 'secret-123');
+    const token = signToken(other.id, 'user');
+
+    const res = await fetch(`${baseUrl}/api/dashboard/permission-approvals`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        residentId: resident.id,
+        capabilities: ['uruc.permission.fixture.write@v1'],
+      }),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(403);
+    expect(body.code).toBe('FORBIDDEN');
   });
 });
