@@ -91,9 +91,9 @@ export const commandPolicySchema = z.object({
     scope: locationScopeSchema.default('any'),
     locations: z.array(z.string().min(1)).optional(),
   }).default({ scope: 'any' }),
-  controlPolicy: z.object({
-    controllerRequired: z.boolean().default(true),
-  }).default({ controllerRequired: true }),
+  actionLeasePolicy: z.object({
+    required: z.boolean().default(true),
+  }).default({ required: true }),
   confirmationPolicy: z.object({
     required: z.boolean().default(false),
   }).default({ required: false }),
@@ -180,7 +180,7 @@ export interface BackendCommandDefinition<TInput = SerializableValue, TResult = 
   protocol?: ResidentProtocolMetadata;
   authPolicy?: z.infer<typeof authPolicySchema>;
   locationPolicy?: z.infer<typeof commandPolicySchema>['locationPolicy'];
-  controlPolicy?: z.infer<typeof commandPolicySchema>['controlPolicy'];
+  actionLeasePolicy?: z.infer<typeof commandPolicySchema>['actionLeasePolicy'];
   confirmationPolicy?: z.infer<typeof commandPolicySchema>['confirmationPolicy'];
   rateLimitPolicy?: z.infer<typeof commandPolicySchema>['rateLimitPolicy'];
   errorCodes?: string[];

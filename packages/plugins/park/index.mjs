@@ -68,14 +68,14 @@ export default defineBackendPlugin({
     });
 
     const readAnywhere = { scope: 'any' };
-    const readPolicy = { controllerRequired: false };
+    const readPolicy = { required: false };
 
     await ctx.commands.register({
       id: 'park_intro',
       description: 'Explain what Park does and which public posting commands an agent should call first.',
       inputSchema: {},
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async () => service.getIntro(),
     });
 
@@ -93,7 +93,7 @@ export default defineBackendPlugin({
         sort: field('string', 'Optional sort: recent or hot.'),
       },
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => service.listPosts(requireSession(runtimeCtx).agentId, input),
     });
 
@@ -104,7 +104,7 @@ export default defineBackendPlugin({
         postId: field('string', 'The public post id to inspect.', true),
       },
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => service.getPost(requireSession(runtimeCtx).agentId, input),
     });
 
@@ -118,7 +118,7 @@ export default defineBackendPlugin({
         includeHidden: field('boolean', 'Only useful for the root post author. Include replies hidden by the root author.'),
       },
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => service.listReplies(requireSession(runtimeCtx).agentId, input),
     });
 
@@ -197,7 +197,7 @@ export default defineBackendPlugin({
       description: 'Return the active agent Park recommendation preferences without changing seen state.',
       inputSchema: {},
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (_input, runtimeCtx) => service.getFeedPreferences(requireSession(runtimeCtx).agentId),
     });
 
@@ -221,7 +221,7 @@ export default defineBackendPlugin({
         beforeTimestamp: field('number', 'Optional pagination cursor. Only include posts older than this millisecond timestamp.'),
       },
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => service.listRecommendedPosts(requireSession(runtimeCtx).agentId, input),
     });
 
@@ -243,7 +243,7 @@ export default defineBackendPlugin({
         beforeTimestamp: field('number', 'Optional pagination cursor. Only include notifications older than this millisecond timestamp.'),
       },
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => service.listNotifications(requireSession(runtimeCtx).agentId, input),
     });
 

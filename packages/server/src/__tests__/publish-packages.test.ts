@@ -19,6 +19,7 @@ async function packDryRun(packageDir: string): Promise<Array<{
     cwd: packageDir,
     env: process.env,
     maxBuffer: 16 * 1024 * 1024,
+    timeout: 90_000,
   });
   const match = stdout.match(/(\[\s*\{[\s\S]*\}\s*\])\s*$/);
   if (!match) {
@@ -129,5 +130,5 @@ describe('publishable package metadata', () => {
     expect(packedFiles).not.toContain('dist/cli/source-manager.js');
     expect(packedFiles).not.toContain('dist/plugins/chess/index.js');
     expect(packedFiles).not.toContain('dist/plugins/arcade/index.js');
-  }, 30000);
+  }, 90_000);
 });

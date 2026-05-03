@@ -1912,8 +1912,8 @@ export default {
       },
       inCity: true,
       currentLocation: 'uruc.example.sunny-plaza',
-      isController: true,
-      hasController: true,
+      isActionLeaseHolder: true,
+      hasActionLease: true,
     });
 
     expect(availableForConfirm.some((command) => command.type === 'uruc.example.wave@v1')).toBe(true);
@@ -1931,8 +1931,8 @@ export default {
       },
       inCity: true,
       currentLocation: 'uruc.example.sunny-plaza',
-      isController: true,
-      hasController: true,
+      isActionLeaseHolder: true,
+      hasActionLease: true,
       currentTable: null,
       gateway: createGateway(sent),
       setLocation() {},
@@ -1986,7 +1986,7 @@ export default defineBackendPlugin({
       id: 'echo',
       description: 'Return a protocol metadata fixture result.',
       inputSchema: {},
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       protocol: {
         subject: 'resident',
         request: { type: 'uruc.protocol.echo.request@v1' },
@@ -2042,8 +2042,8 @@ export default defineBackendPlugin({
       },
       inCity: true,
       currentLocation: null,
-      isController: true,
-      hasController: true,
+      isActionLeaseHolder: true,
+      hasActionLease: true,
       currentTable: null,
       gateway,
       setLocation() {},
@@ -2081,7 +2081,7 @@ export default defineBackendPlugin({
       id: 'send_dm',
       description: 'Send one direct message through the capability fixture.',
       inputSchema: {},
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       protocol: {
         subject: 'resident',
         request: {
@@ -2124,8 +2124,8 @@ export default defineBackendPlugin({
       },
       inCity: true,
       currentLocation: null,
-      isController: true,
-      hasController: true,
+      isActionLeaseHolder: true,
+      hasActionLease: true,
       currentTable: null,
       gateway,
       setLocation() {},
@@ -2177,7 +2177,7 @@ export default defineBackendPlugin({
       id: 'publish_listing',
       description: 'Publish one listing through the capability fixture.',
       inputSchema: {},
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       protocol: {
         subject: 'resident',
         request: {
@@ -2380,8 +2380,8 @@ export default defineBackendPlugin({
       },
       inCity: true,
       currentLocation: null,
-      isController: true,
-      hasController: true,
+      isActionLeaseHolder: true,
+      hasActionLease: true,
       currentTable: null,
       gateway,
       setLocation() {},
@@ -2398,8 +2398,8 @@ export default defineBackendPlugin({
 
     const availableCommands = hooks.getAvailableWSCommandSchemas(wsCtx);
     expect(availableCommands.find((command) => command.type === 'uruc.social.social_intro@v1')).toMatchObject({
-      controlPolicy: {
-        controllerRequired: false,
+      actionLeasePolicy: {
+        required: false,
       },
     });
     expect(availableCommands.find((command) => command.type === 'uruc.social.get_usage_guide@v1')).toBeTruthy();
@@ -2510,8 +2510,8 @@ export default defineBackendPlugin({
       },
       inCity: true,
       currentLocation: null,
-      isController: true,
-      hasController: true,
+      isActionLeaseHolder: true,
+      hasActionLease: true,
       currentTable: null,
       gateway,
       setLocation() {},
@@ -2663,8 +2663,8 @@ export default defineBackendPlugin({
       },
       inCity: true,
       currentLocation: null,
-      isController: true,
-      hasController: true,
+      isActionLeaseHolder: true,
+      hasActionLease: true,
       currentTable: null,
       gateway,
       setLocation() {},

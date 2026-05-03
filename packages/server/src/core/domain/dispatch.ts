@@ -17,6 +17,7 @@ export const DOMAIN_DISPATCH_ENVELOPE_SIGNED_FIELDS = [
   'audit',
   'city',
   'domain',
+  'expiresAt',
   'issuedAt',
   'nonce',
   'proofs',
@@ -32,6 +33,7 @@ export const DOMAIN_DISPATCH_RECEIPT_SIGNED_FIELDS = [
   'domainId',
   'envelopeHash',
   'eventRef',
+  'expiresAt',
   'issuedAt',
   'receiptId',
   'requestId',
@@ -48,6 +50,7 @@ export interface DomainDispatchServiceOptions {
   publicKeyPem?: string;
   fetch?: FetchLike;
   timeoutMs?: number;
+  dispatchTtlMs?: number;
   maxReceiptBytes?: number;
   now?: () => Date;
   nonce?: () => string;
@@ -216,6 +219,7 @@ export class DomainDispatchService {
   private readonly publicKeyPem: string;
   private readonly fetchImpl: FetchLike;
   private readonly timeoutMs: number;
+  private readonly dispatchTtlMs: number;
   private readonly maxReceiptBytes: number;
   private readonly now: () => Date;
   private readonly nonce: () => string;
@@ -236,6 +240,7 @@ export class DomainDispatchService {
       ?? keyPair!.publicKey.export({ format: 'pem', type: 'spki' }).toString();
     this.fetchImpl = options.fetch ?? fetch;
     this.timeoutMs = options.timeoutMs ?? 3_000;
+    this.dispatchTtlMs = options.dispatchTtlMs ?? 60_000;
     this.maxReceiptBytes = options.maxReceiptBytes ?? 32 * 1024;
     this.now = options.now ?? (() => new Date());
     this.nonce = options.nonce ?? (() => randomUUID());
@@ -290,6 +295,8 @@ export class DomainDispatchService {
     const requestType = input.schema.protocol?.request?.type ?? input.msg.type;
     const requiredCapabilities = input.schema.protocol?.request?.requiredCapabilities ?? [];
     const auditId = randomUUID();
+    const issuedAt = this.now();
+    const payloadHash = hashPayload(Buffer.from(JSON.stringify(stableValue(input.msg.payload ?? null)), 'utf8'));
     const envelopeBase = {
       schema: DOMAIN_DISPATCH_ENVELOPE_SCHEMA,
       audit: {
@@ -321,6 +328,7 @@ export class DomainDispatchService {
         command: input.msg.type,
         type: requestType,
         payload: input.msg.payload ?? null,
+        payloadHash,
       },
       proofs: {
         requiredCapabilities,
@@ -329,7 +337,8 @@ export class DomainDispatchService {
           .map((credential) => credential.id)
           .sort(),
       },
-      issuedAt: this.now().toISOString(),
+      issuedAt: issuedAt.toISOString(),
+      expiresAt: new Date(issuedAt.getTime() + this.dispatchTtlMs).toISOString(),
       nonce: this.nonce(),
     };
     const envelopeHash = hashPayload(canonicalDomainDispatchEnvelopePayload(envelopeBase));
@@ -479,7 +488,14 @@ export class DomainDispatchService {
     if (raw.eventRef !== null && !eventRef) {
       throw new DomainDocumentError('DOMAIN_DISPATCH_RECEIPT_INVALID', 'Invalid dispatch receipt eventRef');
     }
-    requireIsoTimestamp(raw.issuedAt, 'DOMAIN_DISPATCH_RECEIPT_INVALID', 'receipt issuedAt');
+    const issuedAt = requireIsoTimestamp(raw.issuedAt, 'DOMAIN_DISPATCH_RECEIPT_INVALID', 'receipt issuedAt');
+    const expiresAt = requireIsoTimestamp(raw.expiresAt, 'DOMAIN_DISPATCH_RECEIPT_INVALID', 'receipt expiresAt');
+    if (Date.parse(expiresAt) <= this.now().getTime()) {
+      throw new DomainDocumentError('DOMAIN_DISPATCH_RECEIPT_EXPIRED', 'Dispatch receipt is expired');
+    }
+    if (Date.parse(issuedAt) > Date.parse(expiresAt)) {
+      throw new DomainDocumentError('DOMAIN_DISPATCH_RECEIPT_INVALID', 'Dispatch receipt expires before it is issued');
+    }
     if (raw.envelopeHash !== envelopeHash) {
       throw new DomainDocumentError('DOMAIN_DISPATCH_RECEIPT_HASH_MISMATCH', 'Dispatch receipt envelope hash mismatch');
     }

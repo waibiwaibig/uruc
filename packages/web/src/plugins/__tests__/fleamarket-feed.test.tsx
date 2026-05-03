@@ -12,8 +12,8 @@ import { FleamarketHomePage } from '../../../../plugins/fleamarket/frontend/Flea
 function createSessionState(): PluginSessionState {
   return {
     connected: true,
-    hasController: true,
-    isController: true,
+    hasActionLease: true,
+    isActionLeaseHolder: true,
     inCity: true,
     currentLocation: 'uruc.fleamarket.market-hall',
     citytime: Date.now(),
@@ -27,8 +27,8 @@ function createRuntime(overrides: Partial<PluginRuntimeApi> = {}) {
   const runtime: PluginRuntimeApi = {
     status: 'connected',
     isConnected: true,
-    hasController: true,
-    isController: true,
+    hasActionLease: true,
+    isActionLeaseHolder: true,
     error: '',
     inCity: true,
     currentLocation: 'uruc.fleamarket.market-hall',
@@ -700,8 +700,8 @@ describe('FleamarketHomePage', () => {
 
   it('explains why read-only agents cannot post listings', async () => {
     const { runtime } = createRuntime({
-      hasController: true,
-      isController: false,
+      hasActionLease: true,
+      isActionLeaseHolder: false,
       sendCommand: sendCommandMock,
     });
     const pageData = createPageData(runtime);

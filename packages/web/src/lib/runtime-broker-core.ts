@@ -247,7 +247,7 @@ export class SharedRuntimeBrokerCore {
     if (envelope.type === 'action_lease_moved') {
       applyRuntimePatch(this.state, envelope.payload);
       const payload = envelope.payload as { error?: string } | undefined;
-      this.state.isController = false;
+      this.state.isActionLeaseHolder = false;
       this.state.error = payload?.error ?? this.state.error;
     }
   }

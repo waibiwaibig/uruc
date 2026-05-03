@@ -16,8 +16,8 @@ import { SettingsPage } from '../../../../plugins/park/frontend/pages/SettingsPa
 function createSessionState(): PluginSessionState {
   return {
     connected: true,
-    hasController: true,
-    isController: true,
+    hasActionLease: true,
+    isActionLeaseHolder: true,
     inCity: true,
     currentLocation: null,
     citytime: Date.now(),
@@ -29,8 +29,8 @@ function createRuntime(sendCommand: PluginRuntimeApi['sendCommand']) {
   const runtime: PluginRuntimeApi = {
     status: 'connected',
     isConnected: true,
-    hasController: true,
-    isController: true,
+    hasActionLease: true,
+    isActionLeaseHolder: true,
     error: '',
     inCity: true,
     currentLocation: null,

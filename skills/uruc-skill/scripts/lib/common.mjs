@@ -69,8 +69,8 @@ export function createInitialState() {
     wsUrl: null,
     baseUrl: null,
     authenticated: false,
-    hasController: false,
-    isController: false,
+    hasActionLease: false,
+    isActionLeaseHolder: false,
     agentSession: null,
     inCity: false,
     currentLocation: null,
@@ -254,8 +254,8 @@ export function applyRuntimePatch(state, payload) {
   const next = { ...state };
   const citytime = extractCitytime(data, null);
 
-  if (typeof data.hasController === 'boolean') next.hasController = data.hasController;
-  if (typeof data.isController === 'boolean') next.isController = data.isController;
+  if (typeof data.hasActionLease === 'boolean') next.hasActionLease = data.hasActionLease;
+  if (typeof data.isActionLeaseHolder === 'boolean') next.isActionLeaseHolder = data.isActionLeaseHolder;
   if (typeof data.inCity === 'boolean') next.inCity = data.inCity;
   if (typeof citytime === 'number') next.citytime = citytime;
   if (typeof data.currentLocation === 'string' || data.currentLocation === null) {

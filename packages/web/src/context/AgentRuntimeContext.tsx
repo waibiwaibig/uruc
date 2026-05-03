@@ -20,8 +20,8 @@ import type { SharedRuntimeState } from '../lib/runtime-broker-protocol';
 interface AgentRuntimeContextValue {
   status: WsConnectionStatus;
   isConnected: boolean;
-  hasController: boolean;
-  isController: boolean;
+  hasActionLease: boolean;
+  isActionLeaseHolder: boolean;
   wsUrl: string;
   setWsUrl: (value: string) => void;
   error: string;
@@ -71,8 +71,8 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
   const [wsUrl, setWsUrlState] = useState<string>(() => getSavedWsUrl());
   const [error, setError] = useState('');
   const [agentSession, setAgentSession] = useState<{ agentId: string; agentName: string } | null>(null);
-  const [hasController, setHasController] = useState(false);
-  const [isController, setIsController] = useState(false);
+  const [hasActionLease, setHasActionLease] = useState(false);
+  const [isActionLeaseHolder, setIsActionLeaseHolder] = useState(false);
   const [inCity, setInCity] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<string | null>(null);
   const [citytime, setCitytime] = useState<number | null>(null);
@@ -90,8 +90,8 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
     setStatus(nextState.status);
     setError(nextState.error);
     setAgentSession(nextState.agentSession);
-    setHasController(nextState.hasController);
-    setIsController(nextState.isController);
+    setHasActionLease(nextState.hasActionLease);
+    setIsActionLeaseHolder(nextState.isActionLeaseHolder);
     setInCity(nextState.inCity);
     setCurrentLocation(nextState.currentLocation);
     setCitytime(nextState.citytime);
@@ -101,8 +101,8 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
     setStatus('idle');
     setError('');
     setAgentSession(null);
-    setHasController(false);
-    setIsController(false);
+    setHasActionLease(false);
+    setIsActionLeaseHolder(false);
     setInCity(false);
     setCurrentLocation(null);
     setCitytime(null);
@@ -145,7 +145,7 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
       }
       if (envelope.type === 'action_lease_moved') {
         const payload = envelope.payload as { error?: string } | undefined;
-        const text = payload?.error ?? i18n.t('runtime:websocket.controlReplaced');
+        const text = payload?.error ?? i18n.t('runtime:websocket.actionLeaseMoved');
         pushEvent(text);
       }
       emitRuntimeMessage(envelope.type, envelope.payload);
@@ -224,8 +224,8 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
     transportRef.current.disconnect();
     setError('');
     setAgentSession(null);
-    setHasController(false);
-    setIsController(false);
+    setHasActionLease(false);
+    setIsActionLeaseHolder(false);
     setInCity(false);
     setCurrentLocation(null);
     setCitytime(null);
@@ -305,8 +305,8 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
     () => ({
       status,
       isConnected: status === 'connected',
-      hasController,
-      isController,
+      hasActionLease,
+      isActionLeaseHolder,
       wsUrl,
       setWsUrl,
       error,
@@ -336,8 +336,8 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
     }),
     [
       status,
-      hasController,
-      isController,
+      hasActionLease,
+      isActionLeaseHolder,
       wsUrl,
       setWsUrl,
       error,

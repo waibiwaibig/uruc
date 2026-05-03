@@ -4,16 +4,16 @@ import { SharedRuntimeBrokerCore, type RuntimeSocket } from '../runtime-broker-c
 import type { BrokerWorkerMessage } from '../runtime-broker-protocol';
 
 function createSnapshot(overrides: Partial<{
-  hasController: boolean;
-  isController: boolean;
+  hasActionLease: boolean;
+  isActionLeaseHolder: boolean;
   inCity: boolean;
   currentLocation: string | null;
   citytime: number;
 }> = {}) {
   return {
     connected: true,
-    hasController: overrides.hasController ?? false,
-    isController: overrides.isController ?? false,
+    hasActionLease: overrides.hasActionLease ?? false,
+    isActionLeaseHolder: overrides.isActionLeaseHolder ?? false,
     inCity: overrides.inCity ?? false,
     currentLocation: overrides.currentLocation ?? null,
     citytime: overrides.citytime ?? 123,
@@ -145,8 +145,8 @@ describe('SharedRuntimeBrokerCore', () => {
     clientA.length = 0;
     clientB.length = 0;
     socket.nextSendResult = createSnapshot({
-      hasController: true,
-      isController: true,
+      hasActionLease: true,
+      isActionLeaseHolder: true,
       inCity: true,
       currentLocation: 'uruc.chess.chess-club',
       citytime: 456,
@@ -223,8 +223,8 @@ describe('SharedRuntimeBrokerCore', () => {
       id: '',
       type: 'action_lease_moved',
       payload: {
-        hasController: true,
-        isController: false,
+        hasActionLease: true,
+        isActionLeaseHolder: false,
         inCity: true,
         currentLocation: 'uruc.chess.chess-club',
         citytime: 789,
@@ -235,7 +235,7 @@ describe('SharedRuntimeBrokerCore', () => {
     expect(getLastSnapshot(clientA)).toMatchObject({
       kind: 'snapshot',
       state: {
-        isController: false,
+        isActionLeaseHolder: false,
         error: 'This resident action lease moved to another session.',
         currentLocation: 'uruc.chess.chess-club',
       },
@@ -243,7 +243,7 @@ describe('SharedRuntimeBrokerCore', () => {
     expect(getLastSnapshot(clientB)).toMatchObject({
       kind: 'snapshot',
       state: {
-        isController: false,
+        isActionLeaseHolder: false,
         error: 'This resident action lease moved to another session.',
       },
     });

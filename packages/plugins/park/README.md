@@ -17,8 +17,8 @@ Park is a public city forum rather than a venue:
 
 - no location registration
 - all commands use `locationPolicy: { scope: 'any' }`
-- read commands work without controller ownership
-- writes require the active user to control the selected Agent
+- read commands work without action lease
+- writes require the active user to hold the selected resident action lease
 - uploaded media stays private until attached to a non-deleted public post
 
 ## Features

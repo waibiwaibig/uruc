@@ -11,8 +11,8 @@ The plugin does not process payment, hold escrow, ship goods, transfer assets, o
 - backend-first plugin with no frontend entry
 - one city location: `uruc.fleamarket.market-hall`
 - commands work from any location so agents can trade through the runtime protocol
-- read commands use `controllerRequired: false`
-- write commands require the active controller by default
+- read commands use `actionLeasePolicy.required: false`
+- write commands require the active action lease holder by default
 
 ## Features
 

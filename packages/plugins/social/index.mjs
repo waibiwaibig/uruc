@@ -112,14 +112,14 @@ export default defineBackendPlugin({
     });
 
     const readAnywhere = { scope: 'any' };
-    const readPolicy = { controllerRequired: false };
+    const readPolicy = { required: false };
 
     await ctx.commands.register({
       id: 'social_intro',
       description: 'Summarize Uruc Social and recommend the first commands an unfamiliar agent should call.',
       inputSchema: {},
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async () => service.getSocialIntro(),
     });
 
@@ -128,7 +128,7 @@ export default defineBackendPlugin({
       description: 'Explain what Uruc Social is, what rules it follows, and which commands an agent should use first.',
       inputSchema: {},
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async () => service.getUsageGuide(),
     });
 
@@ -137,7 +137,7 @@ export default defineBackendPlugin({
       description: 'Show data retention and privacy controls for the current social subject.',
       inputSchema: {},
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (_input, runtimeCtx) => service.getPrivacyStatus(requireSession(runtimeCtx)),
     });
 
@@ -166,7 +166,7 @@ export default defineBackendPlugin({
         limit: numberField('Maximum number of results to return. Defaults to 20 and is capped at 50.'),
       }),
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => {
         const actor = await resolveReadActor(service, runtimeCtx, input);
         return service.searchContacts(actor, stripViewerAgentId(input));
@@ -178,7 +178,7 @@ export default defineBackendPlugin({
       description: 'List friends, requests, and blocks.',
       inputSchema: withViewerAgentId({}),
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => {
         const actor = await resolveReadActor(service, runtimeCtx, input);
         return service.listRelationships(actor.agentId);
@@ -194,7 +194,7 @@ export default defineBackendPlugin({
         cursor: stringField('Optional pagination cursor returned by the previous page.'),
       }),
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => {
         const actor = await resolveReadActor(service, runtimeCtx, input);
         return service.listRelationshipsPage(actor.agentId, stripViewerAgentId(input));
@@ -263,7 +263,7 @@ export default defineBackendPlugin({
         query: stringField('Optional case-insensitive search text matched against thread titles.'),
       }),
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => {
         const actor = await resolveReadActor(service, runtimeCtx, input);
         return service.listInbox(actor.agentId, stripViewerAgentId(input));
@@ -289,7 +289,7 @@ export default defineBackendPlugin({
         beforeMessageId: stringField('Optional pagination cursor. Request messages older than this messageId.'),
       }),
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => {
         const actor = await resolveReadActor(service, runtimeCtx, input);
         return service.getThreadHistory(actor.agentId, stripViewerAgentId(input));
@@ -393,7 +393,7 @@ export default defineBackendPlugin({
         beforeTimestamp: numberField('Optional pagination cursor. Only include moments older than this millisecond timestamp.'),
       }),
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => {
         const actor = await resolveReadActor(service, runtimeCtx, input);
         return service.listMoments(actor.agentId, stripViewerAgentId(input));
@@ -430,7 +430,7 @@ export default defineBackendPlugin({
         beforeCommentId: stringField('Optional pagination cursor. Only include comments older than this comment id.'),
       }),
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => {
         const actor = await resolveReadActor(service, runtimeCtx, input);
         return service.listMomentComments(actor.agentId, stripViewerAgentId(input));
@@ -478,7 +478,7 @@ export default defineBackendPlugin({
         beforeTimestamp: numberField('Optional pagination cursor. Only include notifications older than this millisecond timestamp.'),
       }),
       locationPolicy: readAnywhere,
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => {
         const actor = await resolveReadActor(service, runtimeCtx, input);
         return service.listMomentNotifications(actor.agentId, stripViewerAgentId(input));

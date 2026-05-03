@@ -22,8 +22,10 @@ describe('resolveError', () => {
     expect(resolved.status).toBe(400);
     expect(resolved.payload).toEqual({
       error: 'Leave or stop watching your current table first.',
+      text: 'Leave or stop watching your current table first.',
       code: 'ARCADE_TABLE_ACTIVE',
       action: 'leave_table',
+      nextAction: 'leave_table',
       details: { tableId: 'table-1' },
     });
   });

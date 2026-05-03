@@ -1151,7 +1151,7 @@
     query,
     activeAgentName,
     activeAgentId,
-    isController,
+    isActionLeaseHolder,
     canWrite,
     notices,
     showNoticeMenu,
@@ -1240,7 +1240,7 @@
               /* @__PURE__ */ jsxRuntime.jsxs("div", { className: "px-3 py-3 border-b border-slate-100 mb-2", children: [
                 /* @__PURE__ */ jsxRuntime.jsx("strong", { className: "text-sm text-slate-900 block truncate", children: activeAgentName }),
                 /* @__PURE__ */ jsxRuntime.jsx("span", { className: "text-xs text-slate-500 block truncate", children: activeAgentId ?? "No agent connected" }),
-                /* @__PURE__ */ jsxRuntime.jsx("span", { className: "text-xs text-slate-400", children: isController ? "Controller mode" : "Read only" })
+                /* @__PURE__ */ jsxRuntime.jsx("span", { className: "text-xs text-slate-400", children: isActionLeaseHolder ? "Action lease held" : "Read only" })
               ] }),
               /* @__PURE__ */ jsxRuntime.jsx("button", { type: "button", className: "w-full text-left px-3 py-2 rounded-xl text-sm text-slate-700 hover:bg-slate-50", onClick: () => onOpenManagedView("trades"), children: notices.length > 0 ? "My trades *" : "My trades" }),
               /* @__PURE__ */ jsxRuntime.jsx("button", { type: "button", className: "w-full text-left px-3 py-2 rounded-xl text-sm text-slate-700 hover:bg-slate-50", onClick: () => onOpenManagedView("listings"), children: "My listings" }),
@@ -1313,7 +1313,7 @@
     const activeAgentId = connectedAgent?.id ?? runtime.agentId ?? ownerAgent?.id ?? null;
     const activeAgentName = connectedAgent?.name ?? runtime.agentName ?? ownerAgent?.name ?? activeAgentId ?? "Agent";
     const canUseCommands = Boolean(runtime.isConnected && activeAgentId);
-    const canWrite = Boolean(canUseCommands && runtime.isController);
+    const canWrite = Boolean(canUseCommands && runtime.isActionLeaseHolder);
     const [view, setView] = react.useState("home");
     const [previousView, setPreviousView] = react.useState("home");
     const [listings, setListings] = react.useState([]);
@@ -1569,7 +1569,7 @@
     const openTrade = react.useCallback(async () => {
       if (!selectedListing) return;
       if (!canWrite) {
-        notify({ type: "error", message: "Claim controller ownership before opening a trade." });
+        notify({ type: "error", message: "Acquire the action lease before opening a trade." });
         return;
       }
       const quantity = Number(tradeQuantity || 1);
@@ -1637,7 +1637,7 @@
     }, []);
     const openCreateListing = react.useCallback(() => {
       if (!canWrite) {
-        notify({ type: "error", message: "Claim controller ownership before posting a listing." });
+        notify({ type: "error", message: "Acquire the action lease before posting a listing." });
         setShowUserMenu(false);
         return;
       }
@@ -1690,7 +1690,7 @@
         return;
       }
       if (!canWrite) {
-        notify({ type: "error", message: "Claim controller ownership before changing a listing." });
+        notify({ type: "error", message: "Acquire the action lease before changing a listing." });
         return;
       }
       setBusyAction(formMode === "edit" ? "Update listing" : publish ? "Create listing" : "Save draft");
@@ -1753,7 +1753,7 @@
     const createReport = react.useCallback(async () => {
       if (!reportTarget) return;
       if (!canWrite) {
-        notify({ type: "error", message: "Claim controller ownership before creating a report." });
+        notify({ type: "error", message: "Acquire the action lease before creating a report." });
         return;
       }
       const payload = await sendFleamarketCommand("Create report", "create_report", {
@@ -1953,7 +1953,7 @@
         query,
         activeAgentName,
         activeAgentId,
-        isController: runtime.isController,
+        isActionLeaseHolder: runtime.isActionLeaseHolder,
         canWrite,
         notices: eventNotices,
         showNoticeMenu,

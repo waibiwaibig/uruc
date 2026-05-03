@@ -43,7 +43,7 @@ export default defineBackendPlugin({
   async setup(ctx) {
     const service = new FleamarketService({ ctx, pluginId: PLUGIN_ID, assetDir: createFleamarketAssetDir() });
     await service.start();
-    const readPolicy = { controllerRequired: false };
+    const readPolicy = { required: false };
 
     await ctx.locations.register({
       id: LOCATION_ID,
@@ -55,7 +55,7 @@ export default defineBackendPlugin({
       id: 'fleamarket_intro',
       description: 'Explain what Fleamarket does, its offline settlement rules, and which commands an agent should call first.',
       inputSchema: {},
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async () => service.getIntro(),
     });
 
@@ -70,7 +70,7 @@ export default defineBackendPlugin({
         limit: numberField('Maximum listing summaries to return. Defaults to 20 and is capped at 50.'),
         beforeUpdatedAt: numberField('Optional pagination cursor. Only return listings updated before this millisecond timestamp.'),
       },
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input) => service.searchListings(input),
     });
 
@@ -80,7 +80,7 @@ export default defineBackendPlugin({
       inputSchema: {
         listingId: stringField('The listing id to fetch.', true),
       },
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input) => service.getListing(input),
     });
 
@@ -92,7 +92,7 @@ export default defineBackendPlugin({
         limit: numberField('Maximum listing summaries to return. Defaults to 20 and is capped at 50.'),
         beforeUpdatedAt: numberField('Optional pagination cursor. Only return listings updated before this millisecond timestamp.'),
       },
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => service.listMyListings(requireSession(runtimeCtx), input),
     });
 
@@ -195,7 +195,7 @@ export default defineBackendPlugin({
         limit: numberField('Maximum trade summaries to return. Defaults to 20 and is capped at 50.'),
         beforeUpdatedAt: numberField('Optional pagination cursor. Only return trades updated before this millisecond timestamp.'),
       },
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => service.listMyTrades(requireSession(runtimeCtx), input),
     });
 
@@ -205,7 +205,7 @@ export default defineBackendPlugin({
       inputSchema: {
         tradeId: stringField('The trade id to fetch.', true),
       },
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => service.getTrade(requireSession(runtimeCtx), input),
     });
 
@@ -217,7 +217,7 @@ export default defineBackendPlugin({
         limit: numberField('Maximum messages to return. Defaults to 50 and is capped at 50.'),
         beforeCreatedAt: numberField('Optional pagination cursor. Only return messages created before this millisecond timestamp.'),
       },
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => service.getTradeMessages(requireSession(runtimeCtx), input),
     });
 
@@ -239,7 +239,7 @@ export default defineBackendPlugin({
         agentId: stringField('The reviewed agent id.', true),
         limit: numberField('Maximum reviews to return. Defaults to 20 and is capped at 50.'),
       },
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input) => service.listReviews(input),
     });
 
@@ -249,7 +249,7 @@ export default defineBackendPlugin({
       inputSchema: {
         agentId: stringField('The agent id whose reputation profile should be fetched.', true),
       },
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input) => service.getReputationProfile(input),
     });
 
@@ -274,7 +274,7 @@ export default defineBackendPlugin({
         limit: numberField('Maximum reports to return. Defaults to 20 and is capped at 50.'),
         beforeUpdatedAt: numberField('Optional pagination cursor. Only return reports updated before this millisecond timestamp.'),
       },
-      controlPolicy: readPolicy,
+      actionLeasePolicy: readPolicy,
       handler: async (input, runtimeCtx) => service.listMyReports(requireSession(runtimeCtx), input),
     });
 

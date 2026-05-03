@@ -3,8 +3,8 @@ import { nanoid } from 'nanoid';
 export interface AgentSessionRecord {
   sessionId: string;
   agentId: string;
-  controllerConnectionId: string | null;
-  controllerConnected: boolean;
+  actionLeaseConnectionId: string | null;
+  actionLeaseConnected: boolean;
   inCity: boolean;
   currentLocation: string | null;
   disconnectGraceUntil: number | null;
@@ -12,16 +12,15 @@ export interface AgentSessionRecord {
 
 export interface AgentSessionSnapshot {
   connected: boolean;
-  hasController: boolean;
-  isController: boolean;
+  hasActionLease: boolean;
+  isActionLeaseHolder: boolean;
   inCity: boolean;
   currentLocation: string | null;
   citytime: number;
 }
 
-interface ClaimResult {
-  claimed: boolean;
-  acquired?: boolean;
+interface AcquireActionLeaseResult {
+  acquired: boolean;
   restored: boolean;
   replacedConnectionId: string | null;
   snapshot: AgentSessionSnapshot;
@@ -30,7 +29,7 @@ interface ClaimResult {
 export class AgentSessionService {
   private sessions = new Map<string, AgentSessionRecord>();
 
-  // Keep the agent-level control session warm for 3 minutes after disconnect.
+  // Keep the same-resident action lease warm for 3 minutes after disconnect.
   // This is independent from plugin-specific reconnect windows such as chess.
   constructor(private readonly graceMs = 3 * 60_000) {}
 
@@ -40,8 +39,8 @@ export class AgentSessionService {
 
     return {
       connected: Boolean(connectionId),
-      hasController: session.controllerConnected,
-      isController: Boolean(connectionId) && session.controllerConnectionId === connectionId && session.controllerConnected,
+      hasActionLease: session.actionLeaseConnected,
+      isActionLeaseHolder: Boolean(connectionId) && session.actionLeaseConnectionId === connectionId && session.actionLeaseConnected,
       inCity: session.inCity,
       currentLocation: session.currentLocation,
       citytime: Date.now(),
@@ -54,30 +53,23 @@ export class AgentSessionService {
     return session.currentLocation ?? undefined;
   }
 
-  isController(agentId: string, connectionId: string): boolean {
+  isActionLeaseHolder(agentId: string, connectionId: string): boolean {
     const session = this.sessions.get(agentId);
     if (!session) return false;
     this.expireDisconnectedSession(session);
-    return session.controllerConnectionId === connectionId && session.controllerConnected;
+    return session.actionLeaseConnectionId === connectionId && session.actionLeaseConnected;
   }
 
   holdsActionLease(agentId: string, connectionId: string): boolean {
-    return this.isController(agentId, connectionId);
+    return this.isActionLeaseHolder(agentId, connectionId);
   }
 
-  acquireAvailableActionLease(agentId: string, connectionId: string): ClaimResult | null {
-    const result = this.claimAvailable(agentId, connectionId);
-    if (result) result.acquired = result.claimed;
-    return result;
-  }
-
-  claimAvailable(agentId: string, connectionId: string): ClaimResult | null {
+  acquireAvailableActionLease(agentId: string, connectionId: string): AcquireActionLeaseResult | null {
     const session = this.getOrCreate(agentId);
     this.expireDisconnectedSession(session);
 
-    if (session.controllerConnectionId === connectionId && session.controllerConnected) {
+    if (session.actionLeaseConnectionId === connectionId && session.actionLeaseConnected) {
       return {
-        claimed: true,
         acquired: true,
         restored: false,
         replacedConnectionId: null,
@@ -85,17 +77,16 @@ export class AgentSessionService {
       };
     }
 
-    if (session.controllerConnected && session.controllerConnectionId && session.controllerConnectionId !== connectionId) {
+    if (session.actionLeaseConnected && session.actionLeaseConnectionId && session.actionLeaseConnectionId !== connectionId) {
       return null;
     }
 
     const restored = Boolean(session.disconnectGraceUntil && session.disconnectGraceUntil > Date.now());
-    session.controllerConnectionId = connectionId;
-    session.controllerConnected = true;
+    session.actionLeaseConnectionId = connectionId;
+    session.actionLeaseConnected = true;
     session.disconnectGraceUntil = null;
 
     return {
-      claimed: true,
       acquired: true,
       restored,
       replacedConnectionId: null,
@@ -103,22 +94,22 @@ export class AgentSessionService {
     };
   }
 
-  claimWithTakeover(agentId: string, connectionId: string): ClaimResult {
+  acquireActionLease(agentId: string, connectionId: string): AcquireActionLeaseResult {
     const session = this.getOrCreate(agentId);
     this.expireDisconnectedSession(session);
 
-    const restored = Boolean(!session.controllerConnected && session.disconnectGraceUntil && session.disconnectGraceUntil > Date.now());
+    const restored = Boolean(!session.actionLeaseConnected && session.disconnectGraceUntil && session.disconnectGraceUntil > Date.now());
     const replacedConnectionId =
-      session.controllerConnected && session.controllerConnectionId && session.controllerConnectionId !== connectionId
-        ? session.controllerConnectionId
+      session.actionLeaseConnected && session.actionLeaseConnectionId && session.actionLeaseConnectionId !== connectionId
+        ? session.actionLeaseConnectionId
         : null;
 
-    session.controllerConnectionId = connectionId;
-    session.controllerConnected = true;
+    session.actionLeaseConnectionId = connectionId;
+    session.actionLeaseConnected = true;
     session.disconnectGraceUntil = null;
 
     return {
-      claimed: true,
+      acquired: true,
       restored,
       replacedConnectionId,
       snapshot: this.getSnapshot(agentId, connectionId),
@@ -130,28 +121,28 @@ export class AgentSessionService {
     if (!session) return null;
     this.expireDisconnectedSession(session);
 
-    if (session.controllerConnectionId !== connectionId) {
+    if (session.actionLeaseConnectionId !== connectionId) {
       return null;
     }
 
-    session.controllerConnectionId = null;
-    session.controllerConnected = false;
+    session.actionLeaseConnectionId = null;
+    session.actionLeaseConnected = false;
     session.disconnectGraceUntil = null;
 
     return this.getSnapshot(agentId, connectionId);
   }
 
-  handleConnectionClosed(agentId: string, connectionId: string): { wasController: boolean } {
+  handleConnectionClosed(agentId: string, connectionId: string): { heldActionLease: boolean } {
     const session = this.sessions.get(agentId);
-    if (!session) return { wasController: false };
+    if (!session) return { heldActionLease: false };
 
-    if (session.controllerConnectionId === connectionId) {
-      session.controllerConnected = false;
+    if (session.actionLeaseConnectionId === connectionId) {
+      session.actionLeaseConnected = false;
       session.disconnectGraceUntil = Date.now() + this.graceMs;
-      return { wasController: true };
+      return { heldActionLease: true };
     }
 
-    return { wasController: false };
+    return { heldActionLease: false };
   }
 
   updateState(agentId: string, patch: { inCity?: boolean; currentLocation?: string | null }): AgentSessionSnapshot {
@@ -162,14 +153,14 @@ export class AgentSessionService {
     if (patch.currentLocation !== undefined) session.currentLocation = patch.currentLocation;
     if (!session.inCity) session.currentLocation = null;
 
-    return this.getSnapshot(agentId, session.controllerConnectionId);
+    return this.getSnapshot(agentId, session.actionLeaseConnectionId);
   }
 
   clear(agentId: string, resetState = false): void {
     const session = this.sessions.get(agentId);
     if (!session) return;
-    session.controllerConnectionId = null;
-    session.controllerConnected = false;
+    session.actionLeaseConnectionId = null;
+    session.actionLeaseConnected = false;
     session.disconnectGraceUntil = null;
     if (resetState) {
       session.inCity = false;
@@ -185,8 +176,8 @@ export class AgentSessionService {
     const created: AgentSessionRecord = {
       sessionId: nanoid(),
       agentId,
-      controllerConnectionId: null,
-      controllerConnected: false,
+      actionLeaseConnectionId: null,
+      actionLeaseConnected: false,
       inCity: false,
       currentLocation: null,
       disconnectGraceUntil: null,
@@ -196,8 +187,8 @@ export class AgentSessionService {
   }
 
   private expireDisconnectedSession(session: AgentSessionRecord): void {
-    if (!session.controllerConnected && session.disconnectGraceUntil && session.disconnectGraceUntil <= Date.now()) {
-      session.controllerConnectionId = null;
+    if (!session.actionLeaseConnected && session.disconnectGraceUntil && session.disconnectGraceUntil <= Date.now()) {
+      session.actionLeaseConnectionId = null;
       session.disconnectGraceUntil = null;
       session.inCity = false;
       session.currentLocation = null;

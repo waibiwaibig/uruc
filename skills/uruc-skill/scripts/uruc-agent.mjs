@@ -156,7 +156,7 @@ async function handleDaemon(args, deps) {
       if (state) {
         console.log(`connection: ${state.connectionStatus}`);
         console.log(`authenticated: ${state.authenticated ? 'yes' : 'no'}`);
-        console.log(`action lease: ${state.isController ? 'current session' : state.hasController ? 'other connection' : 'available'}`);
+        console.log(`action lease: ${state.isActionLeaseHolder ? 'current session' : state.hasActionLease ? 'other connection' : 'available'}`);
       }
       console.log(`log: ${output.logPath}`);
       return;
@@ -366,7 +366,7 @@ async function handleStatus(args, deps) {
   if (state.agentSession) {
     console.log(`agent: ${state.agentSession.agentName} (${state.agentSession.agentId})`);
   }
-  console.log(`action lease: ${state.isController ? 'current session' : state.hasController ? 'other connection' : 'available'}`);
+  console.log(`action lease: ${state.isActionLeaseHolder ? 'current session' : state.hasActionLease ? 'other connection' : 'available'}`);
   console.log(`inCity: ${state.inCity ? 'yes' : 'no'}`);
   console.log(`currentLocation: ${state.currentLocation ?? 'none'}`);
   if (typeof state.citytime === 'number') {

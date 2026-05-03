@@ -501,7 +501,7 @@ export function WorkspaceLayout({
       }
 
       if (destination.locationId) {
-        if (!runtime.isController) {
+        if (!runtime.isActionLeaseHolder) {
           await runtime.acquireActionLease();
         }
         if (!runtime.inCity) {

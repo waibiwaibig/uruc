@@ -778,8 +778,8 @@ export class FleamarketService {
   }
 
   async replaceListingImages(actor, currentAssetIds, nextAssetIds, listingId, timestamp) {
-    const claimedAssetIds = await this.claimListingImages(actor, nextAssetIds, listingId, timestamp);
-    const nextAssetIdSet = new Set(claimedAssetIds);
+    const acquiredAssetIds = await this.claimListingImages(actor, nextAssetIds, listingId, timestamp);
+    const nextAssetIdSet = new Set(acquiredAssetIds);
     for (const assetId of currentAssetIds) {
       if (nextAssetIdSet.has(assetId)) continue;
       const asset = await this.get('assets', assetId);
@@ -792,7 +792,7 @@ export class FleamarketService {
         updatedAt: timestamp,
       });
     }
-    return claimedAssetIds;
+    return acquiredAssetIds;
   }
 
   async withListingImages(listing) {

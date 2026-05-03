@@ -11,7 +11,7 @@ const helpText: Record<UiLanguage, string[]> = {
     '  2. uruc start [-b]       启动前会自动准备城市配置与 lock',
     '',
     '核心命令:',
-    '  configure           主城配置向导（QuickStart 线性流程；Advanced 菜单式 hub，可直接管理插件）',
+    '  configure           主城配置向导（QuickStart 线性流程；Advanced 菜单式 hub，可直取得行动租约理插件）',
     '  build               构建 server + web',
     '  start [-b]          启动 Uruc（默认前台，-b 后台；自动同步城市 lock）',
     '  stop                停止可识别的本地实例或 systemd 服务',

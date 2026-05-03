@@ -147,7 +147,7 @@ export function LibraryPage() {
       try {
         clearLaunchError();
         await ensureConnected();
-        if (!runtime.isController) {
+        if (!runtime.isActionLeaseHolder) {
           await runtime.acquireActionLease();
         }
         if (!runtime.inCity) {

@@ -55,8 +55,8 @@ class RecordingRemoteDaemon extends AgentDaemon {
     if (type === 'what_state_am_i') {
       return {
         connected: true,
-        hasController: true,
-        isController: true,
+        hasActionLease: true,
+        isActionLeaseHolder: true,
         inCity: true,
         currentLocation: 'uruc.chess.chess-club',
         citytime: 789,
@@ -292,8 +292,8 @@ test('passive session_state pushes update local state using citytime', () => {
     type: 'session_state',
     payload: {
       connected: true,
-      hasController: true,
-      isController: false,
+      hasActionLease: true,
+      isActionLeaseHolder: false,
       inCity: true,
       currentLocation: 'uruc.chess.chess-club',
       citytime: 321,

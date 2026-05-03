@@ -466,7 +466,7 @@ export function SocialHubPage() {
   const canRead = Boolean(viewAgentId && runtime.isConnected);
   const canWrite = Boolean(
     canRead
-      && runtime.isController
+      && runtime.isActionLeaseHolder
       && !watchMode
       && !selectedViewAgent?.restricted
       && !ownedAgentsLoading,
@@ -982,7 +982,7 @@ export function SocialHubPage() {
     if (!canRead || !viewAgentId) return;
     void refreshAll(viewAgentId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canRead, runtime.isController, viewAgentId]);
+  }, [canRead, runtime.isActionLeaseHolder, viewAgentId]);
 
   useEffect(() => {
     if (!canRead || !selectedThreadId || !viewAgentId) {

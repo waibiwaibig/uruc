@@ -225,7 +225,7 @@ export class WSGateway implements WSGatewayPublic {
       const sessionSnapshot = this.agentSessions.getSnapshot(agentId, clientId);
       const closed = this.agentSessions.handleConnectionClosed(agentId, clientId);
 
-      if (closed.wasController) {
+      if (closed.heldActionLease) {
         this.hooks.runHook('connection.close', {
           session: client.session,
           currentLocation: sessionSnapshot.currentLocation,
@@ -296,20 +296,19 @@ export class WSGateway implements WSGatewayPublic {
     }
 
     if (msg.type === 'acquire_action_lease') {
-      return this.handleClaimControl(clientId, client, msg);
+      return this.handleAcquireActionLease(clientId, client, msg);
     }
 
     if (msg.type === 'release_action_lease') {
-      return this.handleReleaseControl(clientId, client, msg);
+      return this.handleReleaseActionLease(clientId, client, msg);
     }
 
     const schema = this.hooks.getWSCommandSchema(msg.type);
     let permissionCredentials: PermissionCredential[] = [];
     if (schema) {
-      const requiresController = schema.controlPolicy?.controllerRequired ?? true;
-      if (requiresController) {
-        const claimed = await this.ensureGameplayControl(clientId, client, msg);
-        if (!claimed) return;
+      if (this.hooks.requiresActionLease(schema)) {
+        const acquired = await this.ensureActionLease(clientId, client, msg);
+        if (!acquired) return;
       }
 
       const requiresConfirmation = schema.confirmationPolicy?.required ?? schema.requiresConfirmation ?? false;
@@ -485,10 +484,10 @@ export class WSGateway implements WSGatewayPublic {
     });
   }
 
-  private handleClaimControl(clientId: string, client: ConnectedClient, msg: WSMessage): void {
+  private handleAcquireActionLease(clientId: string, client: ConnectedClient, msg: WSMessage): void {
     if (!client.session) return;
 
-    const result = this.agentSessions.claimWithTakeover(client.session.agentId, clientId);
+    const result = this.agentSessions.acquireActionLease(client.session.agentId, clientId);
     if (result.replacedConnectionId) {
       const replaced = this.clients.get(result.replacedConnectionId);
       if (replaced) {
@@ -518,7 +517,7 @@ export class WSGateway implements WSGatewayPublic {
     this.pushSessionState(client.session.agentId, clientId);
   }
 
-  private handleReleaseControl(clientId: string, client: ConnectedClient, msg: WSMessage): void {
+  private handleReleaseActionLease(clientId: string, client: ConnectedClient, msg: WSMessage): void {
     if (!client.session) return;
     const snapshot = this.agentSessions.releaseActionLease(client.session.agentId, clientId);
     if (!snapshot) {
@@ -543,7 +542,7 @@ export class WSGateway implements WSGatewayPublic {
     this.pushSessionState(client.session.agentId, clientId);
   }
 
-  private async ensureGameplayControl(clientId: string, client: ConnectedClient, msg: WSMessage): Promise<boolean> {
+  private async ensureActionLease(clientId: string, client: ConnectedClient, msg: WSMessage): Promise<boolean> {
     if (!client.session) return false;
     const { agentId } = client.session;
 
@@ -551,8 +550,8 @@ export class WSGateway implements WSGatewayPublic {
       return true;
     }
 
-    const claimed = this.agentSessions.acquireAvailableActionLease(agentId, clientId);
-    if (claimed) {
+    const acquired = this.agentSessions.acquireAvailableActionLease(agentId, clientId);
+    if (acquired) {
       this.pushSessionState(agentId, clientId);
       return true;
     }
@@ -662,8 +661,8 @@ export class WSGateway implements WSGatewayPublic {
   }
 
   private didSessionStateChange(before: AgentSessionSnapshot, after: AgentSessionSnapshot): boolean {
-    return before.hasController !== after.hasController
-      || before.isController !== after.isController
+    return before.hasActionLease !== after.hasActionLease
+      || before.isActionLeaseHolder !== after.isActionLeaseHolder
       || before.inCity !== after.inCity
       || before.currentLocation !== after.currentLocation;
   }
@@ -708,8 +707,8 @@ export class WSGateway implements WSGatewayPublic {
         ? this.agentSessions.getSnapshot(client.session.agentId, clientId)
         : {
             connected: false,
-            hasController: false,
-            isController: false,
+            hasActionLease: false,
+            isActionLeaseHolder: false,
             inCity: false,
             currentLocation: null,
             citytime: Date.now(),
@@ -725,11 +724,11 @@ export class WSGateway implements WSGatewayPublic {
       get currentLocation() {
         return getSessionState().currentLocation;
       },
-      get isController() {
-        return getSessionState().isController;
+      get isActionLeaseHolder() {
+        return getSessionState().isActionLeaseHolder;
       },
-      get hasController() {
-        return getSessionState().hasController;
+      get hasActionLease() {
+        return getSessionState().hasActionLease;
       },
       currentTable: null,
       gateway: this as WSGatewayPublic,

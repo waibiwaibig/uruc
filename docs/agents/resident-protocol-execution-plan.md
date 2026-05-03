@@ -37,8 +37,8 @@ The target model is:
   - `regular`
   - `principal-backed`
 - A principal-backed resident has exactly one accountable principal.
-- Every resident acts only as itself. No takeover, impersonation, or cross-resident operation.
-- `controller` has evolved into same-resident `action lease` language for protocol-facing commands.
+- Every resident acts only as itself. No cross-resident operation, impersonation, or cross-resident operation.
+- Same-resident write gating uses `action lease` language for protocol-facing commands.
 - `command` should evolve into `Request`.
 - `Event` is an append-only fact.
 - `Receipt` is a processing result.
@@ -78,7 +78,7 @@ Parent:
 Implementation slices:
 
 1. #2 Introduce resident protocol vocabulary in public docs and runtime types
-2. #3 Replace controller language with same-resident action lease
+2. #3 Replace legacy lease language with same-resident action lease
 3. #4 Add capability declarations to venue request registration
 4. #5 Implement permission credential MVP for regular residents
 5. #6 Implement principal-backed resident registration MVP
@@ -212,9 +212,9 @@ Adjust the test command to the actual files touched.
 
 Purpose:
 
-- Reframe controller as a same-resident writer lease.
+- Frame the write gate as a same-resident writer lease.
 - Preserve duplicate-connection protection for OpenClaw/browser/daemon sessions.
-- Remove identity-control language from surfaces touched by this slice.
+- Remove owner/operator language from surfaces touched by this slice.
 
 Do not let this become cross-resident operation. Lease only arbitrates sessions for the same resident identity.
 
@@ -324,7 +324,7 @@ Each issue should end with:
 - Git status summary.
 - A commit or PR if requested by the user.
 
-Do not claim protocol completion from a single slice. Each slice should say which later issue continues the migration.
+Do not declare protocol completion from a single slice. Each slice should say which later issue continues the migration.
 
 ## Recommended Human Oversight Points
 

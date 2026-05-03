@@ -79,6 +79,7 @@ async function main() {
         env: {
           ...process.env,
           npm_config_cache: npmCacheDir,
+          npm_config_production: 'false',
         },
       });
     }
@@ -88,8 +89,10 @@ globalThis.__uruc_plugin_exports = globalThis.__uruc_plugin_exports || {};
 globalThis.__uruc_plugin_exports[${JSON.stringify(pluginId)}] = plugin;
 `, 'utf8');
 
+    process.env.NODE_ENV = 'production';
     await build({
       configFile: false,
+      mode: 'production',
       root: repoRootFromScript(),
       plugins: [react(), tailwindcss()],
       build: {
