@@ -10,6 +10,7 @@ import { HookRegistry } from './core/plugin-system/hook-registry.js';
 import { PluginPlatformHost } from './core/plugin-platform/host.js';
 
 import { AuthService } from './core/auth/service.js';
+import { PermissionCredentialService } from './core/permission/service.js';
 import { LogService } from './core/logger/service.js';
 import { registerAuthRoutes } from './core/auth/auth-routes.js';
 import { registerDashboardRoutes } from './core/auth/dashboard-routes.js';
@@ -45,16 +46,18 @@ export async function runMain() {
   // === Core services (always present, not plugins) ===
 
   const auth = new AuthService(db);
+  const permission = new PermissionCredentialService(db);
   const adminSvc = new AdminService(db);
   const logger = new LogService(db);
   services.register('auth', auth);
+  services.register('permission', permission);
   services.register('admin', adminSvc);
   services.register('logger', logger);
 
   const gateway = new WSGateway({ port: wsPort, host: bindHost }, hooks, services, auth);
   services.register('ws-gateway', gateway);
 
-  console.log('✅ Core services initialized: auth, admin, logger, ws-gateway');
+  console.log('✅ Core services initialized: auth, permission, admin, logger, ws-gateway');
 
   // === Register core routes (before plugins, via hooks) ===
 

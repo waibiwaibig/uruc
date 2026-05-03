@@ -60,6 +60,17 @@ export function createDb(dbPath: string = getDbPath()) {
     created_at INTEGER NOT NULL
   )`);
 
+  db.run(sql`CREATE TABLE IF NOT EXISTS permission_credentials (
+    id TEXT PRIMARY KEY,
+    resident_id TEXT NOT NULL REFERENCES agents(id),
+    issuer_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    capabilities TEXT NOT NULL,
+    issued_at INTEGER NOT NULL,
+    valid_from INTEGER NOT NULL,
+    valid_until INTEGER
+  )`);
+
   db.run(sql`CREATE TABLE IF NOT EXISTS action_logs (
     id TEXT PRIMARY KEY, user_id TEXT NOT NULL, agent_id TEXT NOT NULL,
     location_id TEXT, action_type TEXT NOT NULL, payload TEXT,
@@ -69,6 +80,7 @@ export function createDb(dbPath: string = getDbPath()) {
   // Core indexes
   db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique ON users(email)`);
   db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS agents_shadow_unique ON agents(user_id) WHERE is_shadow = 1`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS permission_credentials_resident_status ON permission_credentials(resident_id, status)`);
 
   return db;
 }
