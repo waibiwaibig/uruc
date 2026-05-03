@@ -336,7 +336,9 @@ Venue Module 包宿主当前使用两个文件：
 
 Local module 默认保持 local。Domain-capable module 可以暴露 endpoint/document hints，city config 可以选择 domain runtime mode 以及被选择的 Domain Service endpoint/document。domain attachment layer 只负责连接：校验 Domain Document，发送 attachment request，并把紧凑 attachment receipt 写入 `domain_attachments`。它不执行 signed envelope dispatch、federation 或 Venue 业务同步。
 
-Domain attachment record 是 City Core 拥有的 audit state。每条记录包含状态（`pending`、`attached`、`failed` 或 `detached`）、domain id、city id、plugin id、venue module id、venue namespace、protocol version、endpoint/document URLs、capabilities、receipt code、receipt JSON 和时间戳。Attachment 失败会返回稳定的紧凑 receipt code，且不能让后续 request dispatch 假装成功。
+Domain attachment record 是 City Core 拥有的 audit state。每条记录包含状态（`pending`、`attached`、`failed` 或 `detached`）、domain id、city id、plugin id、venue module id、venue namespace、protocol version、endpoint/document URLs、Domain Document hash、capabilities、receipt code、receipt JSON 和时间戳。Attachment 失败会返回稳定的紧凑 receipt code，且不能让后续 request dispatch 假装成功。
+
+Domain Document v0 使用 schema id `uruc.domain.document@v0` 和 protocol version `uruc-domain-v0`。Ed25519 proof 签名的是移除 `proof` 对象后的 sorted JSON document，并且必须声明精确的顶层 covered fields（`capabilities`、`domainId`、`endpoints`、`hints`、`protocol`、`publicKeys`、`schema` 和 `venue`）。Fetch 和 receipt 解析要求 JSON content type、有界 response size、可解析 JSON，以及稳定的紧凑错误码。
 
 ### 后端 Venue Module 可见的运行时上下文
 

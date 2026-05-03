@@ -2,6 +2,17 @@ import { createPublicKey, verify } from 'crypto';
 
 export const DOMAIN_DOCUMENT_SCHEMA = 'uruc.domain.document@v0';
 export const DOMAIN_PROTOCOL_VERSION = 'uruc-domain-v0';
+export const DOMAIN_DOCUMENT_CANONICALIZATION = 'uruc-domain-document-v0-sorted-json-without-proof';
+export const DOMAIN_DOCUMENT_SIGNED_FIELDS = [
+  'capabilities',
+  'domainId',
+  'endpoints',
+  'hints',
+  'protocol',
+  'publicKeys',
+  'schema',
+  'venue',
+] as const;
 
 export interface DomainDocument {
   schema: typeof DOMAIN_DOCUMENT_SCHEMA;
@@ -27,6 +38,8 @@ export interface DomainDocument {
     type: 'ed25519-signature-2026';
     verificationMethod: string;
     createdAt: string;
+    canonicalization: typeof DOMAIN_DOCUMENT_CANONICALIZATION;
+    covered: Array<(typeof DOMAIN_DOCUMENT_SIGNED_FIELDS)[number]>;
     signature: string;
   };
 }
@@ -77,6 +90,27 @@ function requireStringArray(value: unknown, code: string, label: string): string
   return [...value];
 }
 
+function requireExactKeys(
+  value: Record<string, unknown>,
+  allowed: readonly string[],
+  code: string,
+  label: string,
+): void {
+  const extra = Object.keys(value).filter((key) => !allowed.includes(key));
+  if (extra.length > 0) {
+    throw new DomainDocumentError(code, `Invalid Domain Document ${label}`);
+  }
+}
+
+function requireIsoTimestamp(value: unknown, code: string, label: string): string {
+  const text = requireString(value, code, label);
+  const time = Date.parse(text);
+  if (Number.isNaN(time) || new Date(time).toISOString() !== text) {
+    throw new DomainDocumentError(code, `Invalid Domain Document ${label}`);
+  }
+  return text;
+}
+
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue);
   if (!isRecord(value)) return value;
@@ -96,6 +130,7 @@ function parseDomainDocumentShape(raw: unknown): DomainDocument {
   if (!isRecord(raw)) {
     throw new DomainDocumentError('DOMAIN_DOCUMENT_INVALID', 'Invalid Domain Document');
   }
+  requireExactKeys(raw, [...DOMAIN_DOCUMENT_SIGNED_FIELDS, 'proof'], 'DOMAIN_DOCUMENT_FIELD_INVALID', 'top-level fields');
   const venue = raw.venue;
   const protocol = raw.protocol;
   const endpoints = raw.endpoints;
@@ -104,6 +139,10 @@ function parseDomainDocumentShape(raw: unknown): DomainDocument {
   if (!isRecord(protocol)) throw new DomainDocumentError('DOMAIN_DOCUMENT_PROTOCOL_INVALID', 'Invalid Domain Document protocol');
   if (!isRecord(endpoints)) throw new DomainDocumentError('DOMAIN_DOCUMENT_ENDPOINT_INVALID', 'Invalid Domain Document endpoints');
   if (!isRecord(proof)) throw new DomainDocumentError('DOMAIN_DOCUMENT_PROOF_INVALID', 'Invalid Domain Document proof');
+  requireExactKeys(venue, ['moduleId', 'namespace'], 'DOMAIN_DOCUMENT_VENUE_INVALID', 'venue fields');
+  requireExactKeys(protocol, ['version'], 'DOMAIN_DOCUMENT_PROTOCOL_INVALID', 'protocol fields');
+  requireExactKeys(endpoints, ['attachment'], 'DOMAIN_DOCUMENT_ENDPOINT_INVALID', 'endpoint fields');
+  requireExactKeys(proof, ['type', 'verificationMethod', 'createdAt', 'canonicalization', 'covered', 'signature'], 'DOMAIN_DOCUMENT_PROOF_INVALID', 'proof fields');
 
   const publicKeysValue = raw.publicKeys;
   if (!Array.isArray(publicKeysValue) || publicKeysValue.length === 0) {
@@ -111,6 +150,7 @@ function parseDomainDocumentShape(raw: unknown): DomainDocument {
   }
   const publicKeys = publicKeysValue.map((key) => {
     if (!isRecord(key)) throw new DomainDocumentError('DOMAIN_DOCUMENT_KEYS_INVALID', 'Invalid Domain Document publicKeys');
+    requireExactKeys(key, ['id', 'type', 'publicKeyPem'], 'DOMAIN_DOCUMENT_KEYS_INVALID', 'publicKeys fields');
     const type = requireString(key.type, 'DOMAIN_DOCUMENT_KEYS_INVALID', 'publicKeys.type');
     if (type !== 'ed25519-pem') {
       throw new DomainDocumentError('DOMAIN_DOCUMENT_KEYS_INVALID', 'Invalid Domain Document publicKeys.type');
@@ -125,6 +165,14 @@ function parseDomainDocumentShape(raw: unknown): DomainDocument {
   const proofType = requireString(proof.type, 'DOMAIN_DOCUMENT_PROOF_INVALID', 'proof.type');
   if (proofType !== 'ed25519-signature-2026') {
     throw new DomainDocumentError('DOMAIN_DOCUMENT_PROOF_INVALID', 'Invalid Domain Document proof.type');
+  }
+  const canonicalization = requireString(proof.canonicalization, 'DOMAIN_DOCUMENT_PROOF_INVALID', 'proof.canonicalization');
+  if (canonicalization !== DOMAIN_DOCUMENT_CANONICALIZATION) {
+    throw new DomainDocumentError('DOMAIN_DOCUMENT_PROOF_INVALID', 'Invalid Domain Document proof.canonicalization');
+  }
+  const covered = requireStringArray(proof.covered, 'DOMAIN_DOCUMENT_PROOF_INVALID', 'proof.covered');
+  if (JSON.stringify(covered) !== JSON.stringify(DOMAIN_DOCUMENT_SIGNED_FIELDS)) {
+    throw new DomainDocumentError('DOMAIN_DOCUMENT_PROOF_INVALID', 'Invalid Domain Document proof.covered');
   }
 
   const hints = raw.hints;
@@ -151,7 +199,9 @@ function parseDomainDocumentShape(raw: unknown): DomainDocument {
     proof: {
       type: proofType,
       verificationMethod: requireString(proof.verificationMethod, 'DOMAIN_DOCUMENT_PROOF_INVALID', 'proof.verificationMethod'),
-      createdAt: requireString(proof.createdAt, 'DOMAIN_DOCUMENT_PROOF_INVALID', 'proof.createdAt'),
+      createdAt: requireIsoTimestamp(proof.createdAt, 'DOMAIN_DOCUMENT_PROOF_INVALID', 'proof.createdAt'),
+      canonicalization: DOMAIN_DOCUMENT_CANONICALIZATION,
+      covered: [...DOMAIN_DOCUMENT_SIGNED_FIELDS],
       signature: requireString(proof.signature, 'DOMAIN_DOCUMENT_PROOF_INVALID', 'proof.signature'),
     },
   };
@@ -176,12 +226,21 @@ export function parseDomainDocument(raw: unknown, expectations: DomainDocumentEx
   if (!verificationKey) {
     throw new DomainDocumentError('DOMAIN_DOCUMENT_PROOF_INVALID', 'Domain Document proof key not found');
   }
-  const valid = verify(
-    null,
-    canonicalDomainDocumentPayload(document as unknown as Record<string, unknown>),
-    createPublicKey(verificationKey.publicKeyPem),
-    Buffer.from(document.proof.signature, 'base64'),
-  );
+  let valid = false;
+  try {
+    const signature = Buffer.from(document.proof.signature, 'base64');
+    if (signature.length === 0) {
+      throw new Error('empty signature');
+    }
+    valid = verify(
+      null,
+      canonicalDomainDocumentPayload(document as unknown as Record<string, unknown>),
+      createPublicKey(verificationKey.publicKeyPem),
+      signature,
+    );
+  } catch {
+    throw new DomainDocumentError('DOMAIN_DOCUMENT_PROOF_INVALID', 'Domain Document proof cannot be verified');
+  }
   if (!valid) {
     throw new DomainDocumentError('DOMAIN_DOCUMENT_SIGNATURE_INVALID', 'Domain Document signature invalid');
   }

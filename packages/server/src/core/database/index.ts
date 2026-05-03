@@ -89,6 +89,7 @@ export function createDb(dbPath: string = getDbPath()) {
     protocol_version TEXT NOT NULL,
     endpoint TEXT NOT NULL,
     document_url TEXT NOT NULL,
+    document_hash TEXT NOT NULL,
     capabilities TEXT NOT NULL,
     receipt_code TEXT NOT NULL,
     receipt TEXT NOT NULL,

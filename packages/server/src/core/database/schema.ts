@@ -87,6 +87,7 @@ export const domainAttachments = sqliteTable('domain_attachments', {
   protocolVersion: text('protocol_version').notNull(),
   endpoint: text('endpoint').notNull(),
   documentUrl: text('document_url').notNull(),
+  documentHash: text('document_hash').notNull(),
   capabilities: text('capabilities').notNull(),
   receiptCode: text('receipt_code').notNull(),
   receipt: text('receipt').notNull(),

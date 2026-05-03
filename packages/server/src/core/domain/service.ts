@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { eq } from 'drizzle-orm';
 
 import { type UrucDb, schema } from '../database/index.js';
@@ -7,6 +7,7 @@ import {
   DOMAIN_PROTOCOL_VERSION,
   DomainDocumentError,
   type DomainDocument,
+  canonicalDomainDocumentPayload,
   parseDomainDocument,
 } from './document.js';
 
@@ -111,6 +112,13 @@ function parseJson(text: string, code: string): unknown {
   }
 }
 
+function requireJsonContentType(response: Response, code: string): void {
+  const mediaType = (response.headers.get('content-type') ?? '').toLowerCase().split(';', 1)[0].trim();
+  if (mediaType !== 'application/json' && !mediaType.endsWith('+json')) {
+    throw new DomainDocumentError(code, 'Domain response content-type is not JSON');
+  }
+}
+
 function parseAttachmentReceipt(raw: unknown): AttachmentReceipt {
   if (!isRecord(raw)) {
     throw new DomainDocumentError('DOMAIN_ATTACHMENT_RECEIPT_INVALID', 'Invalid attachment receipt');
@@ -137,6 +145,9 @@ function parseAttachmentReceipt(raw: unknown): AttachmentReceipt {
   const validUntil = validUntilValue ? new Date(validUntilValue) : undefined;
   if (validUntil && Number.isNaN(validUntil.getTime())) {
     throw new DomainDocumentError('DOMAIN_ATTACHMENT_RECEIPT_INVALID', 'Invalid attachment receipt validUntil');
+  }
+  if (raw.status === 'accepted' && !validUntil) {
+    throw new DomainDocumentError('DOMAIN_ATTACHMENT_RECEIPT_INVALID', 'Accepted attachment receipt requires validUntil');
   }
   return {
     schema: DOMAIN_ATTACHMENT_RECEIPT_SCHEMA,
@@ -195,6 +206,9 @@ export class DomainAttachmentService {
       });
 
       const attachmentReceipt = await this.requestAttachment(document, input);
+      if (attachmentReceipt.status === 'accepted' && attachmentReceipt.validUntil && attachmentReceipt.validUntil <= this.now()) {
+        throw new DomainDocumentError('DOMAIN_ATTACHMENT_EXPIRED', 'Domain attachment receipt is expired');
+      }
       const status = attachmentReceipt.status === 'accepted' ? 'attached' : 'failed';
       const compact = {
         ok: status === 'attached',
@@ -247,6 +261,7 @@ export class DomainAttachmentService {
       method: 'GET',
       headers: { accept: 'application/json' },
     });
+    requireJsonContentType(response, 'DOMAIN_DOCUMENT_CONTENT_TYPE_INVALID');
     if (!response.ok) {
       throw new DomainDocumentError('DOMAIN_DOCUMENT_FETCH_FAILED', `Domain Document fetch failed with HTTP ${response.status}`);
     }
@@ -274,6 +289,7 @@ export class DomainAttachmentService {
         requestedCapabilities: document.capabilities,
       }),
     });
+    requireJsonContentType(response, 'DOMAIN_ATTACHMENT_RECEIPT_CONTENT_TYPE_INVALID');
     const receipt = parseAttachmentReceipt(parseJson(await readLimitedText(response, this.maxReceiptBytes), 'DOMAIN_ATTACHMENT_RECEIPT_JSON_INVALID'));
     if (!response.ok && receipt.status !== 'rejected') {
       throw new DomainDocumentError(receipt.code, `Domain attachment failed with HTTP ${response.status}`);
@@ -321,6 +337,9 @@ export class DomainAttachmentService {
       protocolVersion: input.document.protocol.version,
       endpoint: input.document.endpoints.attachment,
       documentUrl: input.documentUrl,
+      documentHash: createHash('sha256')
+        .update(canonicalDomainDocumentPayload(input.document as unknown as Record<string, unknown>))
+        .digest('hex'),
       capabilities: JSON.stringify(input.capabilities),
       receiptCode: input.receiptCode,
       receipt: JSON.stringify(input.receipt),

@@ -1053,6 +1053,68 @@ export default {
     await host.stopAll();
   });
 
+  it('lets city config select domain mode with only a Domain Document URL', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-venue-topology-domain-document-'));
+    tempDirs.push(tempRoot);
+
+    const pluginPath = path.join(tempRoot, 'plugins', 'domain-topology-document');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'acme.domain-document',
+      packageName: '@acme/plugin-domain-document',
+      version: '1.0.0',
+      publisher: 'acme',
+      venue: {
+        moduleId: 'acme.domain-document',
+        namespace: 'acme.domain-document',
+        topology: {
+          mode: 'domain_optional',
+        },
+      },
+    });
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.domain-document': {
+          pluginId: 'acme.domain-document',
+          packageName: '@acme/plugin-domain-document',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginPath,
+          topology: {
+            mode: 'domain',
+            domain: {
+              document: 'https://city-config.example/domain-document.json',
+            },
+          } as { mode: 'domain' },
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await host.syncLockFile();
+    const lock = await readCityLock(lockPath);
+    expect(lock.plugins['acme.domain-document']?.venue?.topology).toEqual({
+      declaration: 'domain_optional',
+      mode: 'domain',
+      domain: {
+        document: 'https://city-config.example/domain-document.json',
+      },
+    });
+  });
+
   it('keeps a domain-optional venue local when city config selects local mode', async () => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-venue-topology-domain-local-'));
     tempDirs.push(tempRoot);
