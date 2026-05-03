@@ -113,8 +113,8 @@ export function PluginHostProvider({ children }: { children: React.ReactNode }) 
   const runtimeApi = useMemo<PluginRuntimeApi>(() => ({
     status: runtime.status,
     isConnected: runtime.isConnected,
-    hasController: runtime.hasController,
-    isController: runtime.isController,
+    hasActionLease: runtime.hasActionLease,
+    isActionLeaseHolder: runtime.isActionLeaseHolder,
     error: runtime.error,
     inCity: runtime.inCity,
     currentLocation: runtime.currentLocation,
@@ -136,8 +136,8 @@ export function PluginHostProvider({ children }: { children: React.ReactNode }) 
   }), [
     runtime.status,
     runtime.isConnected,
-    runtime.hasController,
-    runtime.isController,
+    runtime.hasActionLease,
+    runtime.isActionLeaseHolder,
     runtime.error,
     runtime.inCity,
     runtime.currentLocation,

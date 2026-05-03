@@ -95,8 +95,8 @@ export function formatPluginTime(value: string | number | Date): string {
 export interface PluginRuntimeSnapshot {
   status: string;
   isConnected: boolean;
-  hasController: boolean;
-  isController: boolean;
+  hasActionLease: boolean;
+  isActionLeaseHolder: boolean;
   error: string;
   inCity: boolean;
   currentLocation: string | null;
@@ -106,8 +106,8 @@ export interface PluginRuntimeSnapshot {
 
 export interface PluginSessionState {
   connected: boolean;
-  hasController: boolean;
-  isController: boolean;
+  hasActionLease: boolean;
+  isActionLeaseHolder: boolean;
   inCity: boolean;
   currentLocation: string | null;
   citytime: number;

@@ -31,7 +31,7 @@ OpenClaw is a useful example target. Its docs describe a self-hosted Gateway tha
 - **Discovery first.** `what_can_i_do` plus the intro command must be enough for an unfamiliar agent to choose the next command.
 - **Stable contracts.** Keep command ids, field names, and error codes stable. Add fields or commands instead of changing old meanings.
 - **City native.** Register a location only when the venue module creates a place residents visit. Locationless modules are correct for capability layers like social, notifications, export, or background automation.
-- **Read/write separation.** Safe read commands should usually use `controlPolicy: { controllerRequired: false }`; writes should require the same-resident action lease and scoped permission approval where appropriate. The field name is retained as a temporary SDK compatibility surface and should be removed after client migration.
+- **Read/write separation.** Safe read commands should usually use `actionLeasePolicy: { required: false }`; writes should require the same-resident action lease and scoped permission approval where appropriate.
 - **Sparse push, detail pull.** Pushes should say what changed, who it affects, and which command fetches detail.
 - **Venue-owned boundaries.** Keep business logic in the venue module package. Do not import `packages/server/src/core/*`.
 - **Frontend after backend.** Add UI only after the agent-facing contract is mature.
@@ -152,9 +152,9 @@ City config may select runtime topology with `plugins[pluginId].topology.mode` a
 
 Domain Document and attachment handshake support is limited to connection metadata. City Core fetches and validates the Domain Document, sends an attachment request, and records an auditable attachment receipt with the Domain Document hash. The v0 proof signs the sorted JSON document without the `proof` object and must declare the exact covered top-level fields.
 
-For domain runtime mode, request dispatch is City-to-Domain only after the attachment is `attached`. City Core runs the same action lease and permission checks as local requests, signs an envelope around the request/event payload and proof refs, posts it to the Domain dispatch endpoint, verifies the signed Domain receipt, and stores audit records. The envelope is a transport/audit wrapper; City Core does not parse or synchronize Venue business state.
+For domain runtime mode, request dispatch is City-to-Domain only after the attachment is `attached`. City Core runs the same action lease and permission checks as local requests, signs an envelope around the request/event payload hash and proof refs, posts it to the Domain dispatch endpoint, verifies the signed and unexpired Domain receipt, and stores audit records. The envelope is a transport/audit wrapper; City Core does not parse or synchronize Venue business state.
 
-Federation is separate city trust/governance metadata. It can add policy results for admission, verification, risk marking, and conformance badges, but it is not a Domain Service, does not synchronize Venue business state, and does not remove Resident IDs. City config can declare optional federation membership under `federations[federationId]`; cities that do not join a federation do not need to obey that federation policy.
+Federation is separate city trust/governance metadata. It can add policy results for admission, verification, risk marking, and conformance badges, but it is not a Domain Service, does not synchronize Venue business state, and does not remove Resident IDs. City config can declare optional federation membership under `federations[federationId]`; City Core can verify and cache signed Federation Documents and verified policy/feed refs. Cities that do not join a federation do not need to obey that federation policy.
 
 Useful optional fields:
 
@@ -208,7 +208,7 @@ export default defineBackendPlugin({
       description: 'Explain what Echo does and which commands an agent should call first.',
       inputSchema: {},
       locationPolicy: { scope: 'any' },
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       handler: async () => ({
         pluginId: PLUGIN_ID,
         summary: 'Echo is a small example venue module for testing Uruc commands.',
@@ -233,7 +233,7 @@ export default defineBackendPlugin({
         text: field('string', 'Optional text to echo back.'),
       },
       locationPolicy: { scope: 'any' },
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       handler: async (input, runtimeCtx) => ({
         ok: true,
         pluginId: PLUGIN_ID,
@@ -270,7 +270,7 @@ export default defineBackendPlugin({
         limit: field('number', 'Maximum notes to return. Defaults to 10 and is capped at 20.'),
       },
       locationPolicy: { scope: 'any' },
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       handler: async (input, runtimeCtx) => {
         const agentId = runtimeCtx.session?.agentId;
         if (!agentId) throw fail('Authenticate your agent first.', 'NOT_AUTHENTICATED', 'auth');
@@ -337,12 +337,12 @@ Current runtime facts:
 - `resultSchema` is metadata and is not runtime-enforced today.
 - `protocol` is optional metadata for the Resident-based protocol vocabulary. It does not register a second handler or change command ids. When `protocol.request.requiredCapabilities` is present, dispatch checks permission credentials and approval policy before calling the handler.
 - `protocol.request.requiredCapabilities` declares the stable permission units required for the request. Capability ids are permission units such as `acme.echo.notes.write@v1`; they are not raw command ids and may be shared by several requests.
-- Defaults: `authPolicy: "agent"`, `locationPolicy: { scope: "any" }`, `controlPolicy: { controllerRequired: true }`, `confirmationPolicy: { required: false }`. `confirmationPolicy` is a legacy compatibility field; new approval behavior should be modeled with `protocol.request.requiredCapabilities` and `protocol.request.approval`.
+- Defaults: `authPolicy: "agent"`, `locationPolicy: { scope: "any" }`, `actionLeasePolicy: { required: true }`, `confirmationPolicy: { required: false }`. `confirmationPolicy` is a legacy compatibility field; new approval behavior should be modeled with `protocol.request.requiredCapabilities` and `protocol.request.approval`.
 
 Use this for safe reads:
 
 ```js
-controlPolicy: { controllerRequired: false }
+actionLeasePolicy: { required: false }
 ```
 
 Use this for venue-only commands:
@@ -684,7 +684,7 @@ Before calling a venue module ready:
 - Every command has a short useful `description`.
 - Venue module has one primary `<feature>_intro` command.
 - Intro explains purpose, rules, first commands, and key fields.
-- Safe reads use `controllerRequired: false`.
+- Safe reads use `actionLeasePolicy.required: false`.
 - Writes validate input and return structured errors.
 - Lists are paginated or capped.
 - Pushes are sparse and point to detail commands.

@@ -60,7 +60,7 @@ Drops the remote URUC connection but keeps the local daemon alive for reuse. JSO
 
 ### `what_state_am_i`
 
-Use when correctness depends on remote truth. It sends the current protocol state query and updates the daemon cache from the authoritative response. The `result` payload is the source of truth for fields such as `connected`, `hasController`, `isController`, `inCity`, `currentLocation`, and `citytime`.
+Use when correctness depends on remote truth. It sends the current protocol state query and updates the daemon cache from the authoritative response. The `result` payload is the source of truth for fields such as `connected`, `hasActionLease`, `isActionLeaseHolder`, `inCity`, `currentLocation`, and `citytime`.
 
 ### `where_can_i_go`
 
@@ -88,7 +88,7 @@ Use when the resident session should intentionally give up the action lease. It 
 
 ### `status`
 
-Use for a compact local operational summary after bootstrap. It returns daemon cached state such as `connectionStatus`, `authenticated`, `agentSession`, `hasController`, `isController`, `inCity`, `currentLocation`, `citytime`, `lastError`, `lastWakeError`, and `recentEvents`. This is not authoritative protocol truth.
+Use for a compact local operational summary after bootstrap. It returns daemon cached state such as `connectionStatus`, `authenticated`, `agentSession`, `hasActionLease`, `isActionLeaseHolder`, `inCity`, `currentLocation`, `citytime`, `lastError`, `lastWakeError`, and `recentEvents`. This is not authoritative protocol truth.
 
 ### `exec <type>`
 
@@ -128,7 +128,7 @@ Use when debugging OpenClaw bridge delivery. It reports bridge mode, pending que
 
 ### `bridge test`
 
-Use when you need a controlled bridge wake. It enqueues a synthetic event through the same local wake path used by unsolicited pushes.
+Use when you need a bounded bridge wake. It enqueues a synthetic event through the same local wake path used by unsolicited pushes.
 
 ## Bridge Model
 

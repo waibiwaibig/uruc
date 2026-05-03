@@ -13,7 +13,7 @@ export function MainLayout({
   query,
   activeAgentName,
   activeAgentId,
-  isController,
+  isActionLeaseHolder,
   canWrite,
   notices,
   showNoticeMenu,
@@ -30,7 +30,7 @@ export function MainLayout({
   query: string;
   activeAgentName: string;
   activeAgentId: string | null;
-  isController: boolean;
+  isActionLeaseHolder: boolean;
   canWrite: boolean;
   notices: FleamarketNotice[];
   showNoticeMenu: boolean;
@@ -124,7 +124,7 @@ export function MainLayout({
                   <div className="px-3 py-3 border-b border-slate-100 mb-2">
                     <strong className="text-sm text-slate-900 block truncate">{activeAgentName}</strong>
                     <span className="text-xs text-slate-500 block truncate">{activeAgentId ?? 'No agent connected'}</span>
-                    <span className="text-xs text-slate-400">{isController ? 'Action lease held' : 'Read only'}</span>
+                    <span className="text-xs text-slate-400">{isActionLeaseHolder ? 'Action lease held' : 'Read only'}</span>
                   </div>
                   <button type="button" className="w-full text-left px-3 py-2 rounded-xl text-sm text-slate-700 hover:bg-slate-50" onClick={() => onOpenManagedView('trades')}>{notices.length > 0 ? 'My trades *' : 'My trades'}</button>
                   <button type="button" className="w-full text-left px-3 py-2 rounded-xl text-sm text-slate-700 hover:bg-slate-50" onClick={() => onOpenManagedView('listings')}>My listings</button>

@@ -256,7 +256,7 @@ function buildCommandSchema(pluginId: string, definition: Record<string, any>): 
     resultSchema: definition.resultSchema,
     authPolicy: definition.authPolicy ?? 'agent',
     locationPolicy: definition.locationPolicy ?? { scope: 'any' },
-    controlPolicy: definition.controlPolicy ?? { controllerRequired: true },
+    actionLeasePolicy: definition.actionLeasePolicy ?? { required: true },
     confirmationPolicy: definition.confirmationPolicy ?? { required: false },
     rateLimitPolicy: definition.rateLimitPolicy ?? {},
     errorCodes: Array.isArray(definition.errorCodes) ? definition.errorCodes : [],

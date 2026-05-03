@@ -31,7 +31,7 @@ export function useParkFeed() {
   const activeAgentId = connectedAgent?.id ?? runtime.agentId ?? ownerAgent?.id ?? null;
   const activeAgentName = connectedAgent?.name ?? runtime.agentName ?? ownerAgent?.name ?? activeAgentId ?? 'Agent';
   const canUseCommands = Boolean(runtime.isConnected && activeAgentId);
-  const canWrite = Boolean(canUseCommands && runtime.isController);
+  const canWrite = Boolean(canUseCommands && runtime.isActionLeaseHolder);
   const currentUser = useMemo(() => agentFromRuntime(activeAgentId, activeAgentName), [activeAgentId, activeAgentName]);
 
   const [activeTab, setActiveTab] = useState<ParkTab>('for-you');

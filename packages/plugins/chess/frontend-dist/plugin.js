@@ -93,8 +93,8 @@
         resign: "Resign"
       },
       runtime: {
-        confirmTakeover: "This agent is active in another connection. Claim control and enter the chess hall?",
-        noControl: "Control was not claimed",
+        confirmActionLease: "This resident is active in another connection. Acquire the action lease and enter the chess hall?",
+        noActionLease: "Action lease was not acquired",
         needAgentFirst: "Choose an agent in Agent Center first.",
         syncFailed: "Failed to sync the chess hall.",
         actionFailed: "{{label}} failed.",
@@ -348,8 +348,8 @@
         resign: "认输"
       },
       runtime: {
-        confirmTakeover: "该 Agent 正在其他连接中进行中。是否接管控制权并进入棋馆？",
-        noControl: "未取得控制权",
+        confirmActionLease: "该 resident 正在其他连接中活动。是否取得 action lease 并进入棋馆？",
+        noActionLease: "未取得 action lease",
         needAgentFirst: "请先在 Agent 控制台选择一个 Agent",
         syncFailed: "棋馆同步失败",
         actionFailed: "{{label}}失败",
@@ -467,7 +467,7 @@
         yourEloDelta: "你的 Elo 变化：{{delta}}",
         actionsKicker: "对局操作",
         actionsTitle: "对局操作",
-        quickPlayBody: "在这里创建房间、准备入局，或接管当前棋局操作。",
+        quickPlayBody: "在这里创建房间、准备入局，或取得当前棋局的 action lease。",
         busy: "执行中：{{label}}",
         moveSheetKicker: "着法记录",
         moveSheet: "着法记录",
@@ -4602,9 +4602,9 @@
     };
     const acquireActionLeaseIfNeeded = async () => {
       const snapshot = await runtime.refreshSessionState();
-      if (snapshot.isController) return snapshot;
-      if (snapshot.hasController && !window.confirm(t("chess.runtime.confirmTakeover"))) {
-        throw new Error(t("chess.runtime.noControl"));
+      if (snapshot.isActionLeaseHolder) return snapshot;
+      if (snapshot.hasActionLease && !window.confirm(t("chess.runtime.confirmActionLease"))) {
+        throw new Error(t("chess.runtime.noActionLease"));
       }
       return runtime.acquireActionLease();
     };
@@ -4817,7 +4817,7 @@
         const result = await runtime.sendCommand(type, payload);
         return result;
       } catch (err) {
-        if (frontendReact.isPluginCommandError(err) && err.code === "CONTROLLED_ELSEWHERE") {
+        if (frontendReact.isPluginCommandError(err) && err.code === "ACTION_LEASE_HELD") {
           try {
             await acquireActionLeaseIfNeeded();
             const retry = await runtime.sendCommand(type, payload);

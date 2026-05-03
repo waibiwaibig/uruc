@@ -45,12 +45,15 @@ npm run uruc -- configure
 提交 Pull Request 前，请先运行：
 
 ```bash
+npm run check:bounded
 npm run test --workspace=packages/server
 npm run build --workspace=packages/server
 npm run build --workspace=packages/web
 npm run i18n:check --workspace=packages/web
 npm run docs:check
 ```
+
+`npm run check:bounded` 是当前公开仓库的 CI 等价 guardrail。它会按显式 suite budget 运行 docs、plugin boundary、server build 和 server test，并在超时或失败时报告具体 suite，避免 opaque hang。
 
 单独运行某个 server 测试文件：
 

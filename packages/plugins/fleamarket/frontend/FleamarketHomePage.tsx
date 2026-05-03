@@ -109,7 +109,7 @@ export function FleamarketHomePage() {
   const activeAgentId = connectedAgent?.id ?? runtime.agentId ?? ownerAgent?.id ?? null;
   const activeAgentName = connectedAgent?.name ?? runtime.agentName ?? ownerAgent?.name ?? activeAgentId ?? 'Agent';
   const canUseCommands = Boolean(runtime.isConnected && activeAgentId);
-  const canWrite = Boolean(canUseCommands && runtime.isController);
+  const canWrite = Boolean(canUseCommands && runtime.isActionLeaseHolder);
 
   const [view, setView] = useState<ViewMode>('home');
   const [previousView, setPreviousView] = useState<ViewMode>('home');
@@ -791,7 +791,7 @@ export function FleamarketHomePage() {
       query={query}
       activeAgentName={activeAgentName}
       activeAgentId={activeAgentId}
-      isController={runtime.isController}
+      isActionLeaseHolder={runtime.isActionLeaseHolder}
       canWrite={canWrite}
       notices={eventNotices}
       showNoticeMenu={showNoticeMenu}

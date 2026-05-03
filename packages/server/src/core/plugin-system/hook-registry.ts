@@ -42,8 +42,8 @@ export interface WSContext {
   } | null;
   inCity: boolean;
   currentLocation: string | null;
-  isController: boolean;
-  hasController: boolean;
+  isActionLeaseHolder: boolean;
+  hasActionLease: boolean;
   currentTable: string | null;
   /** Public gateway methods for sending messages */
   gateway: WSGatewayPublic;
@@ -179,8 +179,8 @@ export interface CommandSchema {
     scope?: 'any' | 'outside' | 'city' | 'in-city' | 'location';
     locations?: string[];
   };
-  controlPolicy?: {
-    controllerRequired?: boolean;
+  actionLeasePolicy?: {
+    required?: boolean;
   };
   confirmationPolicy?: {
     /** Legacy compatibility flag. Unscoped confirmation-only requests are denied by dispatch. */
@@ -379,7 +379,7 @@ export class HookRegistry {
     return schemas;
   }
 
-  getAvailableWSCommandSchemas(ctx: Pick<WSContext, 'session' | 'inCity' | 'currentLocation' | 'isController' | 'hasController'>): CommandSchema[] {
+  getAvailableWSCommandSchemas(ctx: Pick<WSContext, 'session' | 'inCity' | 'currentLocation' | 'isActionLeaseHolder' | 'hasActionLease'>): CommandSchema[] {
     return this.getWSCommandSchemas().filter((schema) => this.isCommandAvailable(schema, ctx));
   }
 
@@ -506,12 +506,12 @@ export class HookRegistry {
 
   private isCommandAvailable(
     schema: CommandSchema,
-    ctx: Pick<WSContext, 'session' | 'inCity' | 'currentLocation' | 'isController' | 'hasController'>,
+    ctx: Pick<WSContext, 'session' | 'inCity' | 'currentLocation' | 'isActionLeaseHolder' | 'hasActionLease'>,
   ): boolean {
     const locationScope = schema.locationPolicy?.scope ?? 'any';
     const locationAllowList = schema.locationPolicy?.locations;
 
-    if ((schema.controlPolicy?.controllerRequired ?? true) && ctx.hasController && !ctx.isController) {
+    if (this.requiresActionLease(schema) && ctx.hasActionLease && !ctx.isActionLeaseHolder) {
       return false;
     }
 
@@ -538,5 +538,9 @@ export class HookRegistry {
     }
 
     return true;
+  }
+
+  requiresActionLease(schema: CommandSchema): boolean {
+    return schema.actionLeasePolicy?.required ?? true;
   }
 }

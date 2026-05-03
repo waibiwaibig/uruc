@@ -177,7 +177,7 @@ describe('WS core error codes', () => {
       description: 'Needs confirmation',
       pluginName: 'core',
       params: {},
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       confirmationPolicy: { required: true },
     });
 

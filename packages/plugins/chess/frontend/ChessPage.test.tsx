@@ -46,8 +46,8 @@ vi.mock('i18next', () => ({
 function createSessionState(): PluginSessionState {
   return {
     connected: true,
-    hasController: false,
-    isController: false,
+    hasActionLease: false,
+    isActionLeaseHolder: false,
     inCity: false,
     currentLocation: null,
     serverTimestamp: Date.now(),
@@ -62,8 +62,8 @@ function createRuntime(overrides: Partial<PluginRuntimeApi> = {}): PluginRuntime
   return {
     status: 'idle',
     isConnected: false,
-    hasController: false,
-    isController: false,
+    hasActionLease: false,
+    isActionLeaseHolder: false,
     error: '',
     inCity: false,
     currentLocation: null,
@@ -227,14 +227,14 @@ describe('ChessPage room workflows', () => {
       createPageData({
         runtime: createRuntime({
           isConnected: true,
-          isController: true,
-          hasController: true,
+          isActionLeaseHolder: true,
+          hasActionLease: true,
           inCity: true,
           currentLocation: 'uruc.chess.chess-club',
           refreshSessionState: async () => ({
             ...createSessionState(),
-            isController: true,
-            hasController: true,
+            isActionLeaseHolder: true,
+            hasActionLease: true,
             inCity: true,
             currentLocation: 'uruc.chess.chess-club',
           }),
@@ -275,14 +275,14 @@ describe('ChessPage room workflows', () => {
       createPageData({
         runtime: createRuntime({
           isConnected: true,
-          isController: true,
-          hasController: true,
+          isActionLeaseHolder: true,
+          hasActionLease: true,
           inCity: true,
           currentLocation: 'uruc.chess.chess-club',
           refreshSessionState: async () => ({
             ...createSessionState(),
-            isController: true,
-            hasController: true,
+            isActionLeaseHolder: true,
+            hasActionLease: true,
             inCity: true,
             currentLocation: 'uruc.chess.chess-club',
           }),
@@ -404,14 +404,14 @@ describe('ChessPage room workflows', () => {
       createPageData({
         runtime: createRuntime({
           isConnected: true,
-          isController: true,
-          hasController: true,
+          isActionLeaseHolder: true,
+          hasActionLease: true,
           inCity: true,
           currentLocation: 'uruc.chess.chess-club',
           refreshSessionState: async () => ({
             ...createSessionState(),
-            isController: true,
-            hasController: true,
+            isActionLeaseHolder: true,
+            hasActionLease: true,
             inCity: true,
             currentLocation: 'uruc.chess.chess-club',
           }),
@@ -553,14 +553,14 @@ describe('ChessPage room workflows', () => {
       createPageData({
         runtime: createRuntime({
           isConnected: true,
-          isController: true,
-          hasController: true,
+          isActionLeaseHolder: true,
+          hasActionLease: true,
           inCity: true,
           currentLocation: 'uruc.chess.chess-club',
           refreshSessionState: async () => ({
             ...createSessionState(),
-            isController: true,
-            hasController: true,
+            isActionLeaseHolder: true,
+            hasActionLease: true,
             inCity: true,
             currentLocation: 'uruc.chess.chess-club',
           }),
@@ -695,14 +695,14 @@ describe('ChessPage room workflows', () => {
       createPageData({
         runtime: createRuntime({
           isConnected: true,
-          isController: true,
-          hasController: true,
+          isActionLeaseHolder: true,
+          hasActionLease: true,
           inCity: true,
           currentLocation: 'uruc.chess.chess-club',
           refreshSessionState: async () => ({
             ...createSessionState(),
-            isController: true,
-            hasController: true,
+            isActionLeaseHolder: true,
+            hasActionLease: true,
             inCity: true,
             currentLocation: 'uruc.chess.chess-club',
           }),
@@ -887,14 +887,14 @@ describe('ChessPage room workflows', () => {
       createPageData({
         runtime: createRuntime({
           isConnected: true,
-          isController: true,
-          hasController: true,
+          isActionLeaseHolder: true,
+          hasActionLease: true,
           inCity: true,
           currentLocation: 'uruc.chess.chess-club',
           refreshSessionState: async () => ({
             ...createSessionState(),
-            isController: true,
-            hasController: true,
+            isActionLeaseHolder: true,
+            hasActionLease: true,
             inCity: true,
             currentLocation: 'uruc.chess.chess-club',
           }),
@@ -1077,14 +1077,14 @@ describe('ChessPage room workflows', () => {
       createPageData({
         runtime: createRuntime({
           isConnected: true,
-          isController: true,
-          hasController: true,
+          isActionLeaseHolder: true,
+          hasActionLease: true,
           inCity: true,
           currentLocation: 'uruc.chess.chess-club',
           refreshSessionState: async () => ({
             ...createSessionState(),
-            isController: true,
-            hasController: true,
+            isActionLeaseHolder: true,
+            hasActionLease: true,
             inCity: true,
             currentLocation: 'uruc.chess.chess-club',
           }),
@@ -1253,14 +1253,14 @@ describe('ChessPage room workflows', () => {
       createPageData({
         runtime: createRuntime({
           isConnected: true,
-          isController: true,
-          hasController: true,
+          isActionLeaseHolder: true,
+          hasActionLease: true,
           inCity: true,
           currentLocation: 'uruc.chess.chess-club',
           refreshSessionState: async () => ({
             ...createSessionState(),
-            isController: true,
-            hasController: true,
+            isActionLeaseHolder: true,
+            hasActionLease: true,
             inCity: true,
             currentLocation: 'uruc.chess.chess-club',
           }),
@@ -1370,14 +1370,14 @@ describe('ChessPage room workflows', () => {
       createPageData({
         runtime: createRuntime({
           isConnected: true,
-          isController: true,
-          hasController: true,
+          isActionLeaseHolder: true,
+          hasActionLease: true,
           inCity: true,
           currentLocation: 'uruc.chess.chess-club',
           refreshSessionState: async () => ({
             ...createSessionState(),
-            isController: true,
-            hasController: true,
+            isActionLeaseHolder: true,
+            hasActionLease: true,
             inCity: true,
             currentLocation: 'uruc.chess.chess-club',
           }),
@@ -1524,14 +1524,14 @@ describe('ChessPage room workflows', () => {
       createPageData({
         runtime: createRuntime({
           isConnected: true,
-          isController: true,
-          hasController: true,
+          isActionLeaseHolder: true,
+          hasActionLease: true,
           inCity: true,
           currentLocation: 'uruc.chess.chess-club',
           refreshSessionState: async () => ({
             ...createSessionState(),
-            isController: true,
-            hasController: true,
+            isActionLeaseHolder: true,
+            hasActionLease: true,
             inCity: true,
             currentLocation: 'uruc.chess.chess-club',
           }),
@@ -1633,14 +1633,14 @@ describe('ChessPage room workflows', () => {
       createPageData({
         runtime: createRuntime({
           isConnected: true,
-          isController: true,
-          hasController: true,
+          isActionLeaseHolder: true,
+          hasActionLease: true,
           inCity: true,
           currentLocation: 'uruc.chess.chess-club',
           refreshSessionState: async () => ({
             ...createSessionState(),
-            isController: true,
-            hasController: true,
+            isActionLeaseHolder: true,
+            hasActionLease: true,
             inCity: true,
             currentLocation: 'uruc.chess.chess-club',
           }),

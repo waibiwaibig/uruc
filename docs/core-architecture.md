@@ -233,7 +233,7 @@ Current auth/session split:
 - WebSocket session roles are currently `owner` and `agent`.
 - Command discoverability and command gating are evaluated against the current WebSocket session state.
 - Regular resident sessions can resolve a city-issued active permission credential. The current bridge uses the session agent id as the resident id until the later resident identity slices land.
-- Principal-backed residents are a registration type on the current agent-backed resident bridge. They keep their own agent/session identity and carry one `accountablePrincipalId`; that binding is not owner control, controller takeover, or cross-resident operation.
+- Principal-backed residents are a registration type on the current agent-backed resident bridge. They keep their own agent/session identity and carry one `accountablePrincipalId`; that binding is not account ownership, action-lease transfer, or cross-resident operation.
 - Principal-backed resident permissions are checked against active credentials issued by their accountable principal. Missing principal-backed permission returns a compact `PERMISSION_REQUIRED` receipt with `nextAction: "require_approval"`; approval issues a scoped, time-bound permission credential from that accountable principal.
 - Venue command dispatch checks `protocol.request.requiredCapabilities` against active permission credentials when a schema declares required capabilities. Commands without required capabilities keep the existing runnable behavior.
 
@@ -342,7 +342,7 @@ Domain attachment records are core-owned audit state. Each record stores status 
 
 Domain Document v0 uses schema id `uruc.domain.document@v0` and protocol version `uruc-domain-v0`. The Ed25519 proof signs the sorted JSON document without the `proof` object and must declare the exact covered top-level fields (`capabilities`, `domainId`, `endpoints`, `hints`, `protocol`, `publicKeys`, `schema`, and `venue`). Fetch and receipt parsing require JSON content types, bounded response sizes, parseable JSON, and stable compact error codes.
 
-Signed domain dispatch is limited to attached domain topology. City Core performs its normal action lease and permission checks first, then signs an envelope containing the current request id/type/payload, resident id, city id, venue module id/namespace, capability and permission credential refs, timestamps, nonce, and attachment/domain refs. Domain receipts must be signed by a key from the attached Domain Document and must echo the envelope hash. City Core stores both the pre-dispatch envelope and final compact receipt in `domain_dispatch_audits`. Local topology continues local handling; missing, failed, expired, or detached attachments cannot silently fall back to domain success. City Core still does not interpret Venue business payloads.
+Signed domain dispatch is limited to attached domain topology. City Core performs its normal action lease and permission checks first, then signs an envelope containing the current request id/type/payload, stable payload hash, resident id, city id, venue module id/namespace, capability and permission credential refs, issued/expires timestamps, nonce, and attachment/domain refs. Domain receipts must be signed by a key from the attached Domain Document, must echo the envelope hash, and must pass semantic checks for domain/city/audit/request/expiry correlation. City Core stores both the pre-dispatch envelope and final compact receipt in `domain_dispatch_audits`. Local topology continues local handling; missing, failed, expired, or detached attachments cannot silently fall back to domain success. City Core still does not interpret Venue business payloads.
 
 ### Federation trust policy skeleton
 
@@ -351,12 +351,13 @@ Federation is city trust/governance metadata, not a Domain Service and not Venue
 - federation id and version
 - member cities and their roles
 - trust anchors such as issuers, cities, or public keys
-- policy refs for trust policy, conformance, or risk metadata
+- validity window and signed proof coverage
+- policy refs for trust policy, conformance, or risk metadata, with integrity metadata
 - compact risk metadata and conformance badges
 
-City config may declare membership under `federations[federationId]` with an optional document URL and local `trustPolicy`. The trust-policy skeleton can currently return `accept`, `reject`, `warn`, or `unknown` for city, issuer, resident, or domain verification contexts. It is intentionally not a legal rules engine and does not implement global consensus.
+City config may declare membership under `federations[federationId]` with an optional document URL and local `trustPolicy`. `FederationDocumentService` can fetch, verify, cache, and expire signed documents with compact diagnostics. The trust-policy skeleton can currently return `accept`, `reject`, `warn`, or `unknown` for city, issuer, resident, or domain verification contexts. It is intentionally not a legal rules engine and does not implement global consensus.
 
-Federation policy results may be attached to resident/domain/city verification output as audit context. They are intended to feed future admission, permission decision, risk marking, and conformance badge interfaces. They do not delete or rewrite Resident IDs. A city that has not joined a federation returns `unknown` for that federation policy context and does not need to obey it. Domain attachment/dispatch and Venue Domain Protocols remain independent from Federation.
+Federation policy results may be attached to resident/domain/city verification output as audit context. Verified policy refs and risk/conformance feeds can produce compact trust context. They do not delete or rewrite Resident IDs. A city that has not joined a federation returns `unknown` for that federation policy context and does not need to obey it. Domain attachment/dispatch and Venue Domain Protocols remain independent from Federation.
 
 ### Runtime context exposed to backend venue modules
 

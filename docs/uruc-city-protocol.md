@@ -304,9 +304,9 @@ Approval usually issues a scoped, time-bound permission credential. One-shot app
 
 ## Action Lease
 
-The current controller concept should not become an identity concept.
+The same-resident write gate is an action lease, not an identity or cross-resident authority concept.
 
-The future primitive is a same-resident action lease:
+The primitive is a same-resident action lease:
 
 - it belongs to one session of one resident
 - it gates write submission among that resident's own sessions
@@ -505,11 +505,13 @@ Minimum fields:
 - `version`
 - member city list and member roles
 - trust anchors such as accepted issuers, cities, or public keys
-- policy refs for trust policy, conformance, and risk metadata
+- validity window: `validFrom` and `validUntil`
+- signed proof with deterministic canonicalization and exact covered fields
+- policy refs for trust policy, conformance, and risk metadata, including version, integrity digest, validity window, and federation id where required
 - risk metadata refs
 - conformance badge metadata
 
-The document can recommend defaults, but it does not create global consensus. A city may ignore a federation it has not joined, may join more than one federation, and may create its own federation.
+The document can recommend defaults, but it does not create global consensus. A city may ignore a federation it has not joined, may join more than one federation, and may create its own federation. City Core may fetch and cache signed Federation Documents, but stale or invalid documents cannot produce `accept`, `reject`, or `warn` trust results.
 
 ### Federation Trust Policy
 
@@ -525,6 +527,10 @@ unknown
 Federation policy can affect admission, verification, permission decisions, risk marking, and conformance badges. It must not delete a resident id or rewrite historical identity. Resident identity remains separate from registration and permission status.
 
 Federation also remains separate from Domain Services and Venue Domain Protocols. Domain attachment and signed City-to-Domain dispatch work without federation. Venue business synchronization still belongs to venue/domain protocols.
+
+### Federation Feeds
+
+Risk and conformance feeds are compact trust inputs tied to a signed Federation Document and verified policy refs. Feed verification checks federation id, issuer or trust anchor context, version, freshness, entry id, subject type, and payload limits. Verified entries can produce compact `accept`, `reject`, `warn`, or `unknown` trust context. Invalid, stale, oversized, or untrusted entries are rejected or downgraded by city-local policy. Feeds never delete or rewrite Resident IDs.
 
 ## Context Economy
 

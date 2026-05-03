@@ -17,21 +17,21 @@ const PROTOCOL_COMMANDS: CommandSchema[] = [
         description: 'Check your current agent state',
         pluginName: 'core',
         params: {},
-        controlPolicy: { controllerRequired: false },
+        actionLeasePolicy: { required: false },
     },
     {
         type: 'acquire_action_lease',
         description: 'Acquire the same-resident action lease for this session',
         pluginName: 'core',
         params: {},
-        controlPolicy: { controllerRequired: false },
+        actionLeasePolicy: { required: false },
     },
     {
         type: 'release_action_lease',
         description: 'Release the same-resident action lease for this session',
         pluginName: 'core',
         params: {},
-        controlPolicy: { controllerRequired: false },
+        actionLeasePolicy: { required: false },
     },
 ];
 
@@ -80,7 +80,7 @@ const CITY_GATE_COMMANDS: CommandSchema[] = [
                 required: false,
             },
         },
-        controlPolicy: { controllerRequired: false },
+        actionLeasePolicy: { required: false },
     },
     {
         type: 'what_can_i_do',
@@ -108,7 +108,7 @@ const CITY_GATE_COMMANDS: CommandSchema[] = [
                 required: false,
             },
         },
-        controlPolicy: { controllerRequired: false },
+        actionLeasePolicy: { required: false },
     },
 ];
 
@@ -188,11 +188,11 @@ function sendWsError(
     sendCore(ctx, { id: msg.id, type: 'error', payload: resolved.payload });
 }
 
-function buildStatePayload(ctx: Pick<WSContext, 'hasController' | 'isController' | 'inCity' | 'currentLocation'>): Record<string, unknown> {
+function buildStatePayload(ctx: Pick<WSContext, 'hasActionLease' | 'isActionLeaseHolder' | 'inCity' | 'currentLocation'>): Record<string, unknown> {
     return {
         connected: true,
-        hasController: ctx.hasController,
-        isController: ctx.isController,
+        hasActionLease: ctx.hasActionLease,
+        isActionLeaseHolder: ctx.isActionLeaseHolder,
         inCity: ctx.inCity,
         currentLocation: ctx.currentLocation,
         citytime: Date.now(),

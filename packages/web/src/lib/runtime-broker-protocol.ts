@@ -13,8 +13,8 @@ export interface SharedRuntimeState {
   status: WsConnectionStatus;
   error: string;
   agentSession: SharedAgentSession | null;
-  hasController: boolean;
-  isController: boolean;
+  hasActionLease: boolean;
+  isActionLeaseHolder: boolean;
   inCity: boolean;
   currentLocation: string | null;
   citytime: number | null;
@@ -51,8 +51,8 @@ export function createEmptyRuntimeState(identityKey: string | null = null): Shar
     status: 'idle',
     error: '',
     agentSession: null,
-    hasController: false,
-    isController: false,
+    hasActionLease: false,
+    isActionLeaseHolder: false,
     inCity: false,
     currentLocation: null,
     citytime: null,
@@ -64,8 +64,8 @@ export function createEmptyRuntimeState(identityKey: string | null = null): Shar
 export function toRuntimeSnapshot(state: SharedRuntimeState): RuntimeSnapshot {
   return {
     connected: state.status === 'connected',
-    hasController: state.hasController,
-    isController: state.isController,
+    hasActionLease: state.hasActionLease,
+    isActionLeaseHolder: state.isActionLeaseHolder,
     inCity: state.inCity,
     currentLocation: state.currentLocation,
     citytime: state.citytime ?? Date.now(),

@@ -9,8 +9,8 @@ export function parseRuntimePatch(payload: unknown): RuntimePatch {
   const patch: RuntimePatch = {};
 
   if (typeof data.connected === 'boolean') patch.connected = data.connected;
-  if (typeof data.hasController === 'boolean') patch.hasController = data.hasController;
-  if (typeof data.isController === 'boolean') patch.isController = data.isController;
+  if (typeof data.hasActionLease === 'boolean') patch.hasActionLease = data.hasActionLease;
+  if (typeof data.isActionLeaseHolder === 'boolean') patch.isActionLeaseHolder = data.isActionLeaseHolder;
   if (typeof data.inCity === 'boolean') patch.inCity = data.inCity;
   if (typeof data.citytime === 'number') patch.citytime = data.citytime;
   if (typeof data.currentLocation === 'string' || data.currentLocation === null) {
@@ -26,14 +26,14 @@ export function parseRuntimePatch(payload: unknown): RuntimePatch {
 export function shouldClearRuntimeError(payload: unknown): boolean {
   const patch = parseRuntimePatch(payload);
   if (patch.connected === false) return false;
-  if (patch.isController === true) return true;
-  if (patch.hasController === false) return true;
+  if (patch.isActionLeaseHolder === true) return true;
+  if (patch.hasActionLease === false) return true;
   return false;
 }
 
 export function clearRuntimeFields(state: SharedRuntimeState): void {
-  state.hasController = false;
-  state.isController = false;
+  state.hasActionLease = false;
+  state.isActionLeaseHolder = false;
   state.inCity = false;
   state.currentLocation = null;
   state.citytime = null;
@@ -42,8 +42,8 @@ export function clearRuntimeFields(state: SharedRuntimeState): void {
 export function applyRuntimePatch(state: SharedRuntimeState, payload: unknown): void {
   const patch = parseRuntimePatch(payload);
 
-  if (patch.hasController !== undefined) state.hasController = patch.hasController;
-  if (patch.isController !== undefined) state.isController = patch.isController;
+  if (patch.hasActionLease !== undefined) state.hasActionLease = patch.hasActionLease;
+  if (patch.isActionLeaseHolder !== undefined) state.isActionLeaseHolder = patch.isActionLeaseHolder;
   if (patch.inCity !== undefined) state.inCity = patch.inCity;
   if (patch.citytime !== undefined) state.citytime = patch.citytime;
   if (patch.currentLocation !== undefined) state.currentLocation = patch.currentLocation;

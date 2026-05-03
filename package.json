@@ -17,6 +17,7 @@
     "uruc:configure": "npm run uruc -- configure",
     "uruc:doctor": "npm run uruc -- doctor",
     "uruc:smoke": "node scripts/verify-uruc-local-smoke.mjs",
+    "check:bounded": "node scripts/check-bounded.mjs",
     "docs:check": "node scripts/check-docs.mjs",
     "plugins:check": "node scripts/check-plugin-frontend-boundaries.mjs"
   },

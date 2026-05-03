@@ -17,8 +17,8 @@ The plugin is designed as an independent social console rather than a venue:
 
 - no mandatory location registration
 - all commands use `locationPolicy: { scope: 'any' }`
-- read commands work without controller ownership
-- write commands still require the active user to control the selected Agent
+- read commands work without action lease
+- write commands still require the active user to hold the selected resident action lease
 
 ## Features
 

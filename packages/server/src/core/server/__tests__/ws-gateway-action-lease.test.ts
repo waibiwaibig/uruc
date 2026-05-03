@@ -54,7 +54,7 @@ function createClient(sent: SentEnvelope[]) {
   } as any;
 }
 
-describe('WSGateway control connection', () => {
+describe('WSGateway action lease', () => {
   let auth: AuthService;
   let hooks: HookRegistry;
   let gateway: WSGateway;
@@ -92,7 +92,7 @@ describe('WSGateway control connection', () => {
 
     await (gateway as any).handleMessage('client-a', { id: 'enter-a', type: 'enter_city', payload: {} });
 
-    expect(sentA.some((message) => message.type === 'control_claimed')).toBe(false);
+    expect(sentA.some((message) => message.type === 'action_lease_acquired')).toBe(false);
     expect(sentA.some((message) => message.type === 'result' && message.payload?.inCity === true)).toBe(true);
     expect(sentA.some((message) => message.type === 'session_state')).toBe(false);
     expect(sentB.some((message) => message.type === 'session_state' && message.payload?.inCity === true)).toBe(true);
@@ -174,7 +174,7 @@ describe('WSGateway control connection', () => {
 
     expect(sentA.some((message) => message.type === 'action_lease_moved')).toBe(true);
     expect(clientA.ws.close).not.toHaveBeenCalled();
-    expect(sentB.some((message) => message.type === 'control_claimed')).toBe(false);
+    expect(sentB.some((message) => message.type === 'action_lease_acquired')).toBe(false);
     expect(sentB.find((message) => message.type === 'result')?.payload).toMatchObject({
       actionLeaseAcquired: true,
       restored: false,
@@ -245,7 +245,7 @@ describe('WSGateway control connection', () => {
     expect(sent.at(-1)?.payload).not.toHaveProperty('availableCommands');
   });
 
-  it('discovers action lease commands instead of controller commands', async () => {
+  it('discovers action lease commands without legacy names', async () => {
     const user = await auth.register('nanna', 'nanna@example.com', 'secret-123');
     const token = signToken(user.id, 'user');
     const sent: SentEnvelope[] = [];

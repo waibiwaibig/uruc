@@ -131,7 +131,7 @@ describe('WSGateway regular resident permission credentials', () => {
       description: 'Write one permission fixture value.',
       pluginName: 'uruc.permission',
       params: {},
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       protocol: {
         subject: 'resident',
         request: {
@@ -176,7 +176,7 @@ describe('WSGateway regular resident permission credentials', () => {
       description: 'Write one permission fixture value.',
       pluginName: 'uruc.permission',
       params: {},
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       protocol: {
         subject: 'resident',
         request: {
@@ -245,7 +245,7 @@ describe('WSGateway regular resident permission credentials', () => {
       description: 'Write one principal-backed fixture value.',
       pluginName: 'uruc.permission',
       params: {},
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       protocol: {
         subject: 'resident',
         request: {
@@ -327,7 +327,7 @@ describe('WSGateway regular resident permission credentials', () => {
       description: 'Write one principal-backed denied fixture value.',
       pluginName: 'uruc.permission',
       params: {},
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       protocol: {
         subject: 'resident',
         request: {
@@ -396,7 +396,7 @@ describe('WSGateway regular resident permission credentials', () => {
       description: 'Write one expired approval fixture value.',
       pluginName: 'uruc.permission',
       params: {},
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       protocol: {
         subject: 'resident',
         request: {
@@ -448,7 +448,7 @@ describe('WSGateway regular resident permission credentials', () => {
       description: 'Write one policy-denied fixture value.',
       pluginName: 'uruc.permission',
       params: {},
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       protocol: {
         subject: 'resident',
         request: {
@@ -502,7 +502,7 @@ describe('WSGateway regular resident permission credentials', () => {
       description: 'Write one confirmation-migrated fixture value.',
       pluginName: 'uruc.permission',
       params: {},
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       confirmationPolicy: { required: true },
       protocol: {
         subject: 'resident',
@@ -557,7 +557,7 @@ describe('WSGateway regular resident permission credentials', () => {
       description: 'Read one permission fixture value.',
       pluginName: 'uruc.permission',
       params: {},
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       protocol: {
         subject: 'resident',
         request: { type: 'uruc.permission.fixture.read.request@v1' },

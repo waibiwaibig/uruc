@@ -103,6 +103,7 @@ export interface CommandSchema {
   description: string;
   pluginName?: string;
   params: Record<string, { type: string; description?: string; required?: boolean }>;
+  actionLeasePolicy?: { required?: boolean };
   requiresConfirmation?: boolean;
 }
 
@@ -134,8 +135,8 @@ export interface WsEnvelope {
 
 export interface RuntimeSnapshot {
   connected: boolean;
-  hasController: boolean;
-  isController: boolean;
+  hasActionLease: boolean;
+  isActionLeaseHolder: boolean;
   inCity: boolean;
   currentLocation: string | null;
   citytime: number;

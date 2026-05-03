@@ -50,8 +50,8 @@ vi.mock('../../../../context/AgentRuntimeContext', () => ({
   useAgentRuntime: () => ({
     status: 'idle',
     isConnected: false,
-    hasController: false,
-    isController: false,
+    hasActionLease: false,
+    isActionLeaseHolder: false,
     wsUrl: 'ws://localhost:3210/ws',
     setWsUrl: vi.fn(),
     error: '',

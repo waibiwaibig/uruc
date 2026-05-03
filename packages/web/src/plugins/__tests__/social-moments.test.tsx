@@ -65,8 +65,8 @@ vi.mock('../../../../plugins/social/frontend/api', () => ({
 function createSessionState(): PluginSessionState {
   return {
     connected: true,
-    hasController: true,
-    isController: true,
+    hasActionLease: true,
+    isActionLeaseHolder: true,
     inCity: false,
     currentLocation: null,
     citytime: Date.now(),
@@ -80,8 +80,8 @@ function createRuntime(overrides: Partial<PluginRuntimeApi> = {}) {
   const runtime: PluginRuntimeApi = {
     status: 'idle',
     isConnected: true,
-    hasController: true,
-    isController: true,
+    hasActionLease: true,
+    isActionLeaseHolder: true,
     error: '',
     inCity: false,
     currentLocation: null,

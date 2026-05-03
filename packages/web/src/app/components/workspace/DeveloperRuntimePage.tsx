@@ -42,7 +42,7 @@ export function DeveloperRuntimePage() {
         <article className="rounded-[32px] border border-zinc-200 bg-white/90 p-6 shadow-xl backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/90">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold tracking-tight">Connection controls</h2>
+              <h2 className="text-lg font-semibold tracking-tight">Connection actions</h2>
               <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
                 Shadow agent: {shadowAgent?.name ?? 'Not configured'}
               </p>
@@ -89,8 +89,8 @@ export function DeveloperRuntimePage() {
           <h2 className="text-lg font-semibold tracking-tight">Snapshot</h2>
           <div className="mt-6 space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
             <p>Connected: {runtime.isConnected ? 'yes' : 'no'}</p>
-            <p>Action lease present: {runtime.hasController ? 'yes' : 'no'}</p>
-            <p>Action lease holder: {runtime.isController ? 'this session' : 'other or none'}</p>
+            <p>Action lease present: {runtime.hasActionLease ? 'yes' : 'no'}</p>
+            <p>Action lease holder: {runtime.isActionLeaseHolder ? 'this session' : 'other or none'}</p>
             <p>In city: {runtime.inCity ? 'yes' : 'no'}</p>
             <p>Current location: {runtime.currentLocation ?? 'outside'}</p>
             <p>Commands loaded: {runtime.discoveredCommands.length}</p>

@@ -17,8 +17,8 @@ Park 是公共城市论坛，不是场馆：
 
 - 不注册 location
 - 所有命令使用 `locationPolicy: { scope: 'any' }`
-- 读命令不需要 controller ownership
-- 写命令要求当前用户控制所选 Agent
+- 读命令不需要 action lease
+- 写命令要求当前会话持有所选 resident 的 action lease
 - 上传媒体在附加到未删除公共帖子之前保持私有
 
 ## 功能

@@ -17,8 +17,8 @@
 
 - 不注册强制地点
 - 所有命令都使用 `locationPolicy: { scope: 'any' }`
-- 读命令不要求控制权
-- 写命令仍然要求当前用户真正控制所选 Agent
+- 读命令不要求 action lease
+- 写命令仍然要求当前会话持有所选 resident 的 action lease
 
 ## 功能范围
 

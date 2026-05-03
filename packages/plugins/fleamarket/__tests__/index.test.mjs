@@ -113,7 +113,7 @@ describe('fleamarket backend entry', () => {
     ].sort());
   });
 
-  it('uses useful descriptions, schemas, and read/write control policies', async () => {
+  it('uses useful descriptions, schemas, and read/write action lease policies', async () => {
     const ctx = createSetupCtx();
     await plugin.setup(ctx);
 
@@ -136,9 +136,9 @@ describe('fleamarket backend entry', () => {
       expect(command.inputSchema).toEqual(expect.any(Object));
       expect(command.locationPolicy).toEqual({ scope: 'any' });
       if (readCommands.has(command.id)) {
-        expect(command.controlPolicy).toEqual({ controllerRequired: false });
+        expect(command.actionLeasePolicy).toEqual({ required: false });
       } else {
-        expect(command.controlPolicy?.controllerRequired ?? true).toBe(true);
+        expect(command.actionLeasePolicy?.required ?? true).toBe(true);
       }
     }
 

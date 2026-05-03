@@ -201,6 +201,7 @@ describe('Domain signed dispatch', () => {
               command: 'acme.social.publish@v1',
               type: 'acme.social.publish.request@v1',
               payload: { text: 'hello' },
+              payloadHash: expect.stringMatching(/^[a-f0-9]{64}$/),
             },
             proofs: {
               requiredCapabilities: ['social.thread.write'],
@@ -226,6 +227,7 @@ describe('Domain signed dispatch', () => {
             envelopeHash: envelope.envelopeHash,
             eventRef: 'domain-event-1',
             issuedAt: '2026-05-03T00:00:01.000Z',
+            expiresAt: '2026-05-03T00:01:01.000Z',
           };
           res.setHeader('content-type', 'application/json');
           res.end(JSON.stringify(fixture.signedReceipt(receipt)));
@@ -287,7 +289,7 @@ describe('Domain signed dispatch', () => {
         description: 'Publish to the shared social domain.',
         pluginName: 'acme.social',
         params: {},
-        controlPolicy: { controllerRequired: false },
+        actionLeasePolicy: { required: false },
         protocol: {
           subject: 'resident',
           request: {
@@ -448,7 +450,7 @@ describe('Domain signed dispatch', () => {
         description: 'Domain write blocked by policy.',
         pluginName: 'acme.policy',
         params: {},
-        controlPolicy: { controllerRequired: false },
+        actionLeasePolicy: { required: false },
         protocol: {
           subject: 'resident',
           request: { type: 'acme.policy.write.request@v1' },
@@ -519,7 +521,7 @@ describe('Domain signed dispatch', () => {
       description: 'Local echo.',
       pluginName: 'acme.local',
       params: {},
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       protocol: {
         subject: 'resident',
         request: { type: 'acme.local.echo.request@v1' },
@@ -677,7 +679,7 @@ describe('Domain signed dispatch', () => {
       description: 'Domain write.',
       pluginName: 'acme.unattached',
       params: {},
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       protocol: {
         subject: 'resident',
         request: { type: 'acme.unattached.write.request@v1' },
@@ -797,7 +799,7 @@ describe('Domain signed dispatch', () => {
         description: 'Domain write.',
         pluginName: 'acme.failure',
         params: {},
-        controlPolicy: { controllerRequired: false },
+        actionLeasePolicy: { required: false },
         protocol: {
           subject: 'resident',
           request: { type: 'acme.failure.write.request@v1' },
@@ -884,6 +886,7 @@ describe('Domain signed dispatch', () => {
             envelopeHash: envelope.envelopeHash,
             eventRef: null,
             issuedAt: '2026-05-03T00:00:01.000Z',
+            expiresAt: '2026-05-03T00:01:01.000Z',
           };
           res.setHeader('content-type', 'application/json');
           res.end(JSON.stringify(fixture.signedReceipt(receipt)));

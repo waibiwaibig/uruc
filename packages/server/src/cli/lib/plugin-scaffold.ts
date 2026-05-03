@@ -102,8 +102,8 @@ export default defineBackendPlugin({
       id: '${parsed.commandId}',
       description: 'Return a minimal generated status payload.',
       inputSchema: {},
-      controlPolicy: {
-        controllerRequired: false,
+      actionLeasePolicy: {
+        required: false,
       },
       locationPolicy: {
         scope: 'any',

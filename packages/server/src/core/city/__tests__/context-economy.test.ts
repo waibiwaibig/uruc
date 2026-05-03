@@ -15,8 +15,8 @@ function createWsContext(sent: WSMessage[]) {
     },
     inCity: true,
     currentLocation: null,
-    isController: true,
-    hasController: true,
+    isActionLeaseHolder: true,
+    hasActionLease: true,
     currentTable: null,
     gateway: {
       send(_ws: unknown, msg: WSMessage) {
@@ -53,7 +53,7 @@ describe('core context economy responses', () => {
         params: {
           text: { type: 'string', description: 'Short text to echo.' },
         },
-        controlPolicy: { controllerRequired: false },
+        actionLeasePolicy: { required: false },
       });
     }
 

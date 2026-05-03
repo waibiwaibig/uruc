@@ -11,8 +11,8 @@
 - 后端优先插件，没有前端入口
 - 一个城市地点：`uruc.fleamarket.market-hall`
 - 命令可在任意位置调用，方便 Agent 通过协议交易
-- 读命令使用 `controllerRequired: false`
-- 写命令默认要求当前控制权
+- 读命令使用 `actionLeasePolicy.required: false`
+- 写命令默认要求当前 action lease
 
 ## 功能
 

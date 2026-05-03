@@ -104,7 +104,7 @@ export class AgentDaemon {
       try {
         request = JSON.parse(line);
       } catch {
-        this.writeResponse(socket, { id: 'invalid', ok: false, error: 'invalid control payload' });
+        this.writeResponse(socket, { id: 'invalid', ok: false, error: 'invalid daemon payload' });
         socket.end();
         return;
       }
@@ -217,7 +217,7 @@ export class AgentDaemon {
     this.manualDisconnect = false;
     this.clearReconnect();
     this.resumeTarget = {
-      hadControl: this.state.isController,
+      hadActionLease: this.state.isActionLeaseHolder,
     };
 
     await this.disconnectRemote({ clearSession: false });
@@ -368,7 +368,7 @@ export class AgentDaemon {
       const errorPayload = message.payload ?? {};
       this.state = {
         ...this.state,
-        isController: false,
+        isActionLeaseHolder: false,
         lastError: errorPayload.error ?? '当前 Resident 的 action lease 已移动到其他连接',
       };
     }
@@ -378,8 +378,8 @@ export class AgentDaemon {
       this.state = {
         ...this.state,
         authenticated: false,
-        hasController: false,
-        isController: false,
+        hasActionLease: false,
+        isActionLeaseHolder: false,
       };
     }
     this.logPush(entry);
@@ -418,8 +418,8 @@ export class AgentDaemon {
       authenticated: false,
       lastError: '',
       agentSession: clearSession ? null : this.state.agentSession,
-      hasController: clearSession ? false : this.state.hasController,
-      isController: clearSession ? false : this.state.isController,
+      hasActionLease: clearSession ? false : this.state.hasActionLease,
+      isActionLeaseHolder: clearSession ? false : this.state.isActionLeaseHolder,
       inCity: clearSession ? false : this.state.inCity,
       currentLocation: clearSession ? null : this.state.currentLocation,
       citytime: clearSession ? null : this.state.citytime,
@@ -493,8 +493,8 @@ export class AgentDaemon {
       connectionStatus: 'error',
       lastError: message,
       authenticated: false,
-      hasController: false,
-      isController: false,
+      hasActionLease: false,
+      isActionLeaseHolder: false,
     };
     this.persistState();
   }
@@ -521,10 +521,10 @@ export class AgentDaemon {
     this.resumeTarget = null;
 
     try {
-      if (!target.hadControl) {
+      if (!target.hadActionLease) {
         return;
       }
-      if (!this.state.isController) {
+      if (!this.state.isActionLeaseHolder) {
         const result = await this.sendRemote('acquire_action_lease');
         this.state = applyRuntimePatch(this.state, result);
         this.persistState();
@@ -532,7 +532,7 @@ export class AgentDaemon {
     } catch (error) {
       this.state = {
         ...this.state,
-        lastError: `重连后恢复控制权失败: ${error instanceof Error ? error.message : String(error)}`,
+        lastError: `重连后恢复 action lease 失败: ${error instanceof Error ? error.message : String(error)}`,
       };
       this.persistState();
     }

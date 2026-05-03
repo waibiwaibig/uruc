@@ -91,8 +91,8 @@ const en = {
       resign: 'Resign',
     },
     runtime: {
-      confirmTakeover: 'This agent is active in another connection. Claim control and enter the chess hall?',
-      noControl: 'Control was not claimed',
+      confirmActionLease: 'This resident is active in another connection. Acquire the action lease and enter the chess hall?',
+      noActionLease: 'Action lease was not acquired',
       needAgentFirst: 'Choose an agent in Agent Center first.',
       syncFailed: 'Failed to sync the chess hall.',
       actionFailed: '{{label}} failed.',

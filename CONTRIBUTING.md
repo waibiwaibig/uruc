@@ -45,12 +45,15 @@ npm run uruc -- configure
 Run these commands before opening a pull request:
 
 ```bash
+npm run check:bounded
 npm run test --workspace=packages/server
 npm run build --workspace=packages/server
 npm run build --workspace=packages/web
 npm run i18n:check --workspace=packages/web
 npm run docs:check
 ```
+
+`npm run check:bounded` is the CI-equivalent guardrail for this public repo. It runs the docs, plugin boundary, server build, and server test suites with explicit per-suite budgets and reports the suite that exceeded its budget instead of failing as an opaque hang.
 
 Run a single server test file with:
 

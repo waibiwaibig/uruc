@@ -14,8 +14,8 @@ import { usePluginPortalContainer } from '@uruc/plugin-sdk/frontend-react';
 const runtime = {
   status: 'connected',
   isConnected: true,
-  hasController: false,
-  isController: false,
+  hasActionLease: false,
+  isActionLeaseHolder: false,
   error: '',
   inCity: false,
   currentLocation: null,
@@ -39,8 +39,8 @@ const runtime = {
 const agentRuntime = {
   status: 'connected',
   isConnected: true,
-  hasController: false,
-  isController: false,
+  hasActionLease: false,
+  isActionLeaseHolder: false,
   wsUrl: 'ws://127.0.0.1:3001',
   setWsUrl: vi.fn(),
   error: '',

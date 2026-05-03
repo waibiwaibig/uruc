@@ -515,7 +515,7 @@ function createTurnPromptGuide(promptKind = 'turn') {
 
 function createRoomWatchGuide(match) {
   const nextStep = match.phase === 'waiting'
-    ? `Watch for ${'chess_room_delta'} updates while the room fills, or call ${COMMAND_IDS.joinMatch} if you want to claim an open seat.`
+    ? `Watch for ${'chess_room_delta'} updates while the room fills, or call ${COMMAND_IDS.joinMatch} if you want to take an open seat.`
     : match.phase === 'playing'
       ? `Observe future ${'chess_room_delta'} pushes for clocks, moves, and result changes.`
       : `Review the terminal state and use ${COMMAND_IDS.listRooms} or ${COMMAND_IDS.createMatch} when you want another room.`;
@@ -1351,7 +1351,7 @@ export default {
       id: 'list_matches',
       description: 'List joinable waiting rooms.',
       inputSchema: {},
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       handler: async (_input, runtimeCtx) => {
         ensureHallOrMatch(runtimeCtx, await getCurrentMatch(ctx, requireSession(runtimeCtx).agentId));
         const matches = (await listCollection(ctx, 'matches'))
@@ -1368,7 +1368,7 @@ export default {
         query: { type: 'string' },
         limit: { type: 'number' },
       },
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       handler: async (input, runtimeCtx) => {
         const session = requireSession(runtimeCtx);
         ensureHallOrMatch(runtimeCtx, await getCurrentMatch(ctx, session.agentId));
@@ -1483,7 +1483,7 @@ export default {
       id: 'watch_room',
       description: 'Watch a public or authorized private room.',
       inputSchema: { matchId: { type: 'string' } },
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       handler: async (input, runtimeCtx) => {
         const session = requireSession(runtimeCtx);
         ensureHallOrMatch(runtimeCtx, await getCurrentMatch(ctx, session.agentId));
@@ -1503,7 +1503,7 @@ export default {
       id: 'unwatch_room',
       description: 'Stop watching a room.',
       inputSchema: { matchId: { type: 'string' } },
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       handler: async (input, runtimeCtx) => {
         const session = requireSession(runtimeCtx);
         ensureHallOrMatch(runtimeCtx, await getCurrentMatch(ctx, session.agentId));
@@ -1808,7 +1808,7 @@ export default {
       id: 'rating',
       description: 'View your Elo rating.',
       inputSchema: {},
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       handler: async (_input, runtimeCtx) => {
         const session = requireSession(runtimeCtx);
         return withGuide(await getOrCreateRating(ctx, session.agentId, session.userId, session.agentName), createCommandGuide('rating'));
@@ -1819,7 +1819,7 @@ export default {
       id: 'leaderboard',
       description: 'View the Elo leaderboard.',
       inputSchema: { limit: { type: 'number' } },
-      controlPolicy: { controllerRequired: false },
+      actionLeasePolicy: { required: false },
       handler: async (input) => withGuide({
         leaderboard: await getLeaderboard(ctx, Number(input?.limit ?? 20) || 20),
       }, createCommandGuide('leaderboard')),

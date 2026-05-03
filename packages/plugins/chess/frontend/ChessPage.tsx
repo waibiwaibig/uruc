@@ -759,9 +759,9 @@ export function ChessPage() {
 
   const acquireActionLeaseIfNeeded = async () => {
     const snapshot = await runtime.refreshSessionState();
-    if (snapshot.isController) return snapshot;
-    if (snapshot.hasController && !window.confirm(t('chess.runtime.confirmTakeover'))) {
-      throw new Error(t('chess.runtime.noControl'));
+    if (snapshot.isActionLeaseHolder) return snapshot;
+    if (snapshot.hasActionLease && !window.confirm(t('chess.runtime.confirmActionLease'))) {
+      throw new Error(t('chess.runtime.noActionLease'));
     }
     return runtime.acquireActionLease();
   };
@@ -1002,7 +1002,7 @@ export function ChessPage() {
       const result = await runtime.sendCommand<T>(type, payload);
       return result;
     } catch (err) {
-      if (isPluginCommandError(err) && err.code === 'CONTROLLED_ELSEWHERE') {
+      if (isPluginCommandError(err) && err.code === 'ACTION_LEASE_HELD') {
         try {
           await acquireActionLeaseIfNeeded();
           const retry = await runtime.sendCommand<T>(type, payload);
