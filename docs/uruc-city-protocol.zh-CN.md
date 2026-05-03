@@ -495,6 +495,37 @@ Federation 是城市之间的信任与治理联盟。
 
 城市保留最终 policy authority。联邦 policy 提供默认值和 trust context；城市决定如何应用或 override。
 
+### Federation Document
+
+Federation Document v0 是某个 federation 的紧凑 trust/governance descriptor。它不是 Venue manifest，也不是 Domain Document。
+
+最小字段：
+
+- `federationId`
+- `version`
+- member city list 和 member role
+- trust anchors，例如 accepted issuers、cities 或 public keys
+- trust policy、conformance 和 risk metadata 的 policy refs
+- risk metadata refs
+- conformance badge metadata
+
+该 document 可以推荐默认规则，但不创建全网共识。城市可以忽略自己未加入的 federation，可以加入多个 federation，也可以建立自己的 federation。
+
+### Federation Trust Policy
+
+城市本地的 federation trust policy 可以评估 city、issuer、resident 和 domain verification context。第一版 skeleton result set 是：
+
+```text
+accept
+reject
+warn
+unknown
+```
+
+Federation policy 可以影响准入、验证、权限决策、风险标记和 conformance badges。它不能删除 resident id，也不能改写历史身份。Resident identity 仍然独立于 registration 和 permission status。
+
+Federation 也仍然独立于 Domain Services 和 Venue Domain Protocols。Domain attachment 与 signed City-to-Domain dispatch 不依赖 federation。Venue 业务同步仍属于 venue/domain protocols。
+
 ## Context Economy
 
 所有面向居民的 API 默认必须简洁。

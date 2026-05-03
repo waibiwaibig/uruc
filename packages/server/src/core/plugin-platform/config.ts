@@ -8,6 +8,7 @@ export const EMPTY_CITY_CONFIG: CityConfigFile = {
   approvedPublishers: [],
   sources: [],
   plugins: {},
+  federations: {},
 };
 
 export const EMPTY_CITY_LOCK: CityLockFile = {
@@ -29,6 +30,7 @@ export async function readCityConfig(configPath: string): Promise<CityConfigFile
       plugins: raw.plugins ?? {},
       sources: raw.sources ?? [],
       approvedPublishers: raw.approvedPublishers ?? [],
+      federations: raw.federations ?? {},
     };
   } catch (error: any) {
     if (error?.code === 'ENOENT') {

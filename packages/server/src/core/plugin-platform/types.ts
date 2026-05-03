@@ -65,12 +65,29 @@ export interface CityPluginSpec {
   config?: Record<string, unknown>;
 }
 
+export interface CityFederationTrustPolicySpec {
+  mode?: 'observe' | 'enforce';
+  trustedIssuerIds?: string[];
+  rejectedIssuerIds?: string[];
+  warnRiskLevels?: Array<'low' | 'medium' | 'high' | 'unknown'>;
+  rejectRiskLevels?: Array<'low' | 'medium' | 'high' | 'unknown'>;
+  requiredConformanceBadges?: string[];
+  policyRefs?: string[];
+}
+
+export interface CityFederationSpec {
+  federationId: string;
+  document?: string;
+  trustPolicy?: CityFederationTrustPolicySpec;
+}
+
 export interface CityConfigFile {
   apiVersion: 2;
   approvedPublishers: string[];
   pluginStoreDir?: string;
   sources: CityPluginSource[];
   plugins: Record<string, CityPluginSpec>;
+  federations?: Record<string, CityFederationSpec>;
 }
 
 export interface LockedPluginHistoryEntry {
