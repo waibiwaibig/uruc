@@ -38,6 +38,7 @@ async function createPluginPackage(root: string, options: {
     displayName?: string;
     description?: string;
     category?: string;
+    topology?: Record<string, unknown>;
   };
   body?: string;
 }): Promise<void> {
@@ -780,6 +781,10 @@ export default {
       displayName: 'Bazaar',
       description: 'Trading venue module.',
       category: 'market',
+      topology: {
+        declaration: 'local',
+        mode: 'local',
+      },
     });
 
     const hooks = new HookRegistry();
@@ -797,6 +802,420 @@ export default {
     });
 
     await host.stopAll();
+  });
+
+  it('exposes local venue topology metadata in the lock and runtime diagnostics', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-venue-topology-local-'));
+    tempDirs.push(tempRoot);
+
+    const pluginPath = path.join(tempRoot, 'plugins', 'local-topology');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'acme.local',
+      packageName: '@acme/plugin-local',
+      version: '1.0.0',
+      publisher: 'acme',
+      venue: {
+        moduleId: 'acme.local',
+        namespace: 'acme.local',
+        topology: { mode: 'local' },
+      },
+    });
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.local': {
+          pluginId: 'acme.local',
+          packageName: '@acme/plugin-local',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginPath,
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await host.syncLockFile();
+    const lock = await readCityLock(lockPath);
+    expect(lock.plugins['acme.local']?.venue?.topology).toEqual({
+      declaration: 'local',
+      mode: 'local',
+    });
+
+    const hooks = new HookRegistry();
+    const services = new ServiceRegistry();
+    const db = createDb(':memory:');
+    await host.startAll({ db, hooks, services });
+
+    expect(host.listPlugins().find((item) => item.name === 'acme.local')?.venue?.topology).toEqual({
+      declaration: 'local',
+      mode: 'local',
+    });
+    expect(host.getPluginDiagnostics().find((item) => item.pluginId === 'acme.local')?.venue?.topology).toEqual({
+      declaration: 'local',
+      mode: 'local',
+    });
+
+    await host.stopAll();
+  });
+
+  it('lets city config select domain mode for a domain-optional venue topology declaration', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-venue-topology-domain-'));
+    tempDirs.push(tempRoot);
+
+    const pluginPath = path.join(tempRoot, 'plugins', 'domain-topology');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'acme.domain',
+      packageName: '@acme/plugin-domain',
+      version: '1.0.0',
+      publisher: 'acme',
+      venue: {
+        moduleId: 'acme.domain',
+        namespace: 'acme.domain',
+        topology: {
+          mode: 'domain_optional',
+          domain: {
+            endpoint: 'https://domain.example/acme',
+            document: 'https://domain.example/.well-known/uruc-domain.json',
+          },
+        },
+      },
+    });
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.domain': {
+          pluginId: 'acme.domain',
+          packageName: '@acme/plugin-domain',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginPath,
+          topology: { mode: 'domain' },
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await host.syncLockFile();
+    const lock = await readCityLock(lockPath);
+    expect(lock.plugins['acme.domain']?.venue?.topology).toEqual({
+      declaration: 'domain_optional',
+      mode: 'domain',
+      domain: {
+        endpoint: 'https://domain.example/acme',
+        document: 'https://domain.example/.well-known/uruc-domain.json',
+      },
+    });
+
+    const hooks = new HookRegistry();
+    const services = new ServiceRegistry();
+    const db = createDb(':memory:');
+    await host.startAll({ db, hooks, services });
+
+    expect(host.listPlugins().find((item) => item.name === 'acme.domain')?.venue?.topology).toEqual({
+      declaration: 'domain_optional',
+      mode: 'domain',
+      domain: {
+        endpoint: 'https://domain.example/acme',
+        document: 'https://domain.example/.well-known/uruc-domain.json',
+      },
+    });
+    expect(host.getPluginDiagnostics().find((item) => item.pluginId === 'acme.domain')?.venue?.topology).toEqual({
+      declaration: 'domain_optional',
+      mode: 'domain',
+      domain: {
+        endpoint: 'https://domain.example/acme',
+        document: 'https://domain.example/.well-known/uruc-domain.json',
+      },
+    });
+
+    await host.stopAll();
+  });
+
+  it('does not let city config override venue domain metadata from the package manifest', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-venue-topology-domain-override-'));
+    tempDirs.push(tempRoot);
+
+    const pluginPath = path.join(tempRoot, 'plugins', 'domain-topology-override');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'acme.domain-override',
+      packageName: '@acme/plugin-domain-override',
+      version: '1.0.0',
+      publisher: 'acme',
+      venue: {
+        moduleId: 'acme.domain-override',
+        namespace: 'acme.domain-override',
+        topology: {
+          mode: 'domain_optional',
+          domain: {
+            endpoint: 'https://domain.example/acme',
+            document: 'https://domain.example/.well-known/uruc-domain.json',
+          },
+        },
+      },
+    });
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.domain-override': {
+          pluginId: 'acme.domain-override',
+          packageName: '@acme/plugin-domain-override',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginPath,
+          topology: {
+            mode: 'domain',
+            domain: {
+              endpoint: 'https://city-config.example/override',
+              document: 'https://city-config.example/override-document.json',
+            },
+          } as { mode: 'domain' },
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await host.syncLockFile();
+    const lock = await readCityLock(lockPath);
+    expect(lock.plugins['acme.domain-override']?.venue?.topology).toEqual({
+      declaration: 'domain_optional',
+      mode: 'domain',
+      domain: {
+        endpoint: 'https://domain.example/acme',
+        document: 'https://domain.example/.well-known/uruc-domain.json',
+      },
+    });
+
+    const hooks = new HookRegistry();
+    const services = new ServiceRegistry();
+    const db = createDb(':memory:');
+    await host.startAll({ db, hooks, services });
+
+    expect(host.listPlugins().find((item) => item.name === 'acme.domain-override')?.venue?.topology).toEqual({
+      declaration: 'domain_optional',
+      mode: 'domain',
+      domain: {
+        endpoint: 'https://domain.example/acme',
+        document: 'https://domain.example/.well-known/uruc-domain.json',
+      },
+    });
+    expect(host.getPluginDiagnostics().find((item) => item.pluginId === 'acme.domain-override')?.venue?.topology).toEqual({
+      declaration: 'domain_optional',
+      mode: 'domain',
+      domain: {
+        endpoint: 'https://domain.example/acme',
+        document: 'https://domain.example/.well-known/uruc-domain.json',
+      },
+    });
+
+    await host.stopAll();
+  });
+
+  it('keeps a domain-optional venue local when city config selects local mode', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-venue-topology-domain-local-'));
+    tempDirs.push(tempRoot);
+
+    const pluginPath = path.join(tempRoot, 'plugins', 'domain-local-topology');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'acme.domain-local',
+      packageName: '@acme/plugin-domain-local',
+      version: '1.0.0',
+      publisher: 'acme',
+      venue: {
+        moduleId: 'acme.domain-local',
+        namespace: 'acme.domain-local',
+        topology: {
+          mode: 'domain_optional',
+          domain: { endpoint: 'http://127.0.0.1:9/no-network-call' },
+        },
+      },
+    });
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.domain-local': {
+          pluginId: 'acme.domain-local',
+          packageName: '@acme/plugin-domain-local',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginPath,
+          topology: { mode: 'local' },
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await host.syncLockFile();
+    const lock = await readCityLock(lockPath);
+    expect(lock.plugins['acme.domain-local']?.venue?.topology).toEqual({
+      declaration: 'domain_optional',
+      mode: 'local',
+    });
+
+    const hooks = new HookRegistry();
+    const services = new ServiceRegistry();
+    const db = createDb(':memory:');
+    await host.startAll({ db, hooks, services });
+    expect(host.listPlugins().find((item) => item.name === 'acme.domain-local')?.state).toBe('active');
+
+    await host.stopAll();
+  });
+
+  it('fails with a stable diagnostic when domain-required topology has no city config', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-venue-topology-required-'));
+    tempDirs.push(tempRoot);
+
+    const pluginPath = path.join(tempRoot, 'plugins', 'required-topology');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'acme.required',
+      packageName: '@acme/plugin-required',
+      version: '1.0.0',
+      publisher: 'acme',
+      venue: {
+        moduleId: 'acme.required',
+        namespace: 'acme.required',
+        topology: {
+          mode: 'domain_required',
+          domain: { endpoint: 'https://domain.example/acme-required' },
+        },
+      },
+    });
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.required': {
+          pluginId: 'acme.required',
+          packageName: '@acme/plugin-required',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginPath,
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await host.syncLockFile();
+    const lock = await readCityLock(lockPath);
+    expect(lock.plugins['acme.required']).toBeUndefined();
+    expect(host.getPluginDiagnostics().find((item) => item.pluginId === 'acme.required')).toMatchObject({
+      state: 'failed',
+      lastError: 'Plugin acme.required requires domain topology config',
+    });
+  });
+
+  it('fails with a stable diagnostic when city config selects domain for a local-only venue', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-venue-topology-unsupported-'));
+    tempDirs.push(tempRoot);
+
+    const pluginPath = path.join(tempRoot, 'plugins', 'unsupported-topology');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'acme.unsupported',
+      packageName: '@acme/plugin-unsupported',
+      version: '1.0.0',
+      publisher: 'acme',
+      venue: {
+        moduleId: 'acme.unsupported',
+        namespace: 'acme.unsupported',
+        topology: { mode: 'local' },
+      },
+    });
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.unsupported': {
+          pluginId: 'acme.unsupported',
+          packageName: '@acme/plugin-unsupported',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginPath,
+          topology: { mode: 'domain' },
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await host.syncLockFile();
+    expect(host.getPluginDiagnostics().find((item) => item.pluginId === 'acme.unsupported')).toMatchObject({
+      state: 'failed',
+      lastError: 'Plugin acme.unsupported does not support domain topology',
+    });
   });
 
   it('keeps resolving healthy plugins when one configured plugin cannot be locked', async () => {

@@ -677,7 +677,7 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
           packageName: resolved.expectedPackageName,
           version: resolved.expectedVersion,
           publisher: runtimeManifest.urucPlugin.publisher,
-          ...(runtimeManifest.urucPlugin.venue ? { venue: runtimeManifest.urucPlugin.venue } : {}),
+          venue: resolved.venue,
           revision,
           sourcePath: resolved.sourcePath,
           packageRoot,

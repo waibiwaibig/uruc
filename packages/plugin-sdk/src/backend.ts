@@ -27,12 +27,24 @@ export const pluginHealthcheckSchema = z.object({
   timeoutMs: z.number().int().positive().optional(),
 });
 
+export const venueTopologyDeclarationSchema = z.enum(['local', 'domain_optional', 'domain_required']);
+export const venueRuntimeTopologyModeSchema = z.enum(['local', 'domain']);
+
+export const venueTopologySchema = z.object({
+  mode: venueTopologyDeclarationSchema,
+  domain: z.object({
+    endpoint: z.string().min(1).optional(),
+    document: z.string().min(1).optional(),
+  }).optional(),
+});
+
 export const venueModuleMetadataSchema = z.object({
   moduleId: z.string().min(1).optional(),
   namespace: z.string().min(1).optional(),
   displayName: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
   category: z.string().min(1).optional(),
+  topology: venueTopologySchema.optional(),
 });
 
 export const pluginMigrationSchema = z.object({
@@ -60,6 +72,9 @@ export const backendPluginManifestSchema = z.object({
 
 export type BackendPluginManifest = z.infer<typeof backendPluginManifestSchema>;
 export type VenueModuleMetadata = z.infer<typeof venueModuleMetadataSchema>;
+export type VenueTopologyDeclaration = z.infer<typeof venueTopologyDeclarationSchema>;
+export type VenueRuntimeTopologyMode = z.infer<typeof venueRuntimeTopologyModeSchema>;
+export type VenueTopology = z.infer<typeof venueTopologySchema>;
 
 export const authPolicySchema = z.enum(['agent', 'user', 'admin']);
 export const locationScopeSchema = z.enum(['any', 'outside', 'city', 'in-city', 'location']);

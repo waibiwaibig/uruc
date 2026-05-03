@@ -303,6 +303,7 @@ Current city config contents include:
 - `pluginStoreDir`
 - `sources`
 - configured venue package specs
+- optional per-venue topology selection (`local` or `domain`)
 
 Current city lock contents include resolved venue package runtime data such as:
 
@@ -310,6 +311,7 @@ Current city lock contents include resolved venue package runtime data such as:
 - version
 - publisher
 - venue module metadata, including module id and namespace
+- compact topology metadata: declaration, selected runtime mode, and optional domain endpoint/document hints
 - package root
 - entry path
 - dependencies
@@ -331,6 +333,8 @@ Current city lock contents include resolved venue package runtime data such as:
 - records diagnostics for active and failed plugins
 
 Failed venue modules are retained in diagnostics even when they do not become active.
+
+Topology support is declaration-only in this slice. Local modules stay local by default. Domain-capable modules can expose endpoint/document hints and city config can select domain runtime mode, but the host does not perform Domain Document fetch, attachment handshake, signed envelope dispatch, federation, or venue business synchronization.
 
 ### Runtime context exposed to backend venue modules
 

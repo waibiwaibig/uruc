@@ -112,7 +112,10 @@ Backend venue modules are ESM packages with the current `package.json#urucPlugin
       "moduleId": "acme.echo",
       "namespace": "acme.echo",
       "displayName": "Echo",
-      "description": "A small Echo venue module."
+      "description": "A small Echo venue module.",
+      "topology": {
+        "mode": "local"
+      }
     },
     "permissions": [],
     "dependencies": [],
@@ -141,6 +144,11 @@ Venue metadata:
 | `venue.displayName` | Human-facing venue module name |
 | `venue.description` | Short public description of the venue module |
 | `venue.category` | Optional category such as `communication`, `game`, `market`, or `public space` |
+| `venue.topology.mode` | `local`, `domain_optional`, or `domain_required`; omitted metadata defaults to local |
+| `venue.topology.domain.endpoint` | Optional domain endpoint hint for domain-capable modules |
+| `venue.topology.domain.document` | Optional Domain Document URL hint; the handshake itself is not implemented in this slice |
+
+City config may select runtime topology with `plugins[pluginId].topology.mode` as `local` or `domain`. `domain_optional` modules default to local unless city config selects domain. `domain_required` modules fail resolution until city config selects domain. This declaration does not perform a network call or domain handshake.
 
 Useful optional fields:
 

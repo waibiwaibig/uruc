@@ -7,6 +7,8 @@ import type {
   PluginFrontendBuildManifest,
   PluginPackageManifest,
   VenueModuleManifest,
+  VenueTopologyDeclaration,
+  VenueTopologyMetadata,
 } from './types.js';
 
 export type PluginPackageContractMode = 'source' | 'distribution';
@@ -34,6 +36,38 @@ function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? value : undefined;
 }
 
+function normalizeTopology(raw: unknown): VenueTopologyMetadata | undefined {
+  if (raw === undefined) return undefined;
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Invalid urucPlugin.venue.topology');
+  }
+
+  const value = raw as Record<string, unknown>;
+  if (value.mode !== 'local' && value.mode !== 'domain_optional' && value.mode !== 'domain_required') {
+    throw new Error('Invalid urucPlugin.venue.topology.mode');
+  }
+
+  const domainValue = value.domain;
+  if (domainValue !== undefined && (!domainValue || typeof domainValue !== 'object')) {
+    throw new Error('Invalid urucPlugin.venue.topology.domain');
+  }
+  const domain = (domainValue ?? {}) as Record<string, unknown>;
+  const endpoint = optionalString(domain.endpoint);
+  const document = optionalString(domain.document);
+  const declaration = value.mode as VenueTopologyDeclaration;
+  const metadata: VenueTopologyMetadata = {
+    declaration,
+    mode: declaration === 'domain_required' ? 'domain' : 'local',
+  };
+  if (endpoint || document) {
+    metadata.domain = {
+      ...(endpoint ? { endpoint } : {}),
+      ...(document ? { document } : {}),
+    };
+  }
+  return metadata;
+}
+
 function normalizeVenueMetadata(
   raw: unknown,
   defaults: { pluginId: string; displayName: string; description?: string },
@@ -50,9 +84,11 @@ function normalizeVenueMetadata(
   const displayName = optionalString(value.displayName) ?? defaults.displayName;
   const description = optionalString(value.description) ?? defaults.description;
   const category = optionalString(value.category);
+  const topology = normalizeTopology(value.topology);
   if (displayName) metadata.displayName = displayName;
   if (description) metadata.description = description;
   if (category) metadata.category = category;
+  if (topology) metadata.topology = topology;
   return metadata;
 }
 
