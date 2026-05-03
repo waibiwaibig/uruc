@@ -260,6 +260,53 @@ export class AuthService implements IAuthService {
             name,
             token,
             isShadow: false,
+            registrationType: 'regular' as const,
+            accountablePrincipalId: null,
+            trustMode: 'confirm' as const,
+            allowedLocations: [],
+            isOnline: false,
+            createdAt: now,
+        };
+    }
+
+    async createPrincipalBackedResident(input: { accountablePrincipalId: string; name: string }) {
+        if (!input.accountablePrincipalId || typeof input.accountablePrincipalId !== 'string') {
+            throw new AppError({ status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: 'accountablePrincipalId is required' });
+        }
+        if (!input.name || typeof input.name !== 'string') {
+            throw new AppError({ status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: 'name is required' });
+        }
+
+        const principal = await this.requireRegularResident(input.accountablePrincipalId);
+        const id = nanoid();
+        const token = `br_${nanoid(32)}`;
+        const now = new Date();
+
+        await this.db.insert(schema.agents).values({
+            id,
+            userId: principal.userId,
+            name: input.name,
+            token,
+            trustMode: 'confirm',
+            allowedLocations: '[]',
+            isShadow: false,
+            isOnline: false,
+            createdAt: now,
+        });
+        await this.db.insert(schema.principalBackedResidents).values({
+            residentId: id,
+            accountablePrincipalId: principal.id,
+            createdAt: now,
+        });
+
+        return {
+            id,
+            userId: principal.userId,
+            name: input.name,
+            token,
+            isShadow: false,
+            registrationType: 'principal_backed' as const,
+            accountablePrincipalId: principal.id,
             trustMode: 'confirm' as const,
             allowedLocations: [],
             isOnline: false,
@@ -307,6 +354,8 @@ export class AuthService implements IAuthService {
             name: user.username,
             token,
             isShadow: true,
+            registrationType: 'regular' as const,
+            accountablePrincipalId: null,
             trustMode: 'full' as const,
             allowedLocations: [],
             isOnline: false,
@@ -320,7 +369,7 @@ export class AuthService implements IAuthService {
             .from(schema.agents)
             .where(eq(schema.agents.token, token));
         if (!agent) throw new AppError({ status: 401, code: 'INVALID_TOKEN', error: 'Invalid agent token' });
-        return this.createAgentSession(this.mapAgent(agent));
+        return this.createAgentSession(await this.mapAgentWithRegistration(agent));
     }
 
     async authenticateShadowAgent(userId: string): Promise<AgentSession> {
@@ -333,14 +382,14 @@ export class AuthService implements IAuthService {
     async getAgentsByUser(userId: string) {
         await this.getOrCreateShadowAgent(userId);
         const rows = await this.db.select().from(schema.agents).where(eq(schema.agents.userId, userId));
-        return rows
-            .map((row) => this.mapAgent(row))
-            .sort((a, b) => Number(b.isShadow) - Number(a.isShadow) || new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+        const agents = await Promise.all(rows.map((row) => this.mapAgentWithRegistration(row)));
+        return agents.sort((a, b) => Number(b.isShadow) - Number(a.isShadow) || new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
     }
 
     async deleteAgent(agentId: string, userId: string) {
         const agent = await this.requireOwnedAgent(agentId, userId);
         if (agent.isShadow) throw new AppError({ status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: 'Shadow agents cannot be deleted' });
+        await this.db.delete(schema.principalBackedResidents).where(eq(schema.principalBackedResidents.residentId, agentId));
         await this.db.delete(schema.agents).where(eq(schema.agents.id, agentId));
     }
 
@@ -403,6 +452,20 @@ export class AuthService implements IAuthService {
         return agent;
     }
 
+    private async requireRegularResident(agentId: string) {
+        const [agent] = await this.db.select().from(schema.agents).where(eq(schema.agents.id, agentId));
+        if (!agent) throw new AppError({ status: 404, code: CORE_ERROR_CODES.NOT_FOUND, error: 'Accountable principal not found' });
+
+        const [backing] = await this.db.select()
+            .from(schema.principalBackedResidents)
+            .where(eq(schema.principalBackedResidents.residentId, agentId));
+        if (backing) {
+            throw new AppError({ status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: 'accountablePrincipalId must reference a regular resident' });
+        }
+
+        return this.mapAgent(agent);
+    }
+
     private async upsertPendingRegistration(email: string, code: string, expiresAt: Date, now: Date) {
         const [existingPending] = await this.db.select()
             .from(schema.pendingRegistrations).where(eq(schema.pendingRegistrations.email, email));
@@ -454,8 +517,24 @@ export class AuthService implements IAuthService {
         return {
             ...row,
             isShadow: Boolean(row.isShadow),
+            registrationType: 'regular',
+            accountablePrincipalId: null,
             trustMode: row.trustMode as 'confirm' | 'full',
             allowedLocations: parseAllowedLocations(row.allowedLocations),
+        };
+    }
+
+    private async mapAgentWithRegistration(row: typeof schema.agents.$inferSelect): Promise<Agent> {
+        const agent = this.mapAgent(row);
+        const [backing] = await this.db.select()
+            .from(schema.principalBackedResidents)
+            .where(eq(schema.principalBackedResidents.residentId, row.id));
+        if (!backing) return agent;
+
+        return {
+            ...agent,
+            registrationType: 'principal_backed',
+            accountablePrincipalId: backing.accountablePrincipalId,
         };
     }
 
@@ -464,6 +543,8 @@ export class AuthService implements IAuthService {
             agentId: agent.id,
             userId: agent.userId,
             agentName: agent.name,
+            registrationType: agent.registrationType,
+            accountablePrincipalId: agent.accountablePrincipalId,
             trustMode: agent.trustMode ?? 'confirm',
             allowedLocations: agent.allowedLocations ?? [],
             role: 'agent',

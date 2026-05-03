@@ -2,7 +2,7 @@
  * Core Database Schema — only tables owned by core modules.
  *
  * Plugin tables are defined in each plugin's own schema file.
- * Core tables: users, pending_registrations, oauth_accounts, agents, permission_credentials, action_logs
+ * Core tables: users, pending_registrations, oauth_accounts, agents, permission_credentials, principal_backed_residents, action_logs
  */
 
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
@@ -66,6 +66,12 @@ export const permissionCredentials = sqliteTable('permission_credentials', {
   issuedAt: integer('issued_at', { mode: 'timestamp' }).notNull(),
   validFrom: integer('valid_from', { mode: 'timestamp' }).notNull(),
   validUntil: integer('valid_until', { mode: 'timestamp' }),
+});
+
+export const principalBackedResidents = sqliteTable('principal_backed_residents', {
+  residentId: text('resident_id').primaryKey().references(() => agents.id),
+  accountablePrincipalId: text('accountable_principal_id').notNull().references(() => agents.id),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
 // === core/logger ===

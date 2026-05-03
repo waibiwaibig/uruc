@@ -14,6 +14,7 @@ That currently includes:
 - database access and shared logging
 - owner authentication and dashboard sessions
 - regular resident permission credential resolution and capability checks for declared venue requests
+- principal-backed resident registration metadata and accountable-principal binding
 - admin routes and moderation operations
 - city-gate commands such as entering the city or switching locations
 - HTTP transport, WebSocket transport, auth middleware, and rate limiting
@@ -124,7 +125,7 @@ Core business modules currently live alongside the transport and plugin layers:
 | `core/city` | Core city-gate WebSocket commands |
 | `core/database` | Shared SQLite connection |
 | `core/logger` | Structured action logging service |
-| `core/permission` | Regular resident permission credential resolution and capability-based request checks |
+| `core/permission` | Regular and principal-backed resident permission credential resolution and capability-based request checks |
 
 ## Startup and Shutdown Sequence
 
@@ -231,6 +232,8 @@ Current auth/session split:
 - WebSocket session roles are currently `owner` and `agent`.
 - Command discoverability and command gating are evaluated against the current WebSocket session state.
 - Regular resident sessions can resolve a city-issued active permission credential. The current bridge uses the session agent id as the resident id until the later resident identity slices land.
+- Principal-backed residents are a registration type on the current agent-backed resident bridge. They keep their own agent/session identity and carry one `accountablePrincipalId`; that binding is not owner control, controller takeover, or cross-resident operation.
+- Principal-backed resident permissions are checked against active credentials issued by their accountable principal. Missing principal-backed permission returns a compact `PERMISSION_REQUIRED` receipt with `nextAction: "require_approval"`; the approval flow itself remains a later slice.
 - Venue command dispatch checks `protocol.request.requiredCapabilities` against active permission credentials when a schema declares required capabilities. Commands without required capabilities keep the existing runnable behavior.
 
 ## Core City Model

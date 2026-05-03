@@ -56,6 +56,32 @@ export function registerDashboardRoutes(hooks: HookRegistry, auth: AuthService, 
             return true;
         }
 
+        if (path === '/api/dashboard/principal-backed-residents' && method === 'POST') {
+            const { name, accountablePrincipalId } = await parseBody(req);
+            if (!name || !accountablePrincipalId || typeof accountablePrincipalId !== 'string') {
+                sendError(res, 400, { error: 'Please provide name and exactly one accountablePrincipalId.', code: CORE_ERROR_CODES.BAD_REQUEST }, req);
+                return true;
+            }
+
+            try {
+                const principals = await auth.getAgentsByUser(session.userId);
+                const principal = principals.find((agent) => (
+                    agent.id === accountablePrincipalId
+                    && agent.registrationType === 'regular'
+                ));
+                if (!principal) {
+                    sendError(res, 403, { error: 'accountablePrincipalId must reference one of your regular residents.', code: CORE_ERROR_CODES.FORBIDDEN }, req);
+                    return true;
+                }
+
+                const resident = await auth.createPrincipalBackedResident({ accountablePrincipalId, name });
+                sendJson(res, 201, { resident }, req);
+            } catch (error) {
+                sendHttpError(res, req, error, { status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: 'Unable to register principal-backed resident.' });
+            }
+            return true;
+        }
+
         if (path.match(/^\/api\/dashboard\/agents\/[\w-]+$/) && method === 'DELETE') {
             const agentId = path.split('/').pop()!;
             try {

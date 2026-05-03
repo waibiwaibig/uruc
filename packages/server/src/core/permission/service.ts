@@ -62,11 +62,47 @@ export class PermissionCredentialService {
     validFrom?: Date;
     validUntil?: Date | null;
   }): Promise<PermissionCredential> {
+    return this.issueCredential({
+      issuerId: CITY_ISSUER_ID,
+      residentId: input.residentId,
+      capabilities: input.capabilities,
+      validFrom: input.validFrom,
+      validUntil: input.validUntil,
+    });
+  }
+
+  async issuePrincipalCredential(input: {
+    issuerId: string;
+    residentId: string;
+    capabilities: string[];
+    validFrom?: Date;
+    validUntil?: Date | null;
+  }): Promise<PermissionCredential> {
+    const [backing] = await this.db.select()
+      .from(schema.principalBackedResidents)
+      .where(and(
+        eq(schema.principalBackedResidents.residentId, input.residentId),
+        eq(schema.principalBackedResidents.accountablePrincipalId, input.issuerId),
+      ));
+    if (!backing) {
+      throw new Error('issuerId must be the resident accountablePrincipalId');
+    }
+
+    return this.issueCredential(input);
+  }
+
+  private async issueCredential(input: {
+    issuerId: string;
+    residentId: string;
+    capabilities: string[];
+    validFrom?: Date;
+    validUntil?: Date | null;
+  }): Promise<PermissionCredential> {
     const now = new Date();
     const credential = {
       id: `perm_${nanoid(16)}`,
       residentId: input.residentId,
-      issuerId: CITY_ISSUER_ID,
+      issuerId: input.issuerId,
       status: 'active' as const,
       capabilities: normalizeCapabilities(input.capabilities),
       issuedAt: now,
@@ -94,7 +130,9 @@ export class PermissionCredentialService {
       return { status: 'allow', credentials: [] };
     }
 
-    await this.resolveActiveCityIssuedCredential(session);
+    if (session.registrationType !== 'principal_backed') {
+      await this.resolveActiveCityIssuedCredential(session);
+    }
     const credentials = await this.resolveActiveCredentials(session);
     const grantedCapabilities = new Set(credentials.flatMap((credential) => credential.capabilities));
     const missingCapabilities = requiredCapabilities.filter((capability) => !grantedCapabilities.has(capability));
@@ -103,17 +141,23 @@ export class PermissionCredentialService {
       return { status: 'allow', credentials };
     }
 
+    const isPrincipalBacked = session.registrationType === 'principal_backed';
     return {
       status: 'require_approval',
       missingCapabilities,
       receipt: {
-        error: 'Permission required for this request.',
-        text: 'Permission required for this request.',
+        error: isPrincipalBacked
+          ? 'Principal-backed permission required for this request.'
+          : 'Permission required for this request.',
+        text: isPrincipalBacked
+          ? 'Principal-backed permission required for this request.'
+          : 'Permission required for this request.',
         code: 'PERMISSION_REQUIRED',
-        action: 'request_permission',
-        nextAction: 'request_permission',
+        action: isPrincipalBacked ? 'require_approval' : 'request_permission',
+        nextAction: isPrincipalBacked ? 'require_approval' : 'request_permission',
         details: {
           requestType: schema.protocol?.request?.type ?? schema.type,
+          ...(isPrincipalBacked ? { accountablePrincipalId: session.accountablePrincipalId } : {}),
           requiredCapabilities,
           missingCapabilities,
         },
@@ -132,6 +176,10 @@ export class PermissionCredentialService {
 
     return rows
       .map((row) => this.mapCredential(row))
+      .filter((credential) => {
+        if (session.registrationType !== 'principal_backed') return true;
+        return credential.issuerId === session.accountablePrincipalId;
+      })
       .filter((credential) => credential.validFrom.getTime() <= now)
       .filter((credential) => !credential.validUntil || credential.validUntil.getTime() > now);
   }
