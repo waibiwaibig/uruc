@@ -38,6 +38,13 @@
     "publisher": "uruc",
     "displayName": "Chess Hall",
     "description": "Chess venue plugin with matches, ratings, and spectator support.",
+    "venue": {
+      "moduleId": "uruc.chess",
+      "namespace": "uruc.chess",
+      "displayName": "Chess Hall",
+      "description": "Chess venue module with matches, ratings, and spectator support.",
+      "category": "game"
+    },
     "permissions": [],
     "dependencies": [],
     "activation": [

@@ -443,23 +443,23 @@ export function WorkspaceLayout({
     await runtime.refreshLocations();
   };
 
-  const claimWorkspaceControl = async () => {
+  const acquireWorkspaceActionLease = async () => {
     try {
       await ensureRuntimeReady();
-      await runtime.claimControl();
-      notify({ type: 'success', message: 'Control claimed for this workspace session.' });
+      await runtime.acquireActionLease();
+      notify({ type: 'success', message: 'Action lease acquired for this workspace session.' });
       recordActivity({
         category: 'system',
-        title: 'Control claimed',
-        summary: 'This browser session is now the active runtime controller.',
+        title: 'Action lease acquired',
+        summary: 'This browser session now holds the same-resident action lease.',
         tone: 'success',
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to claim control.';
+      const message = error instanceof Error ? error.message : 'Unable to acquire action lease.';
       notify({ type: 'error', message });
       recordActivity({
         category: 'system',
-        title: 'Control claim failed',
+        title: 'Action lease acquisition failed',
         summary: message,
         tone: 'error',
       });
@@ -502,7 +502,7 @@ export function WorkspaceLayout({
 
       if (destination.locationId) {
         if (!runtime.isController) {
-          await runtime.claimControl();
+          await runtime.acquireActionLease();
         }
         if (!runtime.inCity) {
           await runtime.enterCity();
@@ -762,7 +762,7 @@ export function WorkspaceLayout({
                 session={session}
                 onSignOut={() => logout()}
                 onOpenSettings={() => navigate('/workspace/settings')}
-                onClaimControl={claimWorkspaceControl}
+                onClaimControl={acquireWorkspaceActionLease}
                 onClose={() => setIsDesktopSidebarOpen(false)}
               />
             </div>
@@ -813,7 +813,7 @@ export function WorkspaceLayout({
                   session={session}
                   onSignOut={() => logout()}
                   onOpenSettings={() => navigate('/workspace/settings')}
-                  onClaimControl={claimWorkspaceControl}
+                  onClaimControl={acquireWorkspaceActionLease}
                   onClose={() => setIsMobileMenuOpen(false)}
                 />
               </div>

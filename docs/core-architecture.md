@@ -7,7 +7,7 @@ If this document and the implementation diverge, the code is the source of truth
 
 ## Architectural Scope
 
-The core runtime owns the capabilities that every city deployment needs, regardless of which plugins are enabled.
+The core runtime owns the capabilities that every city deployment needs, regardless of which venue modules are enabled.
 
 That currently includes:
 
@@ -17,9 +17,9 @@ That currently includes:
 - city-gate commands such as entering the city or switching locations
 - HTTP transport, WebSocket transport, auth middleware, and rate limiting
 - shared registries for services, commands, routes, hooks, and locations
-- plugin lock loading, backend plugin activation, diagnostics, and teardown
+- venue module lock loading, backend package activation, diagnostics, and teardown
 
-The core runtime intentionally does not own plugin-specific venue rules, gameplay loops, or other plugin business logic.
+The core runtime intentionally does not own venue-specific rules, gameplay loops, or other venue module business logic.
 
 ## Runtime Layers
 
@@ -33,7 +33,7 @@ The core runtime intentionally does not own plugin-specific venue rules, gamepla
 - creates the shared registries
 - registers core services
 - registers core routes and city commands
-- creates the plugin host and starts plugins from the city lock
+- creates the venue package host and starts locked venue modules
 - seeds the admin account
 - starts HTTP and WebSocket servers
 - installs graceful shutdown handlers
@@ -60,35 +60,35 @@ What it does not currently do:
 - load plugin modules from disk
 - manage city config or city lock files
 
-### Plugin runtime and lifecycle: `core/plugin-platform`
+### Venue module runtime and package lifecycle: `core/plugin-platform`
 
-`core/plugin-platform` is the actual plugin platform.
+`core/plugin-platform` is the current package host for Venue Modules. The implementation still uses plugin package mechanics and file names; the public architecture role is venue module loading.
 
 It owns:
 
 - city config and city lock file IO
-- manifest parsing and backend plugin validation
-- source-backed plugin resolution
-- plugin revision materialization into the plugin store
+- manifest parsing and backend package validation
+- source-backed venue package resolution
+- venue package revision materialization into the plugin store
 - dependency ordering
-- backend plugin activation
-- plugin diagnostics
-- plugin teardown
-- plugin-scoped storage helpers
+- backend venue module activation
+- venue module diagnostics
+- venue module teardown
+- venue-scoped storage helpers
 
 Key files:
 
 | Module | Current responsibility |
 | --- | --- |
 | `config.ts` | Read and write city config / city lock files |
-| `manifest.ts` | Parse `package.json` and enforce backend plugin manifest rules |
-| `source-registry.ts` | Resolve source-backed plugin releases from local or remote registries |
-| `host.ts` | Sync lock files, materialize plugin revisions, activate plugins, expose runtime context, collect diagnostics |
-| `types.ts` | Define city config, city lock, diagnostics, and backend plugin runtime contracts |
+| `manifest.ts` | Parse `package.json` and enforce backend venue package manifest rules |
+| `source-registry.ts` | Resolve source-backed venue package releases from local or remote registries |
+| `host.ts` | Sync lock files, materialize venue package revisions, activate modules, expose runtime context, collect diagnostics |
+| `types.ts` | Define city config, city lock, diagnostics, and backend venue package runtime contracts |
 
 Important current boundary:
 
-- The runtime boot path in `main.ts` starts plugins from the existing city lock file.
+- The runtime boot path in `main.ts` starts venue modules from the existing city lock file.
 - CLI commands such as `configure`, `start`, and `restart` are responsible for preparing and synchronizing that lock before process startup.
 
 ### Transport layer: `core/server`
@@ -176,8 +176,8 @@ Important current facts:
 
 - Public and authenticated business routes both flow through `HookRegistry.handleHttpRequest(...)`.
 - Core auth, dashboard, and admin routes self-register into that hook registry.
-- Plugins also register HTTP routes through the same registry.
-- `/api/health` includes plugin list, plugin diagnostics, and registered service keys.
+- Venue modules also register HTTP routes through the same registry.
+- `/api/health` includes venue module list, diagnostics, and registered service keys.
 
 ## WebSocket Command Flow
 
@@ -212,10 +212,10 @@ The Resident-based Uruc City Protocol is the target vocabulary, but the current 
 - `request.type` names the future request type represented by the current command.
 - `request.requiredCapabilities` lists the stable permission units a resident will need for that request. These are capability ids such as `uruc.social.dm.basic@v1`, not raw command ids.
 - `receipt.type` and `receipt.statuses` describe compact processing results.
-- `venue.id` identifies the plugin-owned business surface as a future venue.
+- `venue.id` identifies the venue-owned business surface while package mechanics still use plugin ids.
 - `migration` records why an old term remains and which issue removes it.
 
-This field is discovery metadata only. It does not register alternate request handlers, alias command names, or change authorization. Current command/plugin terminology remains only where it describes existing code paths; issue #4 starts request capability declarations, issue #8 handles plugin-to-venue naming, and issue #13 continues compact receipt-shaped responses.
+This field is discovery metadata only. It does not register alternate request handlers, alias command names, or change authorization. Current command/plugin terminology remains only where it describes existing code paths; issue #4 starts request capability declarations, issue #8 adds venue module manifest metadata, and issue #13 continues compact receipt-shaped responses.
 
 ## Auth and Session Model
 
@@ -244,9 +244,9 @@ Important current behavior:
 
 - These are normal WebSocket commands registered through `HookRegistry`, not hardcoded into `WSGateway`.
 - passive push events still use `session_state`, but the request command is now `what_state_am_i`
-- `what_can_i_do` is hierarchical: summary at the root, then detail by `city` or `plugin`
+- `what_can_i_do` is hierarchical: summary at the root, then detail by `city` or current package id (`plugin`)
 - `where_can_i_go` returns current place plus registered locations
-- Location enter/leave also trigger hook chains that plugins can observe or block.
+- Location enter/leave also trigger hook chains that venue modules can observe or block.
 
 ## Registry Model
 
@@ -261,7 +261,7 @@ Current core registrations in `main.ts`:
 - `logger`
 - `ws-gateway`
 
-Plugins use this indirectly through the plugin host when messaging or service-backed behavior is needed.
+Venue modules use this indirectly through the package host when messaging or service-backed behavior is needed.
 
 ### `HookRegistry`
 
@@ -276,13 +276,13 @@ Current capabilities:
 - expose command schemas
 - filter available command schemas for a given session context
 
-This is why core modules and plugins can share one routing mechanism without moving business logic into the transport layer.
+This is why core modules and venue modules can share one routing mechanism without moving business logic into the transport layer.
 
-## Plugin Platform Details
+## Venue Module Package Details
 
 ### City config and city lock
 
-The plugin platform currently uses two files:
+The venue package host currently uses two files:
 
 - city config: desired state
 - city lock: resolved state
@@ -293,13 +293,14 @@ Current city config contents include:
 - `approvedPublishers`
 - `pluginStoreDir`
 - `sources`
-- configured plugin specs
+- configured venue package specs
 
-Current city lock contents include resolved plugin runtime data such as:
+Current city lock contents include resolved venue package runtime data such as:
 
 - revision
 - version
 - publisher
+- venue module metadata, including module id and namespace
 - package root
 - entry path
 - dependencies
@@ -309,22 +310,22 @@ Current city lock contents include resolved plugin runtime data such as:
 - source fingerprint
 - rollback history
 
-### Plugin activation
+### Venue module activation
 
 `PluginPlatformHost.startAll(...)` currently:
 
 - ensures plugin storage tables exist
 - reads the city lock
-- filters enabled plugins
+- filters enabled venue modules
 - sorts them by dependency order
 - activates them one by one
 - records diagnostics for active and failed plugins
 
-Failed plugins are retained in diagnostics even when they do not become active.
+Failed venue modules are retained in diagnostics even when they do not become active.
 
-### Runtime context exposed to backend plugins
+### Runtime context exposed to backend venue modules
 
-The backend plugin setup context currently exposes:
+The backend venue module setup context currently exposes:
 
 - `commands.register(...)`
 - `http.registerRoute(...)`
@@ -357,27 +358,27 @@ The backend plugin setup context currently exposes:
 
 Current implementation notes:
 
-- Plugin storage is backed by the `plugin_storage_records` table in the main database.
+- Venue module storage is backed by the `plugin_storage_records` table in the main database.
 - `agents.invoke(...)` currently exposes implemented lookup/search helpers.
 - Several other built-in APIs currently exist as placeholder `invoke(...)` surfaces that return `undefined`.
 
 ### Namespacing rules
 
-The current plugin host applies namespacing to plugin-owned surfaces:
+The current package host applies namespacing to venue-owned surfaces:
 
 - WebSocket commands become `<pluginId>.<commandId>@v1`
 - HTTP routes live under `/api/plugins/<pluginId>/v1`
 - Location ids become `<pluginId>.<locationId>`
 
-That means the backend plugin contract is versioned in more than one place:
+That means the backend venue package contract is versioned in more than one place:
 
-- the backend plugin module itself is `@v2`
-- plugin-owned command and route namespaces currently use `@v1` path/id conventions
+- the backend venue module package itself is `@v2`
+- venue-owned command and route namespaces currently use `@v1` path/id conventions
 
 ## Deliberate Boundaries
 
 - `core/plugin-system` is the registry fabric, not the plugin loader.
-- `core/plugin-platform` is the loader, lock manager, and plugin runtime host.
+- `core/plugin-platform` is the loader, lock manager, and current package host for venue modules.
 - `core/server/http-server.ts` is transport/framework code plus `/api/health` and static serving, not business-route ownership.
 - `core/server/ws-gateway.ts` is transport and session orchestration, not city or venue logic.
-- Venue-specific business rules belong in plugins, even when they use core registries and transport.
+- Venue-specific business rules belong in venue modules, even when they use current plugin package mechanics, core registries, and transport.

@@ -32,6 +32,13 @@ async function createPluginPackage(root: string, options: {
     css?: string[];
     exportKey?: string;
   };
+  venue?: {
+    moduleId?: string;
+    namespace?: string;
+    displayName?: string;
+    description?: string;
+    category?: string;
+  };
   body?: string;
 }): Promise<void> {
   await mkdir(root, { recursive: true });
@@ -47,6 +54,7 @@ async function createPluginPackage(root: string, options: {
       entry: './index.mjs',
       publisher: options.publisher,
       displayName: options.pluginId,
+      ...(options.venue ? { venue: options.venue } : {}),
       permissions: [],
       dependencies: [],
       activation: ['startup'],
@@ -717,6 +725,78 @@ export default {
 
     expect(secondLock.plugins['acme.echo']?.revision).toBe(firstLock.plugins['acme.echo']?.revision);
     expect(secondLock.plugins['acme.echo']?.history ?? []).toHaveLength(0);
+  });
+
+  it('preserves venue module metadata in the lock and runtime diagnostics', async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-plugin-host-venue-metadata-'));
+    tempDirs.push(tempRoot);
+
+    const pluginPath = path.join(tempRoot, 'plugins', 'bazaar');
+    const configPath = path.join(tempRoot, 'uruc.city.json');
+    const lockPath = path.join(tempRoot, 'uruc.city.lock.json');
+    const pluginStoreDir = path.join(tempRoot, '.uruc', 'plugins');
+
+    await createPluginPackage(pluginPath, {
+      pluginId: 'acme.bazaar',
+      packageName: '@acme/plugin-bazaar',
+      version: '1.0.0',
+      publisher: 'acme',
+      venue: {
+        moduleId: 'acme.bazaar',
+        namespace: 'acme.bazaar',
+        displayName: 'Bazaar',
+        description: 'Trading venue module.',
+        category: 'market',
+      },
+    });
+    await writeCityConfig(configPath, {
+      apiVersion: 2,
+      approvedPublishers: ['acme'],
+      pluginStoreDir,
+      sources: [],
+      plugins: {
+        'acme.bazaar': {
+          pluginId: 'acme.bazaar',
+          packageName: '@acme/plugin-bazaar',
+          enabled: true,
+          permissionsGranted: [],
+          devOverridePath: pluginPath,
+        },
+      },
+    });
+
+    const host = new PluginPlatformHost({
+      configPath,
+      lockPath,
+      packageRoot: process.cwd(),
+      pluginStoreDir,
+    });
+
+    await host.syncLockFile();
+    const lock = await readCityLock(lockPath);
+    expect(lock.plugins['acme.bazaar']?.venue).toEqual({
+      moduleId: 'acme.bazaar',
+      namespace: 'acme.bazaar',
+      displayName: 'Bazaar',
+      description: 'Trading venue module.',
+      category: 'market',
+    });
+
+    const hooks = new HookRegistry();
+    const services = new ServiceRegistry();
+    const db = createDb(':memory:');
+    await host.startAll({ db, hooks, services });
+
+    expect(host.listPlugins().find((item) => item.name === 'acme.bazaar')?.venue).toMatchObject({
+      moduleId: 'acme.bazaar',
+      namespace: 'acme.bazaar',
+    });
+    expect(host.getPluginDiagnostics().find((item) => item.pluginId === 'acme.bazaar')?.venue).toMatchObject({
+      moduleId: 'acme.bazaar',
+      namespace: 'acme.bazaar',
+    });
+
+    await host.stopAll();
   });
 
   it('keeps resolving healthy plugins when one configured plugin cannot be locked', async () => {
@@ -2024,7 +2104,7 @@ export default defineBackendPlugin({
           expect.objectContaining({ type: 'what_state_am_i' }),
           expect.objectContaining({ type: 'where_can_i_go' }),
           expect.objectContaining({ type: 'what_can_i_do' }),
-          expect.objectContaining({ type: 'claim_control' }),
+          expect.objectContaining({ type: 'acquire_action_lease' }),
         ]),
       },
     });

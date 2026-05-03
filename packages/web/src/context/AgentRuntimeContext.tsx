@@ -36,8 +36,8 @@ interface AgentRuntimeContextValue {
   events: string[];
   connect: () => Promise<void>;
   disconnect: () => void;
-  claimControl: () => Promise<RuntimeSnapshot>;
-  releaseControl: () => Promise<RuntimeSnapshot>;
+  acquireActionLease: () => Promise<RuntimeSnapshot>;
+  releaseActionLease: () => Promise<RuntimeSnapshot>;
   refreshSessionState: () => Promise<RuntimeSnapshot>;
   refreshLocations: () => Promise<LocationDiscoveryResult>;
   sendCommand: <T = unknown>(type: string, payload?: unknown) => Promise<T>;
@@ -143,9 +143,7 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
           pushEvent(i18n.t('runtime:websocket.commandRejectedPrefix', { message: payload.error }));
         }
       }
-      // `control_replaced` is a hidden compatibility read path for servers older than
-      // issue #13. Remove it once deployed servers emit action_lease_moved only.
-      if (envelope.type === 'action_lease_moved' || envelope.type === 'control_replaced') {
+      if (envelope.type === 'action_lease_moved') {
         const payload = envelope.payload as { error?: string } | undefined;
         const text = payload?.error ?? i18n.t('runtime:websocket.controlReplaced');
         pushEvent(text);
@@ -253,11 +251,11 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
     return result;
   }, []);
 
-  const claimControl = useCallback(async () => {
+  const acquireActionLease = useCallback(async () => {
     return transportRef.current.send<RuntimeSnapshot>('acquire_action_lease');
   }, []);
 
-  const releaseControl = useCallback(async () => {
+  const releaseActionLease = useCallback(async () => {
     return transportRef.current.send<RuntimeSnapshot>('release_action_lease');
   }, []);
 
@@ -323,8 +321,8 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
       events,
       connect,
       disconnect,
-      claimControl,
-      releaseControl,
+      acquireActionLease,
+      releaseActionLease,
       refreshSessionState,
       refreshLocations,
       sendCommand,
@@ -354,8 +352,8 @@ export function AgentRuntimeProvider({ children }: { children: React.ReactNode }
       events,
       connect,
       disconnect,
-      claimControl,
-      releaseControl,
+      acquireActionLease,
+      releaseActionLease,
       refreshSessionState,
       refreshLocations,
       sendCommand,

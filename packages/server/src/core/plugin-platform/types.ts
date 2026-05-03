@@ -94,11 +94,20 @@ export interface PluginFrontendBuildManifest {
 
 export interface LockedPluginFrontendSpec extends PluginFrontendBuildManifest {}
 
+export interface VenueModuleManifest {
+  moduleId: string;
+  namespace: string;
+  displayName?: string;
+  description?: string;
+  category?: string;
+}
+
 export interface LockedPluginSpec {
   pluginId: string;
   packageName: string;
   version: string;
   publisher: string;
+  venue?: VenueModuleManifest;
   revision: string;
   sourcePath: string;
   packageRoot: string;
@@ -135,6 +144,7 @@ export interface PackageJsonUrucPlugin {
   publisher: string;
   displayName: string;
   description?: string;
+  venue?: VenueModuleManifest;
   permissions?: string[];
   dependencies?: string[];
   activation?: Array<'startup' | 'onCommand' | 'onLocationEnter' | 'onHttpRoute' | 'onAdminPage'>;
@@ -164,6 +174,7 @@ export interface PluginListEntry {
   version: string;
   started: boolean;
   state?: PluginRuntimeState;
+  venue?: VenueModuleManifest;
 }
 
 export interface PluginDiagnostic {
@@ -173,6 +184,7 @@ export interface PluginDiagnostic {
   state: PluginRuntimeState;
   revision: string;
   publisher: string;
+  venue?: VenueModuleManifest;
   permissionsGranted: string[];
   inFlightCount: number;
   lastError?: string;
@@ -184,6 +196,7 @@ export interface PluginHealthView {
   publisher: string;
   revision: string;
   state: PluginRuntimeState;
+  venue?: VenueModuleManifest;
   permissionsGranted: string[];
   inFlightCount: number;
   lastError?: string;

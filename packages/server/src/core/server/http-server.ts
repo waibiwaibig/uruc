@@ -164,6 +164,7 @@ async function handleRequest(
         version: p.version,
         started: p.started,
         state: p.state,
+        ...(p.venue ? { venue: p.venue } : {}),
       })) ?? [],
       pluginDiagnostics: deps.loader?.getPluginDiagnostics() ?? [],
       services: services.list(),

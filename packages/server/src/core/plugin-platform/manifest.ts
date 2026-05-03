@@ -6,6 +6,7 @@ import type {
   PackageJsonUrucPlugin,
   PluginFrontendBuildManifest,
   PluginPackageManifest,
+  VenueModuleManifest,
 } from './types.js';
 
 export type PluginPackageContractMode = 'source' | 'distribution';
@@ -27,6 +28,32 @@ function assertStringArray(value: unknown, field: string): string[] {
     throw new Error(`Invalid plugin manifest field "${field}"`);
   }
   return value as string[];
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined;
+}
+
+function normalizeVenueMetadata(
+  raw: unknown,
+  defaults: { pluginId: string; displayName: string; description?: string },
+): VenueModuleManifest {
+  if (raw !== undefined && (!raw || typeof raw !== 'object')) {
+    throw new Error('Invalid urucPlugin.venue');
+  }
+
+  const value = (raw ?? {}) as Record<string, unknown>;
+  const metadata: VenueModuleManifest = {
+    moduleId: optionalString(value.moduleId) ?? defaults.pluginId,
+    namespace: optionalString(value.namespace) ?? defaults.pluginId,
+  };
+  const displayName = optionalString(value.displayName) ?? defaults.displayName;
+  const description = optionalString(value.description) ?? defaults.description;
+  const category = optionalString(value.category);
+  if (displayName) metadata.displayName = displayName;
+  if (description) metadata.description = description;
+  if (category) metadata.category = category;
+  return metadata;
 }
 
 function normalizeUrucFrontend(raw: unknown): PackageJsonUrucFrontend | undefined {
@@ -88,14 +115,19 @@ function normalizeUrucPlugin(raw: unknown): PackageJsonUrucPlugin {
     throw new Error('Only urucPlugin.kind="backend" is supported');
   }
 
+  const pluginId = assertString(value.pluginId, 'urucPlugin.pluginId');
+  const displayName = assertString(value.displayName, 'urucPlugin.displayName');
+  const description = typeof value.description === 'string' ? value.description : undefined;
+
   return {
-    pluginId: assertString(value.pluginId, 'urucPlugin.pluginId'),
+    pluginId,
     apiVersion: 2,
     kind: 'backend',
     entry: assertString(value.entry, 'urucPlugin.entry'),
     publisher: assertString(value.publisher, 'urucPlugin.publisher'),
-    displayName: assertString(value.displayName, 'urucPlugin.displayName'),
-    description: typeof value.description === 'string' ? value.description : undefined,
+    displayName,
+    description,
+    venue: normalizeVenueMetadata(value.venue, { pluginId, displayName, description }),
     permissions: assertStringArray(value.permissions, 'urucPlugin.permissions'),
     dependencies: assertStringArray(value.dependencies, 'urucPlugin.dependencies'),
     activation: assertStringArray(value.activation, 'urucPlugin.activation') as PackageJsonUrucPlugin['activation'],

@@ -36,8 +36,8 @@ function createRuntime(overrides: Partial<PluginRuntimeApi> = {}) {
     agentName: 'Buyer A',
     connect: async () => undefined,
     disconnect: () => undefined,
-    claimControl: async () => createSessionState(),
-    releaseControl: async () => createSessionState(),
+    acquireActionLease: async () => createSessionState(),
+    releaseActionLease: async () => createSessionState(),
     refreshSessionState: async () => createSessionState(),
     refreshCommands: async () => undefined,
     sendCommand,
@@ -713,7 +713,7 @@ describe('FleamarketHomePage', () => {
 
     expect(notify).toHaveBeenCalledWith({
       type: 'error',
-      message: 'Claim controller ownership before posting a listing.',
+      message: 'Acquire the action lease before posting a listing.',
     });
     expect(mounted.container.querySelector('input[name="title"]')).toBeFalsy();
 

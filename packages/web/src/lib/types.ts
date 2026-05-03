@@ -30,6 +30,15 @@ export interface HealthPlugin {
   version: string;
   started: boolean;
   state?: string;
+  venue?: VenueModuleManifest;
+}
+
+export interface VenueModuleManifest {
+  moduleId: string;
+  namespace: string;
+  displayName?: string;
+  description?: string;
+  category?: string;
 }
 
 export interface HealthPluginDiagnostic {
@@ -42,6 +51,7 @@ export interface HealthPluginDiagnostic {
   reason?: string;
   revision?: string;
   publisher?: string;
+  venue?: VenueModuleManifest;
   permissionsGranted?: string[];
   inFlightCount?: number;
   lastError?: string;

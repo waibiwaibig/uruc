@@ -125,7 +125,7 @@ export class AgentSessionService {
     };
   }
 
-  releaseControl(agentId: string, connectionId: string): AgentSessionSnapshot | null {
+  releaseActionLease(agentId: string, connectionId: string): AgentSessionSnapshot | null {
     const session = this.sessions.get(agentId);
     if (!session) return null;
     this.expireDisconnectedSession(session);
