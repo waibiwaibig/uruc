@@ -303,6 +303,7 @@ Venue Module 包宿主当前使用两个文件：
 - `pluginStoreDir`
 - `sources`
 - 已配置场馆包规格
+- 可选的 per-venue topology selection（`local` 或 `domain`）
 
 当前 city lock 包含的已解析场馆包运行时信息包括：
 
@@ -310,6 +311,7 @@ Venue Module 包宿主当前使用两个文件：
 - version
 - publisher
 - Venue Module metadata，包括 module id 和 namespace
+- 紧凑 topology metadata：declaration、已选择 runtime mode，以及可选 domain endpoint/document hints
 - package root
 - entry path
 - dependencies
@@ -331,6 +333,8 @@ Venue Module 包宿主当前使用两个文件：
 - 为 active 和 failed Venue Module 记录诊断
 
 即使 Venue Module 没有进入 active 状态，失败信息仍会保留在 diagnostics 中。
+
+本 slice 的 topology 只是声明。Local module 默认保持 local。Domain-capable module 可以暴露 endpoint/document hints，city config 可以选择 domain runtime mode，但 host 不会执行 Domain Document 拉取、attachment handshake、signed envelope dispatch、federation 或 Venue 业务同步。
 
 ### 后端 Venue Module 可见的运行时上下文
 

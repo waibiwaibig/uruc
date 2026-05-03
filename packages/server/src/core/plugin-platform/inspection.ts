@@ -10,6 +10,8 @@ import type {
   PluginPackageManifest,
   PluginRuntimeState,
   ResolvedSourcePluginRelease,
+  VenueModuleManifest,
+  VenueTopologyMetadata,
 } from './types.js';
 
 export type PluginCheckLevel = 'ok' | 'warn' | 'fail';
@@ -23,6 +25,7 @@ export interface ResolvedConfiguredPlugin {
   sourcedRelease: ResolvedSourcePluginRelease | null;
   expectedPackageName: string;
   expectedVersion: string;
+  venue: VenueModuleManifest;
   permissionsRequested: string[];
   permissionsGranted: string[];
 }
@@ -63,6 +66,55 @@ export function aggregatePluginCheckLevel(levels: PluginCheckLevel[]): PluginChe
   if (levels.includes('fail')) return 'fail';
   if (levels.includes('warn')) return 'warn';
   return 'ok';
+}
+
+function resolveVenueTopology(
+  pluginId: string,
+  venue: VenueModuleManifest,
+  pluginConfig: CityPluginSpec,
+): VenueTopologyMetadata {
+  const declared = venue.topology ?? { declaration: 'local' as const, mode: 'local' as const };
+  const requestedMode = pluginConfig.topology?.mode ?? (declared.declaration === 'domain_required' ? undefined : 'local');
+
+  if (!requestedMode) {
+    throw new Error(`Plugin ${pluginId} requires domain topology config`);
+  }
+  if (requestedMode !== 'local' && requestedMode !== 'domain') {
+    throw new Error(`Plugin ${pluginId} has unsupported topology mode "${String(requestedMode)}"`);
+  }
+  if (declared.declaration === 'local' && requestedMode !== 'local') {
+    throw new Error(`Plugin ${pluginId} does not support domain topology`);
+  }
+  if (declared.declaration === 'domain_required' && requestedMode !== 'domain') {
+    throw new Error(`Plugin ${pluginId} requires domain topology config`);
+  }
+
+  const domain = {
+    ...(declared.domain ?? {}),
+    ...(pluginConfig.topology?.domain ?? {}),
+  };
+  if (requestedMode === 'domain' && !domain.endpoint) {
+    throw new Error(`Plugin ${pluginId} domain topology requires endpoint metadata`);
+  }
+
+  return {
+    declaration: declared.declaration,
+    mode: requestedMode,
+    ...(requestedMode === 'domain'
+      ? { domain: { ...domain } }
+      : {}),
+  };
+}
+
+function resolveVenueMetadata(
+  pluginId: string,
+  venue: VenueModuleManifest,
+  pluginConfig: CityPluginSpec,
+): VenueModuleManifest {
+  return {
+    ...venue,
+    topology: resolveVenueTopology(pluginId, venue, pluginConfig),
+  };
 }
 
 export async function resolveConfiguredPlugin(options: {
@@ -128,6 +180,7 @@ export async function resolveConfiguredPlugin(options: {
     sourcedRelease,
     expectedPackageName,
     expectedVersion,
+    venue: resolveVenueMetadata(options.pluginId, urucPlugin.venue!, options.pluginConfig),
     permissionsRequested,
     permissionsGranted,
   };

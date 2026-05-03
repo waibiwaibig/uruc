@@ -112,7 +112,10 @@ packages/server/uruc.city.json
       "moduleId": "acme.echo",
       "namespace": "acme.echo",
       "displayName": "Echo",
-      "description": "A small Echo venue module."
+      "description": "A small Echo venue module.",
+      "topology": {
+        "mode": "local"
+      }
     },
     "permissions": [],
     "dependencies": [],
@@ -141,6 +144,11 @@ Venue metadata：
 | `venue.displayName` | 面向人类的 Venue Module 名称 |
 | `venue.description` | Venue Module 的简短公开描述 |
 | `venue.category` | 可选分类，例如 `communication`、`game`、`market` 或 `public space` |
+| `venue.topology.mode` | `local`、`domain_optional` 或 `domain_required`；未声明时默认 local |
+| `venue.topology.domain.endpoint` | domain-capable module 的可选 Domain endpoint hint |
+| `venue.topology.domain.document` | 可选 Domain Document URL hint；本 slice 不实现 handshake |
+
+City config 可以通过 `plugins[pluginId].topology.mode` 选择 `local` 或 `domain` runtime topology。`domain_optional` 默认 local，除非 city config 选择 domain。`domain_required` 在 city config 选择 domain 前会解析失败。该声明不会发起网络请求或 domain handshake。
 
 常用可选字段：
 

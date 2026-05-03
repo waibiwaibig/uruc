@@ -55,6 +55,13 @@ export interface CityPluginSpec {
   source?: string;
   permissionsGranted?: string[];
   devOverridePath?: string;
+  topology?: {
+    mode: VenueRuntimeTopologyMode;
+    domain?: {
+      endpoint?: string;
+      document?: string;
+    };
+  };
   config?: Record<string, unknown>;
 }
 
@@ -94,12 +101,25 @@ export interface PluginFrontendBuildManifest {
 
 export interface LockedPluginFrontendSpec extends PluginFrontendBuildManifest {}
 
+export type VenueTopologyDeclaration = 'local' | 'domain_optional' | 'domain_required';
+export type VenueRuntimeTopologyMode = 'local' | 'domain';
+
+export interface VenueTopologyMetadata {
+  declaration: VenueTopologyDeclaration;
+  mode: VenueRuntimeTopologyMode;
+  domain?: {
+    endpoint?: string;
+    document?: string;
+  };
+}
+
 export interface VenueModuleManifest {
   moduleId: string;
   namespace: string;
   displayName?: string;
   description?: string;
   category?: string;
+  topology?: VenueTopologyMetadata;
 }
 
 export interface LockedPluginSpec {
