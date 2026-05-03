@@ -507,11 +507,13 @@ Federation Document v0 是某个 federation 的紧凑 trust/governance descripto
 - trust anchors，例如 accepted issuers、cities 或 public keys
 - 有效期窗口：`validFrom` 和 `validUntil`
 - 使用确定性 canonicalization、覆盖精确字段的签名 proof
-- trust policy、conformance 和 risk metadata 的 policy refs，并在需要时包含 version、integrity digest、有效期窗口和 federation id
+- trust policy、conformance 和 risk metadata 的 policy refs，并在需要时包含 version、digest/integrity、media type、有效期窗口、cache hints、degradation policy 和 federation id
 - risk metadata refs
 - conformance badge metadata
 
 该 document 可以推荐默认规则，但不创建全网共识。城市可以忽略自己未加入的 federation，可以加入多个 federation，也可以建立自己的 federation。City Core 可以 fetch 并 cache signed Federation Document，但 stale 或 invalid document 不能产出 `accept`、`reject` 或 `warn` trust result。
+
+Federation Document 引用的 remote policy material 是 JSON 数据，不是可执行代码。对于已加入的 federation，City Core 在执行 federation trust policy evaluation 前，会先按 signed ref 校验 material：URL、media type、有界 body size、JSON parse、federation id、policy ref id、version、digest/integrity，以及 freshness/cache hints。已验证的 material 只有在 cached verification 仍然 fresh 时才可复用；expired cached material 会按配置返回 `reject`、`warn` 或 `unknown`，不能假装有效。
 
 ### Federation Trust Policy
 
@@ -525,6 +527,8 @@ unknown
 ```
 
 Federation policy 可以影响准入、验证、权限决策、风险标记和 conformance badges。它不能删除 resident id，也不能改写历史身份。Resident identity 仍然独立于 registration 和 permission status。
+
+Required policy ref 在 fetch、content-type、size、JSON、schema、freshness 或 digest verification 失败时 fail closed 为 `reject`。Optional ref 可以声明降级为 `warn` 或 `unknown`，但失败必须出现在 compact policy result 中，不能静默变成 `accept`。
 
 Federation 也仍然独立于 Domain Services 和 Venue Domain Protocols。Domain attachment 与 signed City-to-Domain dispatch 不依赖 federation。Venue 业务同步仍属于 venue/domain protocols。
 

@@ -1,5 +1,5 @@
 import { mkdtemp, rm, writeFile } from 'fs/promises';
-import { generateKeyPairSync, sign } from 'crypto';
+import { createHash, generateKeyPairSync, sign } from 'crypto';
 import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -12,7 +12,9 @@ import {
   evaluateVerifiedFeedEntry,
   evaluateTrustPolicy,
   FederationDocumentService,
+  FederationPolicyMaterialService,
   parseFederationDocument,
+  evaluateTrustPolicyWithVerifiedPolicyRefs,
   verifyFederationPolicyRef,
 } from '../index.js';
 
@@ -116,6 +118,35 @@ function federationDocument(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function stableValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableValue);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.keys(value as Record<string, unknown>)
+      .sort()
+      .map((key) => [key, stableValue((value as Record<string, unknown>)[key])]),
+  );
+}
+
+function policyMaterial(overrides: Record<string, unknown> = {}) {
+  return {
+    schema: 'uruc.federation.policy-material@v0',
+    federationId: 'fed.public-alpha',
+    policyRefId: 'fed.public-alpha.baseline',
+    version: 1,
+    issuedAt: '2026-05-03T00:00:00.000Z',
+    expiresAt: '2026-05-03T00:05:00.000Z',
+    policy: {
+      mode: 'observe',
+    },
+    ...overrides,
+  };
+}
+
+function policyDigest(material: unknown): string {
+  return `sha256:${createHash('sha256').update(JSON.stringify(stableValue(material))).digest('hex')}`;
+}
+
 describe('Federation policy skeleton', () => {
   it('parses a compact Federation Document v0 with members, trust anchors, policy refs, risk, and conformance metadata', () => {
     const document = parseFederationDocument(federationDocument());
@@ -143,6 +174,42 @@ describe('Federation policy skeleton', () => {
           { id: 'uruc.intercity.v0', status: 'verified' },
         ],
       },
+    });
+  });
+
+  it('parses policy refs with integrity, media type, and cache/degradation hints', () => {
+    const document = parseFederationDocument(federationDocument({
+      policyRefs: [
+        {
+          id: 'fed.public-alpha.baseline',
+          type: 'trust-policy',
+          ref: 'https://fed.example/policies/baseline.json',
+          version: 1,
+          digest: 'sha256:' + 'b'.repeat(64),
+          integrity: 'sha256:' + 'b'.repeat(64),
+          mediaType: 'application/json',
+          required: false,
+          federationId: 'fed.public-alpha',
+          validFrom: '2026-05-03T00:00:00.000Z',
+          validUntil: '2099-08-03T00:00:00.000Z',
+          cache: {
+            maxAgeSeconds: 300,
+            stale: 'warn',
+          },
+          onFailure: 'unknown',
+        },
+      ],
+    }));
+
+    expect(document.policyRefs[0]).toMatchObject({
+      digest: 'sha256:' + 'b'.repeat(64),
+      integrity: 'sha256:' + 'b'.repeat(64),
+      mediaType: 'application/json',
+      cache: {
+        maxAgeSeconds: 300,
+        stale: 'warn',
+      },
+      onFailure: 'unknown',
     });
   });
 
@@ -430,5 +497,354 @@ describe('Federation policy skeleton', () => {
         expiresAt: '2026-05-04T00:00:00.000Z',
       },
     })).toMatchObject({ decision: 'unknown', code: 'FEDERATION_FEED_ISSUER_UNTRUSTED' });
+  });
+
+  it('verifies remote policy material before trust evaluation and reuses verified cache', async () => {
+    const material = policyMaterial();
+    const document = parseFederationDocument(federationDocument({
+      policyRefs: [{
+        id: 'fed.public-alpha.baseline',
+        type: 'trust-policy',
+        ref: 'https://fed.example/policies/baseline.json',
+        version: 1,
+        digest: policyDigest(material),
+        integrity: policyDigest(material),
+        mediaType: 'application/json',
+        required: true,
+        federationId: 'fed.public-alpha',
+        validFrom: '2026-05-03T00:00:00.000Z',
+        validUntil: '2099-08-03T00:00:00.000Z',
+        cache: { maxAgeSeconds: 300, stale: 'reject' },
+      }],
+    }));
+    let fetchCount = 0;
+    const materialService = new FederationPolicyMaterialService({
+      now: () => new Date('2026-05-03T00:00:02.000Z'),
+      fetch: async () => {
+        fetchCount += 1;
+        return new Response(JSON.stringify(material), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      },
+    });
+    const cityPolicy: CityFederationSpec = {
+      federationId: 'fed.public-alpha',
+      trustPolicy: {
+        mode: 'observe' as const,
+        trustedIssuerIds: ['issuer.alpha.registry'],
+        policyRefs: ['fed.public-alpha.baseline'],
+      },
+    };
+
+    const first = await evaluateTrustPolicyWithVerifiedPolicyRefs({
+      document,
+      cityPolicy,
+      materialService,
+      subject: { kind: 'issuer', issuerId: 'issuer.alpha.registry' },
+    });
+    const second = await evaluateTrustPolicyWithVerifiedPolicyRefs({
+      document,
+      cityPolicy,
+      materialService,
+      subject: { kind: 'issuer', issuerId: 'issuer.alpha.registry' },
+    });
+
+    expect(fetchCount).toBe(1);
+    expect(first).toMatchObject({
+      decision: 'accept',
+      code: 'FEDERATION_ISSUER_ACCEPTED',
+      policyRefs: [{
+        policyRefId: 'fed.public-alpha.baseline',
+        decision: 'accept',
+        code: 'FEDERATION_POLICY_REF_VERIFIED',
+        source: 'network',
+        digest: policyDigest(material),
+        expiresAt: '2026-05-03T00:05:00.000Z',
+      }],
+    });
+    expect(second.policyRefs?.[0]).toMatchObject({
+      decision: 'accept',
+      code: 'FEDERATION_POLICY_REF_CACHE_HIT',
+      source: 'cache',
+      digest: policyDigest(material),
+    });
+  });
+
+  it.each([
+    {
+      name: 'digest mismatch',
+      response: () => new Response(JSON.stringify(policyMaterial()), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+      digestMaterial: policyMaterial({ policy: { mode: 'different' } }),
+      onFailure: 'warn' as const,
+      expectedDecision: 'warn',
+      expectedCode: 'FEDERATION_POLICY_REF_HASH_MISMATCH',
+    },
+    {
+      name: 'invalid content-type',
+      response: () => new Response(JSON.stringify(policyMaterial()), {
+        status: 200,
+        headers: { 'content-type': 'text/plain' },
+      }),
+      onFailure: 'unknown' as const,
+      expectedDecision: 'unknown',
+      expectedCode: 'FEDERATION_POLICY_REF_CONTENT_TYPE_INVALID',
+    },
+    {
+      name: 'oversized body',
+      response: () => new Response(JSON.stringify(policyMaterial()), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+      maxPolicyBytes: 4,
+      onFailure: 'warn' as const,
+      expectedDecision: 'warn',
+      expectedCode: 'FEDERATION_POLICY_REF_RESPONSE_TOO_LARGE',
+    },
+    {
+      name: 'invalid JSON',
+      response: () => new Response('{bad json', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+      onFailure: 'unknown' as const,
+      expectedDecision: 'unknown',
+      expectedCode: 'FEDERATION_POLICY_REF_JSON_INVALID',
+    },
+  ])('returns a stable compact result for policy material $name before trust evaluation', async (fixture) => {
+    const material = policyMaterial();
+    const document = parseFederationDocument(federationDocument({
+      policyRefs: [{
+        id: 'fed.public-alpha.baseline',
+        type: 'trust-policy',
+        ref: 'https://fed.example/policies/baseline.json',
+        version: 1,
+        digest: policyDigest(fixture.digestMaterial ?? material),
+        mediaType: 'application/json',
+        required: false,
+        federationId: 'fed.public-alpha',
+        validFrom: '2026-05-03T00:00:00.000Z',
+        validUntil: '2099-08-03T00:00:00.000Z',
+        onFailure: fixture.onFailure,
+      }],
+    }));
+    const materialService = new FederationPolicyMaterialService({
+      now: () => new Date('2026-05-03T00:00:02.000Z'),
+      maxPolicyBytes: fixture.maxPolicyBytes,
+      fetch: async () => fixture.response(),
+    });
+
+    await expect(evaluateTrustPolicyWithVerifiedPolicyRefs({
+      document,
+      cityPolicy: {
+        federationId: 'fed.public-alpha',
+        trustPolicy: {
+          mode: 'observe' as const,
+          trustedIssuerIds: ['issuer.alpha.registry'],
+          policyRefs: ['fed.public-alpha.baseline'],
+        },
+      },
+      materialService,
+      subject: { kind: 'issuer', issuerId: 'issuer.alpha.registry' },
+    })).resolves.toMatchObject({
+      decision: fixture.expectedDecision,
+      code: fixture.expectedCode,
+      policyRefs: [{
+        decision: fixture.expectedDecision,
+        code: fixture.expectedCode,
+      }],
+    });
+  });
+
+  it('returns a stable compact result for policy material fetch timeout before trust evaluation', async () => {
+    const material = policyMaterial();
+    const document = parseFederationDocument(federationDocument({
+      policyRefs: [{
+        id: 'fed.public-alpha.baseline',
+        type: 'trust-policy',
+        ref: 'https://fed.example/policies/baseline.json',
+        version: 1,
+        digest: policyDigest(material),
+        mediaType: 'application/json',
+        required: false,
+        federationId: 'fed.public-alpha',
+        validFrom: '2026-05-03T00:00:00.000Z',
+        validUntil: '2099-08-03T00:00:00.000Z',
+        onFailure: 'unknown',
+      }],
+    }));
+    const materialService = new FederationPolicyMaterialService({
+      now: () => new Date('2026-05-03T00:00:02.000Z'),
+      timeoutMs: 1,
+      fetch: async () => new Promise<Response>(() => undefined),
+    });
+
+    await expect(evaluateTrustPolicyWithVerifiedPolicyRefs({
+      document,
+      cityPolicy: {
+        federationId: 'fed.public-alpha',
+        trustPolicy: {
+          mode: 'observe' as const,
+          trustedIssuerIds: ['issuer.alpha.registry'],
+          policyRefs: ['fed.public-alpha.baseline'],
+        },
+      },
+      materialService,
+      subject: { kind: 'issuer', issuerId: 'issuer.alpha.registry' },
+    })).resolves.toMatchObject({
+      decision: 'unknown',
+      code: 'FEDERATION_POLICY_REF_FETCH_TIMEOUT',
+      policyRefs: [{
+        decision: 'unknown',
+        code: 'FEDERATION_POLICY_REF_FETCH_TIMEOUT',
+      }],
+    });
+  });
+
+  it('rejects required policy ref verification failures even when an optional degradation hint is present', async () => {
+    const material = policyMaterial();
+    const document = parseFederationDocument(federationDocument({
+      policyRefs: [{
+        id: 'fed.public-alpha.baseline',
+        type: 'trust-policy',
+        ref: 'https://fed.example/policies/baseline.json',
+        version: 1,
+        digest: policyDigest(policyMaterial({ policy: { mode: 'different' } })),
+        mediaType: 'application/json',
+        required: true,
+        federationId: 'fed.public-alpha',
+        validFrom: '2026-05-03T00:00:00.000Z',
+        validUntil: '2099-08-03T00:00:00.000Z',
+        onFailure: 'warn',
+      }],
+    }));
+    const materialService = new FederationPolicyMaterialService({
+      now: () => new Date('2026-05-03T00:00:02.000Z'),
+      fetch: async () => new Response(JSON.stringify(material), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    });
+
+    await expect(evaluateTrustPolicyWithVerifiedPolicyRefs({
+      document,
+      cityPolicy: {
+        federationId: 'fed.public-alpha',
+        trustPolicy: {
+          mode: 'observe' as const,
+          trustedIssuerIds: ['issuer.alpha.registry'],
+          policyRefs: ['fed.public-alpha.baseline'],
+        },
+      },
+      materialService,
+      subject: { kind: 'issuer', issuerId: 'issuer.alpha.registry' },
+    })).resolves.toMatchObject({
+      decision: 'reject',
+      code: 'FEDERATION_POLICY_REF_HASH_MISMATCH',
+    });
+  });
+
+  it('does not pretend expired cached policy material is valid', async () => {
+    let now = new Date('2026-05-03T00:00:02.000Z');
+    const material = policyMaterial({
+      expiresAt: '2026-05-03T00:00:03.000Z',
+    });
+    const document = parseFederationDocument(federationDocument({
+      policyRefs: [{
+        id: 'fed.public-alpha.baseline',
+        type: 'trust-policy',
+        ref: 'https://fed.example/policies/baseline.json',
+        version: 1,
+        digest: policyDigest(material),
+        mediaType: 'application/json',
+        required: false,
+        federationId: 'fed.public-alpha',
+        validFrom: '2026-05-03T00:00:00.000Z',
+        validUntil: '2099-08-03T00:00:00.000Z',
+        cache: { maxAgeSeconds: 1, stale: 'warn' },
+        onFailure: 'unknown',
+      }],
+    }));
+    let fetchCount = 0;
+    const materialService = new FederationPolicyMaterialService({
+      now: () => now,
+      fetch: async () => {
+        fetchCount += 1;
+        if (fetchCount > 1) throw new Error('network unavailable');
+        return new Response(JSON.stringify(material), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      },
+    });
+    const input = {
+      document,
+      cityPolicy: {
+        federationId: 'fed.public-alpha',
+        trustPolicy: {
+          mode: 'observe' as const,
+          trustedIssuerIds: ['issuer.alpha.registry'],
+          policyRefs: ['fed.public-alpha.baseline'],
+        },
+      },
+      materialService,
+      subject: { kind: 'issuer' as const, issuerId: 'issuer.alpha.registry' },
+    };
+
+    await expect(evaluateTrustPolicyWithVerifiedPolicyRefs(input)).resolves.toMatchObject({
+      decision: 'accept',
+      policyRefs: [{ code: 'FEDERATION_POLICY_REF_VERIFIED' }],
+    });
+    now = new Date('2026-05-03T00:00:04.000Z');
+    await expect(evaluateTrustPolicyWithVerifiedPolicyRefs(input)).resolves.toMatchObject({
+      decision: 'warn',
+      code: 'FEDERATION_POLICY_REF_CACHE_EXPIRED',
+      policyRefs: [{
+        decision: 'warn',
+        code: 'FEDERATION_POLICY_REF_CACHE_EXPIRED',
+        source: 'cache',
+      }],
+    });
+  });
+
+  it('does not fetch or apply federation policy refs for a city that has not joined the federation', async () => {
+    const material = policyMaterial();
+    const document = parseFederationDocument(federationDocument({
+      policyRefs: [{
+        id: 'fed.public-alpha.baseline',
+        type: 'trust-policy',
+        ref: 'https://fed.example/policies/baseline.json',
+        version: 1,
+        digest: policyDigest(material),
+        mediaType: 'application/json',
+        required: true,
+        federationId: 'fed.public-alpha',
+        validFrom: '2026-05-03T00:00:00.000Z',
+        validUntil: '2099-08-03T00:00:00.000Z',
+      }],
+    }));
+    let fetchCount = 0;
+    const materialService = new FederationPolicyMaterialService({
+      fetch: async () => {
+        fetchCount += 1;
+        return new Response(JSON.stringify(material), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      },
+    });
+
+    await expect(evaluateTrustPolicyWithVerifiedPolicyRefs({
+      document,
+      materialService,
+      subject: { kind: 'issuer', issuerId: 'issuer.alpha.registry' },
+    })).resolves.toMatchObject({
+      decision: 'unknown',
+      code: 'FEDERATION_CITY_NOT_JOINED',
+    });
+    expect(fetchCount).toBe(0);
   });
 });

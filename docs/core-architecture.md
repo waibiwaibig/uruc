@@ -352,12 +352,12 @@ Federation is city trust/governance metadata, not a Domain Service and not Venue
 - member cities and their roles
 - trust anchors such as issuers, cities, or public keys
 - validity window and signed proof coverage
-- policy refs for trust policy, conformance, or risk metadata, with integrity metadata
+- policy refs for trust policy, conformance, or risk metadata, with digest/integrity, media type, cache, freshness, and degradation metadata
 - compact risk metadata and conformance badges
 
-City config may declare membership under `federations[federationId]` with an optional document URL and local `trustPolicy`. `FederationDocumentService` can fetch, verify, cache, and expire signed documents with compact diagnostics. The trust-policy skeleton can currently return `accept`, `reject`, `warn`, or `unknown` for city, issuer, resident, or domain verification contexts. It is intentionally not a legal rules engine and does not implement global consensus.
+City config may declare membership under `federations[federationId]` with an optional document URL and local `trustPolicy`. `FederationDocumentService` can fetch, verify, cache, and expire signed documents with compact diagnostics. `FederationPolicyMaterialService` verifies remote JSON policy material before trust evaluation, using timeout, body-size, content-type, JSON parser, digest/integrity, freshness, and cache checks. The trust-policy skeleton can currently return `accept`, `reject`, `warn`, or `unknown` for city, issuer, resident, or domain verification contexts. It is intentionally not a legal rules engine and does not implement global consensus.
 
-Federation policy results may be attached to resident/domain/city verification output as audit context. Verified policy refs and risk/conformance feeds can produce compact trust context. They do not delete or rewrite Resident IDs. A city that has not joined a federation returns `unknown` for that federation policy context and does not need to obey it. Domain attachment/dispatch and Venue Domain Protocols remain independent from Federation.
+Federation policy results may be attached to resident/domain/city verification output as audit context. Verified policy refs and risk/conformance feeds can produce compact trust context. Policy material is data only; City Core does not execute it as code. Required policy-ref verification failures reject before trust evaluation. Optional policy refs can degrade to `warn` or `unknown`, and expired cache entries return the configured compact result instead of being reused as valid. They do not delete or rewrite Resident IDs. A city that has not joined a federation returns `unknown` for that federation policy context and does not need to obey it. Domain attachment/dispatch and Venue Domain Protocols remain independent from Federation.
 
 ### Runtime context exposed to backend venue modules
 
