@@ -31,6 +31,7 @@ export interface DomainDocument {
   }>;
   endpoints: {
     attachment: string;
+    dispatch?: string;
   };
   capabilities: string[];
   hints?: Record<string, unknown>;
@@ -141,7 +142,7 @@ function parseDomainDocumentShape(raw: unknown): DomainDocument {
   if (!isRecord(proof)) throw new DomainDocumentError('DOMAIN_DOCUMENT_PROOF_INVALID', 'Invalid Domain Document proof');
   requireExactKeys(venue, ['moduleId', 'namespace'], 'DOMAIN_DOCUMENT_VENUE_INVALID', 'venue fields');
   requireExactKeys(protocol, ['version'], 'DOMAIN_DOCUMENT_PROTOCOL_INVALID', 'protocol fields');
-  requireExactKeys(endpoints, ['attachment'], 'DOMAIN_DOCUMENT_ENDPOINT_INVALID', 'endpoint fields');
+  requireExactKeys(endpoints, ['attachment', 'dispatch'], 'DOMAIN_DOCUMENT_ENDPOINT_INVALID', 'endpoint fields');
   requireExactKeys(proof, ['type', 'verificationMethod', 'createdAt', 'canonicalization', 'covered', 'signature'], 'DOMAIN_DOCUMENT_PROOF_INVALID', 'proof fields');
 
   const publicKeysValue = raw.publicKeys;
@@ -193,6 +194,9 @@ function parseDomainDocumentShape(raw: unknown): DomainDocument {
     publicKeys,
     endpoints: {
       attachment: requireUrl(endpoints.attachment, 'DOMAIN_DOCUMENT_ENDPOINT_INVALID', 'endpoints.attachment'),
+      ...(endpoints.dispatch !== undefined
+        ? { dispatch: requireUrl(endpoints.dispatch, 'DOMAIN_DOCUMENT_ENDPOINT_INVALID', 'endpoints.dispatch') }
+        : {}),
     },
     capabilities: requireStringArray(raw.capabilities, 'DOMAIN_DOCUMENT_CAPABILITIES_INVALID', 'capabilities'),
     ...(hints ? { hints } : {}),

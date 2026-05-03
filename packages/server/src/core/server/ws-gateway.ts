@@ -19,6 +19,7 @@ import { nanoid } from 'nanoid';
 import type { CommandSchema, HookRegistry, WSContext, WSGatewayPublic, WSDispatchResult } from '../plugin-system/hook-registry.js';
 import type { ServiceRegistry } from '../plugin-system/service-registry.js';
 import type { AuthService } from '../auth/service.js';
+import type { PermissionCredential } from '../permission/service.js';
 import type { AgentSession, WSMessage } from '../../types/index.js';
 import { getCookieAuthUser, verifyToken } from './middleware.js';
 import { AgentSessionService, type AgentSessionSnapshot } from './agent-session-service.js';
@@ -303,6 +304,7 @@ export class WSGateway implements WSGatewayPublic {
     }
 
     const schema = this.hooks.getWSCommandSchema(msg.type);
+    let permissionCredentials: PermissionCredential[] = [];
     if (schema) {
       const requiresController = schema.controlPolicy?.controllerRequired ?? true;
       if (requiresController) {
@@ -332,6 +334,10 @@ export class WSGateway implements WSGatewayPublic {
 
       const canExecute = await this.canExecuteVenueRequest(client, schema, msg);
       if (!canExecute) return;
+      permissionCredentials = canExecute.credentials;
+
+      const domainDispatch = await this.dispatchDomainVenueRequest(client, schema, msg, permissionCredentials);
+      if (domainDispatch !== 'skipped') return;
     }
 
     const sessionStateBefore = client.session
@@ -559,12 +565,16 @@ export class WSGateway implements WSGatewayPublic {
     return false;
   }
 
-  private async canExecuteVenueRequest(client: ConnectedClient, schema: CommandSchema, msg: WSMessage): Promise<boolean> {
-    if (!client.session) return false;
-    if (!schema.pluginName || schema.pluginName === 'core') return true;
+  private async canExecuteVenueRequest(
+    client: ConnectedClient,
+    schema: CommandSchema,
+    msg: WSMessage,
+  ): Promise<{ credentials: PermissionCredential[] } | null> {
+    if (!client.session) return null;
+    if (!schema.pluginName || schema.pluginName === 'core') return { credentials: [] };
 
     const requiredCapabilities = schema.protocol?.request?.requiredCapabilities ?? [];
-    if (requiredCapabilities.length === 0) return true;
+    if (requiredCapabilities.length === 0) return { credentials: [] };
 
     const permissions = this.services.tryGet('permission');
     if (!permissions) {
@@ -580,14 +590,40 @@ export class WSGateway implements WSGatewayPublic {
           details: { command: msg.type },
         },
       });
-      return false;
+      return null;
     }
 
     const decision = await permissions.canExecute(client.session, schema);
-    if (decision.status === 'allow') return true;
+    if (decision.status === 'allow') return { credentials: decision.credentials };
 
     this.sendCore(client.ws, { id: msg.id, type: 'error', payload: decision.receipt });
-    return false;
+    return null;
+  }
+
+  private async dispatchDomainVenueRequest(
+    client: ConnectedClient,
+    schema: CommandSchema,
+    msg: WSMessage,
+    permissionCredentials: PermissionCredential[],
+  ): Promise<'handled' | 'skipped'> {
+    if (!client.session) return 'handled';
+    const domainDispatch = this.services.tryGet('domain-dispatch');
+    if (!domainDispatch) return 'skipped';
+
+    const result = await domainDispatch.dispatchVenueRequest({
+      schema,
+      msg,
+      session: client.session,
+      permissionCredentials,
+    });
+    if (result.status === 'skipped') return 'skipped';
+
+    this.sendCore(client.ws, {
+      id: msg.id,
+      type: result.receipt.ok ? 'result' : 'error',
+      payload: result.receipt,
+    });
+    return 'handled';
   }
 
   private buildSessionState(agentId: string, connectionId: string): AgentSessionSnapshot {

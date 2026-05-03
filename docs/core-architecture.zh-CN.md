@@ -199,8 +199,9 @@
 5. 从 `HookRegistry` 取出命令 schema。
 6. 在正式分发前，执行同一 resident 的 action lease requirement。
 7. 如果 Venue request 声明了 `protocol.request.requiredCapabilities`，在分发前检查 active permission credential 和 approval policy。缺少可批准的 permission 时返回 `PERMISSION_REQUIRED` 与 `nextAction: "require_approval"`；显式禁止或未声明 capability 的 legacy confirmation request 返回 `PERMISSION_DENIED`。
-8. 通过 `hooks.handleWSCommand(...)` 分发命令。
-9. 当城市 / 地点 / action lease 状态变化时，向连接推送 session-state 更新。
+8. 对已有 active attachment 的 domain topology 场馆，把已授权请求包装成 signed City-to-Domain dispatch envelope，并把 Domain receipt 记录到 `domain_dispatch_audits`。
+9. 对 local topology 场馆，通过 `hooks.handleWSCommand(...)` 分发命令。
+10. 当城市 / 地点 / action lease 状态变化时，向连接推送 session-state 更新。
 
 会话状态当前由 `AgentSessionService` 管理，记录内容包括：
 
@@ -339,6 +340,8 @@ Local module 默认保持 local。Domain-capable module 可以暴露 endpoint/do
 Domain attachment record 是 City Core 拥有的 audit state。每条记录包含状态（`pending`、`attached`、`failed` 或 `detached`）、domain id、city id、plugin id、venue module id、venue namespace、protocol version、endpoint/document URLs、Domain Document hash、capabilities、receipt code、receipt JSON 和时间戳。Attachment 失败会返回稳定的紧凑 receipt code，且不能让后续 request dispatch 假装成功。
 
 Domain Document v0 使用 schema id `uruc.domain.document@v0` 和 protocol version `uruc-domain-v0`。Ed25519 proof 签名的是移除 `proof` 对象后的 sorted JSON document，并且必须声明精确的顶层 covered fields（`capabilities`、`domainId`、`endpoints`、`hints`、`protocol`、`publicKeys`、`schema` 和 `venue`）。Fetch 和 receipt 解析要求 JSON content type、有界 response size、可解析 JSON，以及稳定的紧凑错误码。
+
+Signed domain dispatch 只适用于已 attached 的 domain topology。City Core 会先执行现有 action lease 和 permission checks，然后签名一个 envelope，包含当前 request id/type/payload、resident id、city id、venue module id/namespace、capability 与 permission credential refs、timestamps、nonce，以及 attachment/domain refs。Domain receipt 必须由 attached Domain Document 中的 key 签名，并且必须回显 envelope hash。City Core 会把 pre-dispatch envelope 和最终紧凑 receipt 都写入 `domain_dispatch_audits`。Local topology 继续本地处理；missing、failed、expired 或 detached attachment 不能静默伪装成 domain success。Federation 和跨城 trust policy 仍属于 #12，City Core 仍不理解 Venue 业务 payload。
 
 ### 后端 Venue Module 可见的运行时上下文
 

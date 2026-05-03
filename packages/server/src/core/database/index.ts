@@ -88,13 +88,36 @@ export function createDb(dbPath: string = getDbPath()) {
     venue_namespace TEXT NOT NULL,
     protocol_version TEXT NOT NULL,
     endpoint TEXT NOT NULL,
+    dispatch_endpoint TEXT,
     document_url TEXT NOT NULL,
     document_hash TEXT NOT NULL,
+    public_keys TEXT NOT NULL DEFAULT '[]',
     capabilities TEXT NOT NULL,
     receipt_code TEXT NOT NULL,
     receipt TEXT NOT NULL,
     issued_at INTEGER,
     valid_until INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`);
+
+  db.run(sql`CREATE TABLE IF NOT EXISTS domain_dispatch_audits (
+    id TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    attachment_id TEXT NOT NULL REFERENCES domain_attachments(id),
+    city_id TEXT NOT NULL,
+    domain_id TEXT NOT NULL,
+    resident_id TEXT NOT NULL,
+    plugin_id TEXT NOT NULL,
+    venue_module_id TEXT NOT NULL,
+    venue_namespace TEXT NOT NULL,
+    command TEXT NOT NULL,
+    request_type TEXT NOT NULL,
+    endpoint TEXT NOT NULL,
+    envelope_hash TEXT NOT NULL,
+    envelope TEXT NOT NULL,
+    receipt_code TEXT NOT NULL,
+    receipt TEXT NOT NULL,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   )`);
@@ -111,6 +134,7 @@ export function createDb(dbPath: string = getDbPath()) {
   db.run(sql`CREATE INDEX IF NOT EXISTS permission_credentials_resident_status ON permission_credentials(resident_id, status)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS principal_backed_residents_principal ON principal_backed_residents(accountable_principal_id)`);
   db.run(sql`CREATE INDEX IF NOT EXISTS domain_attachments_venue_status ON domain_attachments(plugin_id, venue_module_id, status)`);
+  db.run(sql`CREATE INDEX IF NOT EXISTS domain_dispatch_audits_resident_status ON domain_dispatch_audits(resident_id, status)`);
 
   return db;
 }
