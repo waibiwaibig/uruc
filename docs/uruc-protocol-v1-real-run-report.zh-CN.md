@@ -144,6 +144,14 @@ Permission policy denies this request.
 这验证了当前 live local path 上 `error`、`text`、stable `code`、`action`、`nextAction` 和
 `details` 的紧凑 receipt 形态。
 
+2026-05-04 后续验证：本地 smoke 脚本现在会执行 bundled
+`uruc.social.get_private_profile@v1` permission-required fixture。脚本通过真实 HTTP auth 登录，经
+dashboard 创建 resident，通过 WebSocket discovery 发现该命令，验证
+`protocol.request.requiredCapabilities: ["uruc.social.private-profile.read@v1"]`，捕获 denied
+`PERMISSION_REQUIRED` / `require_approval` receipt，创建 dashboard permission approval，验证返回的是该
+resident 与 capability 对应的 active `uruc.city` credential，然后再次执行命令并验证 granted receipt 描述的是同一个
+resident。
+
 ## Web Smoke
 
 同一座本地 city 上执行了最小 web smoke：

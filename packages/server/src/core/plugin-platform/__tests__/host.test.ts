@@ -11,9 +11,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 
 import { createDb } from '../../database/index.js';
+import { AuthService } from '../../auth/service.js';
+import { PermissionCredentialService } from '../../permission/service.js';
 import { registerCityCommands } from '../../city/commands.js';
 import { HookRegistry } from '../../plugin-system/hook-registry.js';
 import { ServiceRegistry } from '../../plugin-system/service-registry.js';
+import { WSGateway } from '../../server/ws-gateway.js';
 import { PluginPlatformHost } from '../host.js';
 import { readCityLock, writeCityConfig, writeCityLock } from '../config.js';
 
@@ -181,6 +184,24 @@ function createGateway(sent: unknown[], agentPushes: Array<{ agentId: string; me
       return [];
     },
   };
+}
+
+function createGatewayClient(sent: unknown[]) {
+  return {
+    id: `client-${Math.random().toString(16).slice(2)}`,
+    ws: {
+      readyState: 1,
+      send(data: string) {
+        sent.push(JSON.parse(data));
+      },
+      close() {},
+      ping() {},
+      terminate() {},
+    },
+    msgTimestamps: [],
+    isAlive: true,
+    lastPong: Date.now(),
+  } as any;
 }
 
 function createHttpRequest(
@@ -2403,6 +2424,20 @@ export default defineBackendPlugin({
       },
     });
     expect(availableCommands.find((command) => command.type === 'uruc.social.get_usage_guide@v1')).toBeTruthy();
+    expect(availableCommands.find((command) => command.type === 'uruc.social.get_private_profile@v1')).toMatchObject({
+      protocol: {
+        subject: 'resident',
+        request: {
+          type: 'uruc.social.private-profile.read.request@v1',
+          requiredCapabilities: ['uruc.social.private-profile.read@v1'],
+        },
+        receipt: {
+          type: 'uruc.social.private-profile.read.receipt@v1',
+          statuses: ['accepted', 'require_approval'],
+        },
+        venue: { id: 'uruc.social' },
+      },
+    });
     expect(availableCommands.find((command) => command.type === 'uruc.social.request_data_erasure@v1')).toMatchObject({
       confirmationPolicy: {
         required: true,
@@ -2465,6 +2500,86 @@ export default defineBackendPlugin({
             expect.stringContaining('uruc.social.list_relationships@v1'),
           ]),
         }),
+      },
+    });
+
+    await host.stopAll();
+  });
+
+  it('enforces approval before executing the bundled social private profile request', async () => {
+    const socialPluginPath = path.resolve(process.cwd(), '..', 'plugins', 'social');
+    const sent: any[] = [];
+
+    const { host, hooks, db, services } = await startSinglePluginHost(
+      'uruc.social',
+      '@uruc/plugin-social',
+      socialPluginPath,
+    );
+
+    const auth = new AuthService(db);
+    const permissions = new PermissionCredentialService(db);
+    const gateway = new WSGateway({ port: 0 }, hooks, services, auth);
+    services.register('permission', permissions);
+    services.register('ws-gateway', gateway as any);
+
+    db.run(sql`
+      INSERT INTO users (id, username, password_hash, email, role, banned, email_verified, created_at)
+      VALUES ('user-social-permission', 'socialpermission', 'hash', 'social-permission@example.com', 'user', 0, 1, ${Date.now()})
+    `);
+    const agent = await auth.createAgent('user-social-permission', 'Social Permission Agent');
+
+    const client = createGatewayClient(sent);
+    (gateway as any).clients.set('client-social-permission', client);
+    await (gateway as any).handleAgentAuth('client-social-permission', client, {
+      id: 'auth-social-permission',
+      type: 'auth',
+      payload: agent.token,
+    });
+
+    sent.length = 0;
+    await (gateway as any).handleMessage('client-social-permission', {
+      id: 'private-profile-denied',
+      type: 'uruc.social.get_private_profile@v1',
+      payload: {},
+    });
+
+    expect(sent.at(-1)).toMatchObject({
+      id: 'private-profile-denied',
+      type: 'error',
+      payload: {
+        code: 'PERMISSION_REQUIRED',
+        text: 'Permission required for this request.',
+        nextAction: 'require_approval',
+        details: {
+          requestType: 'uruc.social.private-profile.read.request@v1',
+          requiredCapabilities: ['uruc.social.private-profile.read@v1'],
+          missingCapabilities: ['uruc.social.private-profile.read@v1'],
+        },
+      },
+    });
+
+    await permissions.approveCredential({
+      authorityUserId: 'user-social-permission',
+      residentId: agent.id,
+      capabilities: ['uruc.social.private-profile.read@v1'],
+    });
+
+    sent.length = 0;
+    await (gateway as any).handleMessage('client-social-permission', {
+      id: 'private-profile-granted',
+      type: 'uruc.social.get_private_profile@v1',
+      payload: {},
+    });
+
+    expect(sent.at(-1)).toMatchObject({
+      id: 'private-profile-granted',
+      type: 'result',
+      payload: {
+        subject: {
+          agentId: agent.id,
+          agentName: 'Social Permission Agent',
+        },
+        retention: expect.any(Object),
       },
     });
 

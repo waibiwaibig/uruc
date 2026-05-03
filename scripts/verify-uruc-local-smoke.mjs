@@ -7,10 +7,16 @@ import net from 'node:net';
 import { spawnSync } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import WebSocket from 'ws';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 const urucEntrypoint = path.join(repoRoot, 'uruc');
+const permissionSmoke = {
+  command: 'uruc.social.get_private_profile@v1',
+  capability: 'uruc.social.private-profile.read@v1',
+  requestType: 'uruc.social.private-profile.read.request@v1',
+};
 
 function parseEnv(content) {
   const env = {};
@@ -83,6 +89,138 @@ async function waitForHealth(url, timeoutMs = 30000) {
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
   throw new Error(`Timed out waiting for health endpoint: ${url}`);
+}
+
+async function postJson(url, body, options = {}) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.cookie ? { Cookie: options.cookie } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(`POST ${url} failed with ${response.status}: ${JSON.stringify(payload)}`);
+  }
+  return { response, payload };
+}
+
+function extractCookieHeader(response) {
+  const setCookies = typeof response.headers.getSetCookie === 'function'
+    ? response.headers.getSetCookie()
+    : [response.headers.get('set-cookie')].filter(Boolean);
+  const cookie = setCookies.map((value) => value.split(';')[0]).filter(Boolean).join('; ');
+  if (!cookie) throw new Error('Login response did not include a session cookie');
+  return cookie;
+}
+
+async function withWebSocket(url, callback) {
+  const ws = new WebSocket(url);
+  await new Promise((resolve, reject) => {
+    ws.once('open', resolve);
+    ws.once('error', reject);
+  });
+
+  try {
+    return await callback(ws);
+  } finally {
+    ws.close();
+  }
+}
+
+async function sendWsMessage(ws, message) {
+  return await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for WebSocket response to ${message.id}`));
+    }, 10000);
+    const onMessage = (data) => {
+      let parsed;
+      try {
+        parsed = JSON.parse(data.toString());
+      } catch (error) {
+        cleanup();
+        reject(error);
+        return;
+      }
+      if (parsed.id !== message.id) return;
+      cleanup();
+      resolve(parsed);
+    };
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
+    const cleanup = () => {
+      clearTimeout(timeout);
+      ws.off('message', onMessage);
+      ws.off('error', onError);
+    };
+    ws.on('message', onMessage);
+    ws.on('error', onError);
+    ws.send(JSON.stringify(message));
+  });
+}
+
+function assertPermissionSmokeDiscovery(payload) {
+  const command = payload.commands?.find((item) => item.type === permissionSmoke.command);
+  if (!command) {
+    throw new Error(`Discovery did not expose ${permissionSmoke.command}`);
+  }
+  const requiredCapabilities = command.protocol?.request?.requiredCapabilities ?? [];
+  if (!requiredCapabilities.includes(permissionSmoke.capability)) {
+    throw new Error(`Discovery did not expose required capability ${permissionSmoke.capability}: ${JSON.stringify(command)}`);
+  }
+  if (command.protocol?.request?.type !== permissionSmoke.requestType) {
+    throw new Error(`Discovery exposed unexpected request type: ${JSON.stringify(command.protocol?.request)}`);
+  }
+}
+
+function assertPermissionRequiredReceipt(envelope) {
+  if (envelope.type !== 'error') {
+    throw new Error(`Expected permission-required error envelope, got ${JSON.stringify(envelope)}`);
+  }
+  const payload = envelope.payload ?? {};
+  const details = payload.details ?? {};
+  if (
+    payload.code !== 'PERMISSION_REQUIRED'
+    || payload.text !== 'Permission required for this request.'
+    || payload.nextAction !== 'require_approval'
+    || details.requestType !== permissionSmoke.requestType
+    || !details.requiredCapabilities?.includes(permissionSmoke.capability)
+    || !details.missingCapabilities?.includes(permissionSmoke.capability)
+  ) {
+    throw new Error(`Unexpected permission-required receipt: ${JSON.stringify(envelope)}`);
+  }
+}
+
+function assertGrantedReceipt(envelope, agentId) {
+  if (envelope.type !== 'result') {
+    throw new Error(`Expected granted result envelope, got ${JSON.stringify(envelope)}`);
+  }
+  if (envelope.payload?.subject?.agentId !== agentId) {
+    throw new Error(`Granted result did not describe the smoke resident: ${JSON.stringify(envelope)}`);
+  }
+}
+
+function assertApprovalCredential(payload, agentId) {
+  const credential = payload.credential;
+  if (
+    credential?.residentId !== agentId
+    || credential?.issuerId !== 'uruc.city'
+    || credential?.status !== 'active'
+    || !credential.capabilities?.includes(permissionSmoke.capability)
+  ) {
+    throw new Error(`Dashboard approval returned unexpected credential: ${JSON.stringify(payload)}`);
+  }
+  if (!credential.validUntil || Number.isNaN(new Date(credential.validUntil).getTime())) {
+    throw new Error(`Dashboard approval did not return an expiring credential: ${JSON.stringify(payload)}`);
+  }
+  if (new Date(credential.validUntil).getTime() <= Date.now()) {
+    throw new Error(`Dashboard approval credential is already expired: ${JSON.stringify(payload)}`);
+  }
 }
 
 const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-local-smoke-'));
@@ -166,6 +304,61 @@ try {
   if (health.status !== 'ok') {
     throw new Error(`Unexpected health payload: ${JSON.stringify(health)}`);
   }
+
+  const baseUrl = `http://127.0.0.1:${httpPort}`;
+  const login = await postJson(`${baseUrl}/api/auth/login`, {
+    username: 'smoke-admin',
+    password: 'smoke-secret',
+  });
+  const cookie = extractCookieHeader(login.response);
+  const agentResult = await postJson(`${baseUrl}/api/dashboard/agents`, {
+    name: 'permission-smoke-resident',
+  }, { cookie });
+  const agent = agentResult.payload.agent;
+  if (!agent?.id || !agent?.token) {
+    throw new Error(`Dashboard agent creation did not return id and token: ${JSON.stringify(agentResult.payload)}`);
+  }
+
+  await withWebSocket(`ws://127.0.0.1:${wsPort}`, async (ws) => {
+    const auth = await sendWsMessage(ws, {
+      id: 'auth-permission-smoke',
+      type: 'auth',
+      payload: agent.token,
+    });
+    if (auth.type !== 'result' || auth.payload?.agentId !== agent.id) {
+      throw new Error(`WebSocket auth failed for permission smoke resident: ${JSON.stringify(auth)}`);
+    }
+
+    const discovery = await sendWsMessage(ws, {
+      id: 'discover-permission-smoke',
+      type: 'what_can_i_do',
+      payload: { scope: 'plugin', pluginId: 'uruc.social' },
+    });
+    if (discovery.type !== 'result') {
+      throw new Error(`Social command discovery failed: ${JSON.stringify(discovery)}`);
+    }
+    assertPermissionSmokeDiscovery(discovery.payload ?? {});
+
+    const denied = await sendWsMessage(ws, {
+      id: 'permission-smoke-denied',
+      type: permissionSmoke.command,
+      payload: {},
+    });
+    assertPermissionRequiredReceipt(denied);
+
+    const approval = await postJson(`${baseUrl}/api/dashboard/permission-approvals`, {
+      residentId: agent.id,
+      capabilities: [permissionSmoke.capability],
+    }, { cookie });
+    assertApprovalCredential(approval.payload, agent.id);
+
+    const granted = await sendWsMessage(ws, {
+      id: 'permission-smoke-granted',
+      type: permissionSmoke.command,
+      payload: {},
+    });
+    assertGrantedReceipt(granted, agent.id);
+  });
 
   const doctor = run(urucEntrypoint, ['doctor', '--json'], { env: baseEnv });
   const doctorReport = JSON.parse(doctor.stdout);

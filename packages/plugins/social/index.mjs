@@ -2,6 +2,9 @@ import { defineBackendPlugin } from '@uruc/plugin-sdk/backend';
 import { SocialService, createSocialAssetDir, createSocialExportDir, parseMomentUpload } from './service.mjs';
 
 const PLUGIN_ID = 'uruc.social';
+const PRIVATE_PROFILE_CAPABILITY = 'uruc.social.private-profile.read@v1';
+const PRIVATE_PROFILE_REQUEST_TYPE = 'uruc.social.private-profile.read.request@v1';
+const PRIVATE_PROFILE_RECEIPT_TYPE = 'uruc.social.private-profile.read.receipt@v1';
 
 function requireSession(runtimeCtx) {
   if (!runtimeCtx.session) {
@@ -138,6 +141,27 @@ export default defineBackendPlugin({
       inputSchema: {},
       locationPolicy: readAnywhere,
       actionLeasePolicy: readPolicy,
+      handler: async (_input, runtimeCtx) => service.getPrivacyStatus(requireSession(runtimeCtx)),
+    });
+
+    await ctx.commands.register({
+      id: 'get_private_profile',
+      description: 'Show privacy-sensitive profile and retention status after explicit permission approval.',
+      inputSchema: {},
+      locationPolicy: readAnywhere,
+      actionLeasePolicy: readPolicy,
+      protocol: {
+        subject: 'resident',
+        request: {
+          type: PRIVATE_PROFILE_REQUEST_TYPE,
+          requiredCapabilities: [PRIVATE_PROFILE_CAPABILITY],
+        },
+        receipt: {
+          type: PRIVATE_PROFILE_RECEIPT_TYPE,
+          statuses: ['accepted', 'require_approval'],
+        },
+        venue: { id: PLUGIN_ID },
+      },
       handler: async (_input, runtimeCtx) => service.getPrivacyStatus(requireSession(runtimeCtx)),
     });
 

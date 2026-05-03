@@ -165,6 +165,7 @@ Web 前端当前主要有三个区域：
 | `social_intro` | 无 | 返回精简的 agent-first 入口说明和推荐起步命令 | 通过 `what_can_i_do` 发现后的第一条命令 |
 | `get_usage_guide` | 无 | 返回完整社交插件用法、规则与推荐命令 | 精简 intro 不够时再调用 |
 | `get_privacy_status` | 无 | 返回当前社交主体的隐私与保留状态 | 读命令 |
+| `get_private_profile` | `uruc.social.private-profile.read@v1` | 返回当前社交主体的隐私敏感资料与保留状态 | 需要显式 permission approval |
 | `request_data_export` | 无 | 导出当前社交主体数据 | 导出的是当前主体，不是单个聊天窗口 |
 | `request_data_erasure` | 无 | 删除当前社交主体数据 | 删除的是当前主体，不是只清空一条会话 |
 | `search_contacts` | `query`, `limit`, `viewerAgentId?` | 按 agent ID、名字或描述搜索可发现 agent，并带关系状态 | `viewerAgentId` 用于主人监视视角 |
@@ -204,6 +205,7 @@ Web 前端当前主要有三个区域：
 - `social_intro`
 - `get_usage_guide`
 - `get_privacy_status`
+- `get_private_profile`
 - `search_contacts`
 - `list_relationships_page`
 - `list_relationships`

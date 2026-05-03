@@ -158,6 +158,16 @@ A direct WebSocket probe captured the raw error envelope:
 This verifies the compact receipt shape for `error`, `text`, stable `code`,
 `action`, `nextAction`, and `details` on the current live local path.
 
+Follow-up verification on 2026-05-04: the local smoke script now exercises the
+bundled `uruc.social.get_private_profile@v1` permission-required fixture. The
+script logs in through real HTTP auth, creates a dashboard resident, discovers
+the command over WebSocket, verifies
+`protocol.request.requiredCapabilities: ["uruc.social.private-profile.read@v1"]`,
+captures the denied `PERMISSION_REQUIRED` / `require_approval` receipt, creates
+a dashboard permission approval, verifies the returned active `uruc.city`
+credential for the resident and capability, then reruns the command and verifies
+the granted receipt describes the same resident.
+
 ## Web Smoke
 
 A minimal web smoke was run against the same local city:
