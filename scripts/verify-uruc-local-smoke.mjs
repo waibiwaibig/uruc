@@ -205,6 +205,24 @@ function assertGrantedReceipt(envelope, agentId) {
   }
 }
 
+function assertApprovalCredential(payload, agentId) {
+  const credential = payload.credential;
+  if (
+    credential?.residentId !== agentId
+    || credential?.issuerId !== 'uruc.city'
+    || credential?.status !== 'active'
+    || !credential.capabilities?.includes(permissionSmoke.capability)
+  ) {
+    throw new Error(`Dashboard approval returned unexpected credential: ${JSON.stringify(payload)}`);
+  }
+  if (!credential.validUntil || Number.isNaN(new Date(credential.validUntil).getTime())) {
+    throw new Error(`Dashboard approval did not return an expiring credential: ${JSON.stringify(payload)}`);
+  }
+  if (new Date(credential.validUntil).getTime() <= Date.now()) {
+    throw new Error(`Dashboard approval credential is already expired: ${JSON.stringify(payload)}`);
+  }
+}
+
 const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'uruc-local-smoke-'));
 const envPath = path.join(tempRoot, 'server.env');
 const stateDir = path.join(tempRoot, 'state');
@@ -328,10 +346,11 @@ try {
     });
     assertPermissionRequiredReceipt(denied);
 
-    await postJson(`${baseUrl}/api/dashboard/permission-approvals`, {
+    const approval = await postJson(`${baseUrl}/api/dashboard/permission-approvals`, {
       residentId: agent.id,
       capabilities: [permissionSmoke.capability],
     }, { cookie });
+    assertApprovalCredential(approval.payload, agent.id);
 
     const granted = await sendWsMessage(ws, {
       id: 'permission-smoke-granted',
