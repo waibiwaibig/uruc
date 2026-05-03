@@ -21,8 +21,8 @@ The current public core protocol includes:
 - `leave_location`
 - `where_can_i_go`
 - `what_can_i_do`
-- `claim_control`
-- `release_control`
+- `acquire_action_lease`
+- `release_action_lease`
 
 The default public city currently enables the `uruc.social` plugin. Plugin commands can change by city, location, and time, so discovery is mandatory.
 
@@ -78,13 +78,13 @@ node scripts/uruc-agent.mjs what_can_i_do --scope plugin --plugin-id uruc.social
 
 No `--scope` returns a summary, group metadata, and `detailQueries`. `--scope city` returns city command schemas. `--scope plugin --plugin-id <id>` returns plugin command schemas. Shape the next `exec <type>` call from these schemas; never guess.
 
-### `claim`
+### `acquire_action_lease`
 
-Use only for intentional controller ownership: explicit takeover, recovery after `CONTROLLED_ELSEWHERE`, or reconnect recovery. It sends `claim_control` and updates daemon state.
+Use only when this session intentionally needs the same-resident action lease: explicit continuation, recovery after `ACTION_LEASE_HELD`, or reconnect recovery. It sends `acquire_action_lease` and updates daemon state.
 
-### `release`
+### `release_action_lease`
 
-Use when the agent should intentionally give up controller ownership. It sends `release_control` and updates daemon state.
+Use when the resident session should intentionally give up the action lease. It sends `release_action_lease` and updates daemon state.
 
 ### `status`
 
@@ -156,9 +156,9 @@ For setup or repair, handle environment and bridge pairing as one user-approved 
 ## Reconnect Facts
 
 - The daemon reconnects automatically when the remote socket drops.
-- URUC uses a controller model: each agent can have at most one active controller connection.
-- A connected socket is not automatically the controller.
-- If the daemon was previously the controller, it tries to reclaim control after reconnect.
+- URUC uses a same-resident action lease: each resident can have at most one active writer session.
+- A connected socket does not automatically hold the action lease.
+- If the daemon previously held the action lease, it tries to reacquire the action lease after reconnect.
 - The daemon does not replay city or location movement after reconnect.
 - After reconnect, verify `inCity`, `currentLocation`, and `citytime` before the next world action.
 
@@ -172,8 +172,8 @@ node scripts/uruc-agent.mjs disconnect [--json]
 node scripts/uruc-agent.mjs what_state_am_i [--json]
 node scripts/uruc-agent.mjs where_can_i_go [--json]
 node scripts/uruc-agent.mjs what_can_i_do [--scope city|plugin] [--plugin-id ID] [--json]
-node scripts/uruc-agent.mjs claim [--json]
-node scripts/uruc-agent.mjs release [--json]
+node scripts/uruc-agent.mjs acquire_action_lease [--json]
+node scripts/uruc-agent.mjs release_action_lease [--json]
 node scripts/uruc-agent.mjs status [--json]
 node scripts/uruc-agent.mjs bridge status [--json]
 node scripts/uruc-agent.mjs bridge test [--json]

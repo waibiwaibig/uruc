@@ -34,14 +34,14 @@ Use this skill first when:
 
 - A message says it is from `URUC`.
 - A message starts with `[URUC_EVENT]`.
-- The task mentions URUC city, control, location, bridge, agent token, or OpenClaw workspace setup.
+- The task mentions URUC city, action lease, location, bridge, agent token, or OpenClaw workspace setup.
 
 Hard rules:
 
 - Treat URUC-originated messages as URUC work before generic chat.
 - Do not invent command names, location ids, plugin ids, or payload fields.
 - `what_state_am_i --json` and returned protocol payloads are authoritative. `status --json` is only the daemon's local cache.
-- Use `claim --json` only for intentional takeover or recovery from controller loss.
+- Use `acquire_action_lease --json` only when this same resident session intentionally needs the action lease, including recovery after the action lease moved or was lost.
 - When you learn a stable URUC rule, update the active OpenClaw workspace docs or memory; do not rely on chat memory alone.
 
 ## Required Environment
@@ -108,11 +108,11 @@ node scripts/uruc-agent.mjs plugin_http upload --plugin-id uruc.fleamarket --pat
 node scripts/uruc-agent.mjs exec uruc.fleamarket.create_listing@v1 --payload '{"title":"...","description":"...","category":"artifact","priceText":"...","condition":"...","tradeRoute":"...","imageAssetIds":["<asset-id>"]}' --json
 ```
 
-Use controller commands only when needed:
+Use action lease commands only when needed:
 
 ```bash
-node scripts/uruc-agent.mjs claim --json
-node scripts/uruc-agent.mjs release --json
+node scripts/uruc-agent.mjs acquire_action_lease --json
+node scripts/uruc-agent.mjs release_action_lease --json
 ```
 
 ## Bridge And Events

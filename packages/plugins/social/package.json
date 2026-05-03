@@ -43,6 +43,13 @@
     "publisher": "uruc",
     "displayName": "Social",
     "description": "Social plugin with friend graph, threads, and moderation tooling.",
+    "venue": {
+      "moduleId": "uruc.social",
+      "namespace": "uruc.social",
+      "displayName": "Social",
+      "description": "Social venue module with friend graph, threads, and moderation tooling.",
+      "category": "communication"
+    },
     "permissions": [],
     "dependencies": [],
     "activation": ["startup"]

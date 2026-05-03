@@ -64,11 +64,11 @@ export async function main(args = process.argv.slice(2), deps = createCliDeps())
     case 'what_state_am_i':
       await handleWhatStateAmI(args.slice(1), deps);
       return;
-    case 'claim':
-      await handleClaim(args.slice(1), deps);
+    case 'acquire_action_lease':
+      await handleAcquireActionLease(args.slice(1), deps);
       return;
-    case 'release':
-      await handleRelease(args.slice(1), deps);
+    case 'release_action_lease':
+      await handleReleaseActionLease(args.slice(1), deps);
       return;
     case 'bridge':
       await handleBridge(args.slice(1), deps);
@@ -156,7 +156,7 @@ async function handleDaemon(args, deps) {
       if (state) {
         console.log(`connection: ${state.connectionStatus}`);
         console.log(`authenticated: ${state.authenticated ? 'yes' : 'no'}`);
-        console.log(`controller: ${state.isController ? 'yes' : state.hasController ? 'other connection' : 'no'}`);
+        console.log(`action lease: ${state.isController ? 'current session' : state.hasController ? 'other connection' : 'available'}`);
       }
       console.log(`log: ${output.logPath}`);
       return;
@@ -218,13 +218,13 @@ async function handleDisconnect(args, deps) {
   console.log('已断开远程 Uruc 连接');
 }
 
-async function handleClaim(args, deps) {
+async function handleAcquireActionLease(args, deps) {
   const options = parseOptions(args, { booleans: ['json'] });
   await ensureBootstrap(undefined, deps);
-  const response = await deps.callDaemon('exec', { type: 'claim_control', payload: undefined, timeoutMs: 10_000 }, 12_000);
+  const response = await deps.callDaemon('exec', { type: 'acquire_action_lease', payload: undefined, timeoutMs: 10_000 }, 12_000);
   const output = {
     ok: true,
-    claimed: true,
+    actionLeaseAcquired: true,
     result: response.result,
     state: response.state,
   };
@@ -234,14 +234,14 @@ async function handleClaim(args, deps) {
     return;
   }
 
-  console.log('已接管当前 Agent 控制权');
+  console.log('已取得当前 Resident 的 action lease');
   console.log(formatJson(output.result));
 }
 
-async function handleRelease(args, deps) {
+async function handleReleaseActionLease(args, deps) {
   const options = parseOptions(args, { booleans: ['json'] });
   await ensureBootstrap(undefined, deps);
-  const response = await deps.callDaemon('exec', { type: 'release_control', payload: undefined, timeoutMs: 10_000 }, 12_000);
+  const response = await deps.callDaemon('exec', { type: 'release_action_lease', payload: undefined, timeoutMs: 10_000 }, 12_000);
   const output = {
     ok: true,
     released: true,
@@ -254,7 +254,7 @@ async function handleRelease(args, deps) {
     return;
   }
 
-  console.log('已释放当前 Agent 控制权');
+  console.log('已释放当前 Resident 的 action lease');
   console.log(formatJson(output.result));
 }
 
@@ -366,7 +366,7 @@ async function handleStatus(args, deps) {
   if (state.agentSession) {
     console.log(`agent: ${state.agentSession.agentName} (${state.agentSession.agentId})`);
   }
-  console.log(`controller: ${state.isController ? 'yes' : state.hasController ? 'other connection' : 'no'}`);
+  console.log(`action lease: ${state.isController ? 'current session' : state.hasController ? 'other connection' : 'available'}`);
   console.log(`inCity: ${state.inCity ? 'yes' : 'no'}`);
   console.log(`currentLocation: ${state.currentLocation ?? 'none'}`);
   if (typeof state.citytime === 'number') {
@@ -778,7 +778,7 @@ Usage:
   node /path/to/uruc-agent/scripts/uruc-agent.mjs what_state_am_i --json
   node /path/to/uruc-agent/scripts/uruc-agent.mjs where_can_i_go --json
   node /path/to/uruc-agent/scripts/uruc-agent.mjs what_can_i_do --json
-  node /path/to/uruc-agent/scripts/uruc-agent.mjs claim --json
+  node /path/to/uruc-agent/scripts/uruc-agent.mjs acquire_action_lease --json
   node /path/to/uruc-agent/scripts/uruc-agent.mjs bridge status --json
   node /path/to/uruc-agent/scripts/uruc-agent.mjs exec enter_city --json
 
@@ -788,8 +788,8 @@ Commands:
   connect                    Alias of bootstrap; optional explicit override for recovery
   disconnect                 Disconnect the remote Uruc connection but keep daemon alive
   what_state_am_i            Fetch the authoritative remote agent state snapshot
-  claim                      Claim control of the current Agent
-  release                    Release control of the current Agent
+  acquire_action_lease       Acquire the same-resident action lease
+  release_action_lease       Release the same-resident action lease
   bridge status|test         Inspect or test the fixed local OpenClaw bridge path
   status                     Show the local daemon snapshot (not the authoritative protocol query)
   where_can_i_go             Fetch the current place and reachable locations

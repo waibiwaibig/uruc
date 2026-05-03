@@ -1,14 +1,14 @@
 [English](plugin-development.md) | [中文](plugin-development.zh-CN.md)
 
-# Uruc Plugin Development Guidebook
+# Uruc Venue Module Development Guidebook
 
-This guide is for humans and AI coding agents building V2 plugins for the current public Uruc repository. It is intended to be sufficient without reading Uruc source. If you maintain the platform and need to resolve a mismatch, the implementation is the source of truth: `packages/server/src/core/plugin-platform`, `packages/plugin-sdk`, `packages/web/src/plugins`, and `packages/plugins/social`.
+This guide is for humans and AI coding agents building Venue Modules with the current V2 plugin package mechanics in the public Uruc repository. It is intended to be sufficient without reading Uruc source. If you maintain the platform and need to resolve a mismatch, the implementation is the source of truth: `packages/server/src/core/plugin-platform`, `packages/plugin-sdk`, `packages/web/src/plugins`, and `packages/plugins/social`.
 
-Uruc is pre-1.0. The plugin platform runs end to end today, but contracts and workflows may still change.
+Uruc is pre-1.0. Venue modules run end to end today through the current plugin platform, but contracts and workflows may still change.
 
 ## 1. Mental Model
 
-Uruc is a real-time city runtime for humans and AI agents. The target Uruc City Protocol calls every acting city subject a `Resident`; current runtime code still exposes owner, user, agent, and shadow-agent surfaces while that migration is in progress. The core city owns identity, auth, WebSocket transport, HTTP transport, command discovery, city movement, and plugin loading. Plugins are the current implementation shape for future `Venue Modules`: they add city life such as social systems, games, venues, tools, workflows, markets, moderation, and other protocol-compatible capabilities.
+Uruc is a real-time city runtime for humans and AI agents. The target Uruc City Protocol calls every acting city subject a `Resident`; current runtime code still exposes owner, user, agent, and shadow-agent surfaces while that migration is in progress. The core city owns identity, auth, WebSocket transport, HTTP transport, request discovery, city movement, and venue package loading. Venue Modules add city life such as social systems, games, venues, tools, workflows, markets, moderation, and other protocol-compatible capabilities. They are currently packaged and loaded through the plugin host.
 
 Agents do not begin by reading your frontend. An agent connects over the city WebSocket protocol, authenticates, and asks:
 
@@ -16,30 +16,30 @@ Agents do not begin by reading your frontend. An agent connects over the city We
 - `where_can_i_go`: current place and reachable locations.
 - `what_can_i_do`: command groups and detail queries for command schemas.
 
-If your plugin id is `acme.echo` and you register command id `ping`, the public command is `acme.echo.ping@v1`. If you register location id `echo-hub`, the public location is `acme.echo.echo-hub`. Register short ids in code; use full ids when calling commands, writing policies, or binding frontend metadata.
+If your venue module id is `acme.echo` and you register command id `ping`, the public request command is `acme.echo.ping@v1`. If you register location id `echo-hub`, the public location is `acme.echo.echo-hub`. Register short ids in code; use full ids when calling commands, writing policies, or binding frontend metadata.
 
-Migration note: `command`, `plugin`, and `agent` remain current API terms in this guide because those are the runnable interfaces today. Their protocol targets are `Request`, `Venue Module`, and `Resident`. The old terms are not permanent aliases: request capability declarations begin in issue #4, plugin-to-venue public naming is handled by issue #8, and compact receipt-shaped responses continue in issue #13.
+Migration note: `command`, `plugin`, and `agent` remain current API or file-layout terms in this guide where they describe runnable interfaces today. Their protocol targets are `Request`, `Venue Module`, and `Resident`. The old terms are not permanent aliases: request capability declarations began in issue #4, venue module manifest metadata begins in issue #8, and compact receipt-shaped responses continue in issue #13.
 
 OpenClaw is a useful example target. Its docs describe a self-hosted Gateway that connects messaging channels to AI coding agents through a WebSocket JSON control plane. Its agent loop turns incoming messages into context assembly, model inference, tool execution, streaming replies, and persistence. That means every verbose command result or unsolicited push can become model context, so plugin output must be cheap for agents to understand. References: [OpenClaw overview](https://docs.openclaw.ai/), [Gateway protocol](https://docs.openclaw.ai/gateway/protocol), [Agent loop](https://docs.openclaw.ai/concepts/agent-loop), [Messages](https://docs.openclaw.ai/concepts/messages).
 
-## 2. Plugin Principles
+## 2. Venue Module Principles
 
-- **Backend first.** Build commands, storage, errors, routes, and tests before UI. The backend is the plugin; the frontend is a human shell.
+- **Backend first.** Build requests, storage, errors, routes, and tests before UI. The backend venue module is the business surface; the frontend is a human shell.
 - **Agent first.** Design for agents working through conversation, tool calls, and limited context. Do not require a UI or source reading to understand basic use.
 - **Context economy.** Return summaries first, paginate lists, fetch details by id, avoid static-rule repetition, and never push large histories unless the event itself is the detail.
-- **Guidance first.** Every command needs a short one-sentence `description`; every input field needs metadata; every plugin must provide one `<feature>_intro` command.
+- **Guidance first.** Every request command needs a short one-sentence `description`; every input field needs metadata; every venue module must provide one `<feature>_intro` command.
 - **Discovery first.** `what_can_i_do` plus the intro command must be enough for an unfamiliar agent to choose the next command.
 - **Stable contracts.** Keep command ids, field names, and error codes stable. Add fields or commands instead of changing old meanings.
-- **City native.** Register a location only when the plugin creates a place agents visit. Locationless plugins are correct for capability layers like social, notifications, export, or background automation.
+- **City native.** Register a location only when the venue module creates a place residents visit. Locationless modules are correct for capability layers like social, notifications, export, or background automation.
 - **Read/write separation.** Safe read commands should usually use `controlPolicy: { controllerRequired: false }`; writes should require the same-resident action lease, confirmation, or permission where appropriate. The field name is retained as a temporary SDK compatibility surface and should be removed after client migration.
 - **Sparse push, detail pull.** Pushes should say what changed, who it affects, and which command fetches detail.
-- **Plugin-owned boundaries.** Keep business logic in the plugin package. Do not import `packages/server/src/core/*`.
+- **Venue-owned boundaries.** Keep business logic in the venue module package. Do not import `packages/server/src/core/*`.
 - **Frontend after backend.** Add UI only after the agent-facing contract is mature.
-- **Black-box acceptance.** Another engineer or AI agent should be able to create and verify a simple plugin from this guide without reading Uruc source.
+- **Black-box acceptance.** Another engineer or AI agent should be able to create and verify a simple venue module from this guide without reading Uruc source.
 
 ## 3. Fast Backend-First Path
 
-Create a backend plugin:
+Create a backend venue module package:
 
 ```bash
 ./uruc plugin create acme.echo
@@ -51,7 +51,7 @@ Use `--frontend` only when you already know UI is needed:
 ./uruc plugin create acme.echo --frontend
 ```
 
-Default backend layout:
+Default backend package layout:
 
 ```text
 packages/plugins/acme-echo/
@@ -87,9 +87,9 @@ Local development loop:
 
 If the server is already running, use `./uruc restart`. `link` writes a local override into city config and updates the lock; there is no documented dry-run mode today. In shared or dirty workspaces, do the link/start verification in a disposable branch, worktree, or copy. `start` materializes a runtime revision under `.uruc/plugins/<pluginId>/<revision>`.
 
-## 4. Package Manifest
+## 4. Venue Package Manifest
 
-Backend plugins are ESM packages with `package.json#urucPlugin`:
+Backend venue modules are ESM packages with the current `package.json#urucPlugin` manifest:
 
 ```json
 {
@@ -107,7 +107,13 @@ Backend plugins are ESM packages with `package.json#urucPlugin`:
     "entry": "./index.mjs",
     "publisher": "acme",
     "displayName": "Echo",
-    "description": "Echo command plugin for Uruc agents.",
+    "description": "Echo venue module for Uruc residents.",
+    "venue": {
+      "moduleId": "acme.echo",
+      "namespace": "acme.echo",
+      "displayName": "Echo",
+      "description": "A small Echo venue module."
+    },
     "permissions": [],
     "dependencies": [],
     "activation": ["startup"]
@@ -126,6 +132,16 @@ Required fields:
 | `publisher` | Checked against city `approvedPublishers` |
 | `displayName` | Human-facing name |
 
+Venue metadata:
+
+| Field | Meaning |
+| --- | --- |
+| `venue.moduleId` | Stable venue module id; defaults to `pluginId` while package mechanics still use plugin ids |
+| `venue.namespace` | Capability and request namespace owned by this venue module; defaults to `pluginId` |
+| `venue.displayName` | Human-facing venue module name |
+| `venue.description` | Short public description of the venue module |
+| `venue.category` | Optional category such as `communication`, `game`, `market`, or `public space` |
+
 Useful optional fields:
 
 | Field | Current behavior |
@@ -137,11 +153,11 @@ Useful optional fields:
 | `migrations` | Parsed, but not executed by the current host |
 | `healthcheck` | Parsed and stored, but not actively run by the current host |
 
-Do not put `@uruc/plugin-sdk` in plugin `dependencies`; the host bridges it at runtime.
+Do not put `@uruc/plugin-sdk` in package `dependencies`; the host bridges it at runtime.
 
 ## 5. Backend Entry
 
-Use `index.mjs` unless you add and verify a build step. This complete example creates:
+Use `index.mjs` unless you add and verify a build step. This complete venue module example creates:
 
 - intro command: `acme.echo.echo_intro@v1`
 - business command: `acme.echo.ping@v1`
@@ -181,8 +197,8 @@ export default defineBackendPlugin({
       controlPolicy: { controllerRequired: false },
       handler: async () => ({
         pluginId: PLUGIN_ID,
-        summary: 'Echo is a small example plugin for testing Uruc commands.',
-        useFor: ['Check plugin health.', 'Save short notes in plugin-owned storage.'],
+        summary: 'Echo is a small example venue module for testing Uruc commands.',
+        useFor: ['Check venue module health.', 'Save short notes in venue-owned storage.'],
         rules: ['Use ping for health.', 'Use list_notes before assuming saved state.'],
         firstCommands: [
           `${PLUGIN_ID}.ping@v1`,
@@ -343,7 +359,7 @@ protocol: {
 }
 ```
 
-`Request` is the protocol name for a resident intent. `Receipt` is the protocol name for the processing result. `Venue` identifies the plugin-owned business surface while the implementation still calls it a plugin.
+`Request` is the protocol name for a resident intent. `Receipt` is the protocol name for the processing result. `Venue` identifies the venue-owned business surface while implementation mechanics still use plugin package names.
 
 ### Errors
 
@@ -364,7 +380,7 @@ Migration note for #13: current plugins may still throw `action`; the host mirro
 
 ### Storage, events, push, lifecycle
 
-Use plugin storage for JSON records scoped by plugin id and collection:
+Use venue module storage for JSON records scoped by package id and collection:
 
 ```js
 await ctx.storage.get('notes', noteId);
@@ -396,13 +412,13 @@ Backend `setup(ctx)` surfaces:
 | API | Use |
 | --- | --- |
 | `ctx.commands.register(...)` | WebSocket commands |
-| `ctx.http.registerRoute(...)` | Plugin HTTP routes |
+| `ctx.http.registerRoute(...)` | Venue module HTTP routes |
 | `ctx.locations.register(...)` | Visit-ready locations |
 | `ctx.policies.register(...)` | Cross-cutting command/location policies |
 | `ctx.events.subscribe(...)` | Runtime event hooks |
 | `ctx.messaging` | Push to agents, owners, or broadcast |
-| `ctx.storage` | Plugin-scoped JSON storage |
-| `ctx.config.get()` | Plugin config from city config |
+| `ctx.storage` | Venue module-scoped JSON storage |
+| `ctx.config.get()` | Venue module config from city config |
 | `ctx.logging`, `ctx.diagnostics` | Logs and diagnostics |
 | `ctx.lifecycle.onStop(...)` | Cleanup |
 
@@ -428,8 +444,8 @@ HTTP input behavior:
 
 Config behavior:
 
-- plugin config lives in the city config file
-- `ctx.config.get()` returns the plugin `config` object
+- venue module config lives in the city config file
+- `ctx.config.get()` returns the module `config` object
 - restart after config edits
 
 ## 8. Verify Like an Agent
@@ -468,7 +484,7 @@ Add frontend after backend maturity. Frontend contributions:
 
 | Target | Purpose |
 | --- | --- |
-| `PAGE_ROUTE_TARGET` | Plugin page route |
+| `PAGE_ROUTE_TARGET` | Venue module page route |
 | `LOCATION_PAGE_TARGET` | Bind a location to a page |
 | `NAV_ENTRY_TARGET` | Navigation entry |
 | `INTRO_CARD_TARGET` | Discovery card |
@@ -579,7 +595,7 @@ Current frontend facts:
 - in-repo discovery scans `packages/plugins/*/package.json` and `packages/plugins/*/frontend/plugin.ts(x)`
 - installed runtime frontends load from `frontend-dist/` through `/api/frontend-plugins`
 - package-backed frontend plugins must include `frontend-dist/manifest.json`
-- frontend plugin id must match backend `urucPlugin.pluginId`
+- frontend plugin id must match backend `urucPlugin.pluginId`; `urucPlugin.venue.moduleId` describes the public venue module identity
 - frontend code must not import host internals such as `packages/web/src/lib/api`
 - current app canonicalizes plugin pages under `/workspace/plugins/<pluginId>/<segment>`
 - `/app/plugins/...`, `/play/plugins/...`, and `/plugins/...` are normalized to workspace routes
@@ -610,10 +626,10 @@ The pack command stages the plugin, builds `frontend-dist/` when `urucFrontend` 
 
 Current limits:
 
-- backend loading is dynamic and city-specific
+- backend venue module loading is dynamic and city-specific
 - checked-in web app frontend discovery is static for in-repo plugins
 - runtime frontend assets load through `/api/frontend-plugins`
-- every enabled backend plugin starts at startup
+- every enabled backend venue module starts at startup
 - `activation` is stored but not used for lazy loading today
 - command and route schemas are not runtime validation
 - `permissions`, `migrations`, and `healthcheck` metadata exist, but not all execution models are implemented
@@ -639,26 +655,26 @@ Common failures:
 | frontend plugin id mismatch | `frontend/plugin.ts(x)` differs from package manifest |
 | command not found | called short id instead of `<pluginId>.<commandId>@v1` |
 | location policy never matches | used short location id instead of full namespaced id |
-| frontend page disabled | backend plugin is not enabled or failed to start |
+| frontend page disabled | backend venue module is not enabled or failed to start |
 | runtime frontend missing | package-backed frontend lacks `frontend-dist/manifest.json` |
 | command schema looks useless | missing or vague `description` and input metadata |
 | agent does not know how to start | missing `<feature>_intro` |
 
 ## 11. Final Acceptance Checklist
 
-Before calling a plugin ready:
+Before calling a venue module ready:
 
-- `package.json#urucPlugin` is valid.
+- `package.json#urucPlugin` is valid and includes or defaults `venue.moduleId` and `venue.namespace`.
 - Publisher is approved.
 - Backend exports `defineBackendPlugin(...)`.
 - Every command has a short useful `description`.
-- Plugin has one primary `<feature>_intro` command.
+- Venue module has one primary `<feature>_intro` command.
 - Intro explains purpose, rules, first commands, and key fields.
 - Safe reads use `controllerRequired: false`.
 - Writes validate input and return structured errors.
 - Lists are paginated or capped.
 - Pushes are sparse and point to detail commands.
-- Storage uses plugin-owned collection names.
+- Storage uses venue-owned collection names.
 - Frontend, if present, is optional and calls public backend commands/routes.
 - `./uruc plugin validate <path>` passes.
 - In a disposable verification workspace, `./uruc plugin link <path>` succeeds.
@@ -667,4 +683,4 @@ Before calling a plugin ready:
 - `<pluginId>.<feature>_intro@v1` works.
 - At least one real business command works through the agent protocol.
 
-If another AI agent cannot create a simple working plugin from this guide without reading source, the guide or plugin README is not done.
+If another AI agent cannot create a simple working venue module from this guide without reading source, the guide or module README is not done.

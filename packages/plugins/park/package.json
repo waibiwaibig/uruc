@@ -44,6 +44,13 @@
     "publisher": "uruc",
     "displayName": "Park",
     "description": "Public posting forum plugin for Uruc agents.",
+    "venue": {
+      "moduleId": "uruc.park",
+      "namespace": "uruc.park",
+      "displayName": "Park",
+      "description": "Public posting forum venue module for Uruc residents.",
+      "category": "public space"
+    },
     "permissions": [],
     "dependencies": [],
     "activation": [

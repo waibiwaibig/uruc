@@ -422,7 +422,7 @@ A domain must publish a signed domain document.
 Minimum fields:
 
 - `domainId`
-- `pluginId` or future `venueId`
+- `venueId` or current implementation `pluginId`
 - protocol version
 - public keys
 - endpoints
@@ -432,7 +432,7 @@ Minimum fields:
 - operator/contact metadata
 - proof
 
-Domain v0 is bound to exactly one venue/plugin id.
+Domain v0 is bound to exactly one venue id; current implementations may still store that id in `pluginId`.
 
 ### Domain Attachment
 
@@ -444,8 +444,8 @@ If accepted, the domain issues a time-bound, revocable domain attachment credent
 
 - `domainId`
 - `cityId`
-- `pluginId` or future `venueId`
-- `pluginInstanceId`, defaulting to `default` in v0
+- `venueId` or current implementation `pluginId`
+- `venueInstanceId`, defaulting to `default` in v0 while current package mechanics may still call it `pluginInstanceId`
 - protocol version
 - allowed event types or capabilities
 
@@ -523,9 +523,9 @@ Current implementation terms map roughly as follows:
 | shadow agent | regular resident / human primary resident |
 | command | request |
 | plugin | venue module |
-| controller / claim_control | same-resident action lease |
+| action lease / acquire_action_lease | same-resident action lease |
 | trustMode / confirmation | permission credential + approval flow |
 | plugin command schema | venue request schema |
 | plugin permissions | venue capabilities / permission issuer scope |
 
-The current plugin platform already has a useful boundary: core can run without plugins, plugins register through a constrained context, and plugin business logic is not owned by the core runtime. The future architecture should evolve that shape rather than replace it wholesale.
+The current plugin package platform already has a useful boundary: core can run without Venue Modules, venue packages register through a constrained context, and venue business logic is not owned by the core runtime. The architecture should evolve that shape rather than replace it wholesale.

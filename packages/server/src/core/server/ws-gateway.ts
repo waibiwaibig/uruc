@@ -294,14 +294,11 @@ export class WSGateway implements WSGatewayPublic {
       return this.handleStateQuery(clientId, client, msg);
     }
 
-    // Hidden compatibility alias for pre-action-lease clients. Discovery only exposes
-    // acquire_action_lease; remove this after issue #8 migrates checked-in clients.
-    if (msg.type === 'acquire_action_lease' || msg.type === 'claim_control') {
+    if (msg.type === 'acquire_action_lease') {
       return this.handleClaimControl(clientId, client, msg);
     }
 
-    // Hidden compatibility alias for pre-action-lease clients; same removal target as above.
-    if (msg.type === 'release_action_lease' || msg.type === 'release_control') {
+    if (msg.type === 'release_action_lease') {
       return this.handleReleaseControl(clientId, client, msg);
     }
 
@@ -496,7 +493,7 @@ export class WSGateway implements WSGatewayPublic {
 
   private handleReleaseControl(clientId: string, client: ConnectedClient, msg: WSMessage): void {
     if (!client.session) return;
-    const snapshot = this.agentSessions.releaseControl(client.session.agentId, clientId);
+    const snapshot = this.agentSessions.releaseActionLease(client.session.agentId, clientId);
     if (!snapshot) {
       return this.sendCore(client.ws, {
         id: msg.id,

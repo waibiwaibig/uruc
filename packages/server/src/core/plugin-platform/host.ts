@@ -189,6 +189,7 @@ function toHistoryEntry(spec: LockedPluginSpec): LockedPluginHistoryEntry {
     frontend: spec.frontend,
     integrity: spec.integrity,
     sourceFingerprint: spec.sourceFingerprint,
+    ...(spec.venue ? { venue: spec.venue } : {}),
     generatedAt: spec.generatedAt,
   };
 }
@@ -676,6 +677,7 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
           packageName: resolved.expectedPackageName,
           version: resolved.expectedVersion,
           publisher: runtimeManifest.urucPlugin.publisher,
+          ...(runtimeManifest.urucPlugin.venue ? { venue: runtimeManifest.urucPlugin.venue } : {}),
           revision,
           sourcePath: resolved.sourcePath,
           packageRoot,
@@ -909,6 +911,7 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
       version: entry.spec.version,
       started: entry.started,
       state: entry.state,
+      ...(entry.spec.venue ? { venue: entry.spec.venue } : {}),
     }));
   }
 
@@ -1478,6 +1481,7 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
       state: entry.state,
       revision: entry.spec.revision,
       publisher: entry.spec.publisher,
+      ...(entry.spec.venue ? { venue: entry.spec.venue } : {}),
       permissionsGranted: entry.spec.permissionsGranted,
       inFlightCount: entry.inFlightCount,
       lastError: entry.lastError,
@@ -1498,6 +1502,7 @@ export class PluginPlatformHost implements PluginPlatformHealthProvider {
       state: 'failed',
       revision: previous?.revision ?? 'unresolved',
       publisher: previous?.publisher ?? 'unknown',
+      ...(previous?.venue ? { venue: previous.venue } : {}),
       permissionsGranted: previous?.permissionsGranted ?? pluginConfig.permissionsGranted ?? [],
       inFlightCount: 0,
       lastError: message,

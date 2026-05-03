@@ -27,6 +27,14 @@ export const pluginHealthcheckSchema = z.object({
   timeoutMs: z.number().int().positive().optional(),
 });
 
+export const venueModuleMetadataSchema = z.object({
+  moduleId: z.string().min(1).optional(),
+  namespace: z.string().min(1).optional(),
+  displayName: z.string().min(1).optional(),
+  description: z.string().min(1).optional(),
+  category: z.string().min(1).optional(),
+});
+
 export const pluginMigrationSchema = z.object({
   fromVersion: z.string().min(1),
   toVersion: z.string().min(1),
@@ -41,6 +49,7 @@ export const backendPluginManifestSchema = z.object({
   publisher: z.string().min(1),
   displayName: z.string().min(1),
   description: z.string().min(1).optional(),
+  venue: venueModuleMetadataSchema.optional(),
   permissions: z.array(permissionSchema).default([]),
   dependencies: z.array(z.string().min(1)).default([]),
   activation: z.array(activationSchema).default(['startup']),
@@ -50,6 +59,7 @@ export const backendPluginManifestSchema = z.object({
 });
 
 export type BackendPluginManifest = z.infer<typeof backendPluginManifestSchema>;
+export type VenueModuleMetadata = z.infer<typeof venueModuleMetadataSchema>;
 
 export const authPolicySchema = z.enum(['agent', 'user', 'admin']);
 export const locationScopeSchema = z.enum(['any', 'outside', 'city', 'in-city', 'location']);

@@ -254,9 +254,7 @@ class DirectRuntimeTransport implements RuntimeTransport {
       return;
     }
 
-    // `control_replaced` is a hidden compatibility read path for servers older than
-    // issue #13. Remove it once deployed servers emit action_lease_moved only.
-    if (envelope.type === 'action_lease_moved' || envelope.type === 'control_replaced') {
+    if (envelope.type === 'action_lease_moved') {
       applyRuntimePatch(this.state, envelope.payload);
       const payload = envelope.payload as { error?: string } | undefined;
       this.state.isController = false;

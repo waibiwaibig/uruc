@@ -117,8 +117,8 @@ export interface PluginSessionState {
 export interface PluginRuntimeApi extends PluginRuntimeSnapshot {
   connect: () => Promise<void>;
   disconnect: () => void;
-  claimControl: () => Promise<PluginSessionState>;
-  releaseControl: () => Promise<PluginSessionState>;
+  acquireActionLease: () => Promise<PluginSessionState>;
+  releaseActionLease: () => Promise<PluginSessionState>;
   refreshSessionState: () => Promise<PluginSessionState>;
   refreshCommands: (query?: { scope: 'city' } | { scope: 'plugin'; pluginId: string }) => Promise<unknown>;
   sendCommand: <T = unknown>(type: string, payload?: unknown) => Promise<T>;
@@ -262,6 +262,13 @@ export const pluginPackageSchema = z.object({
   version: z.string().min(1),
   urucPlugin: z.object({
     pluginId: namespacedIdSchema,
+    venue: z.object({
+      moduleId: namespacedIdSchema.optional(),
+      namespace: namespacedIdSchema.optional(),
+      displayName: z.string().min(1).optional(),
+      description: z.string().min(1).optional(),
+      category: z.string().min(1).optional(),
+    }).optional(),
   }),
   urucFrontend: frontendPackageMetadataSchema.optional(),
 });

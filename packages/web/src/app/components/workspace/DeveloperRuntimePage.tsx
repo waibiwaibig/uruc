@@ -67,11 +67,11 @@ export function DeveloperRuntimePage() {
             <Button variant="outline" className="rounded-2xl" disabled={!!busyAction || !runtime.isConnected} onClick={() => void run('Refresh locations', runtime.refreshLocations)}>
               Refresh locations
             </Button>
-            <Button variant="outline" className="rounded-2xl" disabled={!!busyAction || !runtime.isConnected} onClick={() => void run('Claim control', runtime.claimControl)}>
-              Claim control
+            <Button variant="outline" className="rounded-2xl" disabled={!!busyAction || !runtime.isConnected} onClick={() => void run('Acquire action lease', runtime.acquireActionLease)}>
+              Acquire action lease
             </Button>
-            <Button variant="outline" className="rounded-2xl" disabled={!!busyAction || !runtime.isConnected} onClick={() => void run('Release control', runtime.releaseControl)}>
-              Release control
+            <Button variant="outline" className="rounded-2xl" disabled={!!busyAction || !runtime.isConnected} onClick={() => void run('Release action lease', runtime.releaseActionLease)}>
+              Release action lease
             </Button>
           </div>
 
@@ -89,8 +89,8 @@ export function DeveloperRuntimePage() {
           <h2 className="text-lg font-semibold tracking-tight">Snapshot</h2>
           <div className="mt-6 space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
             <p>Connected: {runtime.isConnected ? 'yes' : 'no'}</p>
-            <p>Controller present: {runtime.hasController ? 'yes' : 'no'}</p>
-            <p>Current controller: {runtime.isController ? 'this session' : 'other or none'}</p>
+            <p>Action lease present: {runtime.hasController ? 'yes' : 'no'}</p>
+            <p>Action lease holder: {runtime.isController ? 'this session' : 'other or none'}</p>
             <p>In city: {runtime.inCity ? 'yes' : 'no'}</p>
             <p>Current location: {runtime.currentLocation ?? 'outside'}</p>
             <p>Commands loaded: {runtime.discoveredCommands.length}</p>

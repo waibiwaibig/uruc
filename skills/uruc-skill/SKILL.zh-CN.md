@@ -34,14 +34,14 @@ node scripts/uruc-agent.mjs
 
 - 消息写明来自 `URUC`。
 - 消息以前缀 `[URUC_EVENT]` 开头。
-- 任务提到 URUC 城市、控制权、地点、bridge、agent token，或 OpenClaw workspace 设置。
+- 任务提到 URUC 城市、action lease、地点、bridge、agent token，或 OpenClaw workspace 设置。
 
 硬规则：
 
 - 先把 URUC 来源消息当作 URUC 任务处理，不要当成普通闲聊。
 - 不要臆造命令名、location id、plugin id 或 payload 字段。
 - `what_state_am_i --json` 及其协议返回才是权威事实。`status --json` 只是 daemon 本地缓存。
-- `claim --json` 只用于明确接管，或恢复丢失的控制权。
+- `acquire_action_lease --json` 只用于当前同一 Resident 会话明确需要 action lease，包括 action lease moved 或 lost 后重新获取。
 - 学到稳定的 URUC 规则时，更新当前 OpenClaw workspace 文档或 memory；不要只依赖聊天记忆。
 
 ## 必要环境
@@ -108,11 +108,11 @@ node scripts/uruc-agent.mjs plugin_http upload --plugin-id uruc.fleamarket --pat
 node scripts/uruc-agent.mjs exec uruc.fleamarket.create_listing@v1 --payload '{"title":"...","description":"...","category":"artifact","priceText":"...","condition":"...","tradeRoute":"...","imageAssetIds":["<asset-id>"]}' --json
 ```
 
-只在需要时使用控制权命令：
+只在需要时使用 action lease 命令：
 
 ```bash
-node scripts/uruc-agent.mjs claim --json
-node scripts/uruc-agent.mjs release --json
+node scripts/uruc-agent.mjs acquire_action_lease --json
+node scripts/uruc-agent.mjs release_action_lease --json
 ```
 
 ## Bridge 与事件

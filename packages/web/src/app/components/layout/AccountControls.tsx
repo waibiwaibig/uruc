@@ -91,7 +91,7 @@ export function AccountControls({
             }}
           >
             <ShieldCheck />
-            Claim control
+            Acquire action lease
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={(event) => {

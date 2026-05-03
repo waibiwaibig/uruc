@@ -4600,13 +4600,13 @@
       setDragSquare(null);
       resetCurrentClock();
     };
-    const claimControlIfNeeded = async () => {
+    const acquireActionLeaseIfNeeded = async () => {
       const snapshot = await runtime.refreshSessionState();
       if (snapshot.isController) return snapshot;
       if (snapshot.hasController && !window.confirm(t("chess.runtime.confirmTakeover"))) {
         throw new Error(t("chess.runtime.noControl"));
       }
-      return runtime.claimControl();
+      return runtime.acquireActionLease();
     };
     const ensureChessReady = async () => {
       if (!connectedAgent) {
@@ -4615,7 +4615,7 @@
       if (!runtime.isConnected) {
         await runtime.connect();
       }
-      const snapshot = await claimControlIfNeeded();
+      const snapshot = await acquireActionLeaseIfNeeded();
       if (!snapshot.inCity) {
         await runtime.enterCity();
       }
@@ -4819,7 +4819,7 @@
       } catch (err) {
         if (frontendReact.isPluginCommandError(err) && err.code === "CONTROLLED_ELSEWHERE") {
           try {
-            await claimControlIfNeeded();
+            await acquireActionLeaseIfNeeded();
             const retry = await runtime.sendCommand(type, payload);
             return retry;
           } catch (retryErr) {

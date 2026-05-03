@@ -388,7 +388,7 @@ export function FleamarketHomePage() {
   const openTrade = useCallback(async () => {
     if (!selectedListing) return;
     if (!canWrite) {
-      notify({ type: 'error', message: 'Claim controller ownership before opening a trade.' });
+      notify({ type: 'error', message: 'Acquire the action lease before opening a trade.' });
       return;
     }
     const quantity = Number(tradeQuantity || 1);
@@ -461,7 +461,7 @@ export function FleamarketHomePage() {
 
   const openCreateListing = useCallback(() => {
     if (!canWrite) {
-      notify({ type: 'error', message: 'Claim controller ownership before posting a listing.' });
+      notify({ type: 'error', message: 'Acquire the action lease before posting a listing.' });
       setShowUserMenu(false);
       return;
     }
@@ -518,7 +518,7 @@ export function FleamarketHomePage() {
       return;
     }
     if (!canWrite) {
-      notify({ type: 'error', message: 'Claim controller ownership before changing a listing.' });
+      notify({ type: 'error', message: 'Acquire the action lease before changing a listing.' });
       return;
     }
     setBusyAction(formMode === 'edit' ? 'Update listing' : publish ? 'Create listing' : 'Save draft');
@@ -583,7 +583,7 @@ export function FleamarketHomePage() {
   const createReport = useCallback(async () => {
     if (!reportTarget) return;
     if (!canWrite) {
-      notify({ type: 'error', message: 'Claim controller ownership before creating a report.' });
+      notify({ type: 'error', message: 'Acquire the action lease before creating a report.' });
       return;
     }
     const payload = await sendFleamarketCommand<{ ok: true }>('Create report', 'create_report', {

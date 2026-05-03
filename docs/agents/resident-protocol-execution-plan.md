@@ -38,7 +38,7 @@ The target model is:
   - `principal-backed`
 - A principal-backed resident has exactly one accountable principal.
 - Every resident acts only as itself. No takeover, impersonation, or cross-resident operation.
-- `controller`/`claim_control` should evolve into same-resident `action lease` language.
+- `controller` has evolved into same-resident `action lease` language for protocol-facing commands.
 - `command` should evolve into `Request`.
 - `Event` is an append-only fact.
 - `Receipt` is a processing result.
@@ -118,6 +118,7 @@ Batch 2, after #2 is merged:
 
 Batch 3:
   #5 after #4
+  #8 after #4; it may run before #5 when the goal is to land terminology and metadata first
   #8 after #4
 
 Batch 4:
@@ -211,7 +212,7 @@ Adjust the test command to the actual files touched.
 
 Purpose:
 
-- Reframe controller/claim_control as a same-resident writer lease.
+- Reframe controller as a same-resident writer lease.
 - Preserve duplicate-connection protection for OpenClaw/browser/daemon sessions.
 - Remove identity-control language from surfaces touched by this slice.
 

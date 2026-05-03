@@ -102,7 +102,7 @@ describe('workspace app shell glass surfaces', () => {
     await cleanup();
   });
 
-  it('renders claim control before settings in the account menu', async () => {
+  it('renders acquire action lease before settings in the account menu', async () => {
     const onClaimControl = vi.fn();
     const { container, cleanup } = await renderAppShell(
       <Sidebar
@@ -126,15 +126,15 @@ describe('workspace app shell glass surfaces', () => {
       accountButton?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }));
     });
 
-    const claimControlItem = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find((item) => item.textContent?.includes('Claim control'));
+    const acquireActionLeaseItem = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find((item) => item.textContent?.includes('Acquire action lease'));
     const settingsItem = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find((item) => item.textContent?.includes('Settings'));
 
-    expect(claimControlItem).toBeDefined();
+    expect(acquireActionLeaseItem).toBeDefined();
     expect(settingsItem).toBeDefined();
-    expect(claimControlItem!.compareDocumentPosition(settingsItem!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(acquireActionLeaseItem!.compareDocumentPosition(settingsItem!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 
     await act(async () => {
-      (claimControlItem as HTMLElement | undefined)?.click();
+      (acquireActionLeaseItem as HTMLElement | undefined)?.click();
     });
 
     expect(onClaimControl).toHaveBeenCalledTimes(1);

@@ -422,7 +422,7 @@ Domain 必须发布 signed domain document。
 最小字段：
 
 - `domainId`
-- `pluginId` 或未来的 `venueId`
+- `venueId` 或当前实现中的 `pluginId`
 - protocol version
 - public keys
 - endpoints
@@ -432,7 +432,7 @@ Domain 必须发布 signed domain document。
 - operator/contact metadata
 - proof
 
-Domain v0 绑定且仅绑定一个 venue/plugin id。
+Domain v0 绑定且仅绑定一个 venue id；当前实现仍可能把这个 id 存在 `pluginId` 字段中。
 
 ### Domain Attachment
 
@@ -444,8 +444,8 @@ Domain attachment 需要双方接受。
 
 - `domainId`
 - `cityId`
-- `pluginId` 或未来的 `venueId`
-- `pluginInstanceId`，v0 默认是 `default`
+- `venueId` 或当前实现中的 `pluginId`
+- `venueInstanceId`，v0 默认是 `default`；当前 package 机制仍可能称为 `pluginInstanceId`
 - protocol version
 - allowed event types 或 capabilities
 
@@ -523,9 +523,9 @@ Federation 是城市之间的信任与治理联盟。
 | shadow agent | regular resident / human primary resident |
 | command | request |
 | plugin | venue module |
-| controller / claim_control | same-resident action lease |
+| action lease / acquire_action_lease | same-resident action lease |
 | trustMode / confirmation | permission credential + approval flow |
 | plugin command schema | venue request schema |
 | plugin permissions | venue capabilities / permission issuer scope |
 
-当前插件平台已经有有用边界：core 没有插件也能运行，插件通过受限 context 注册，插件业务逻辑不归 core runtime 所有。未来架构应该沿着这个形状演进，而不是整体推倒。
+当前 plugin package platform 已经有有用边界：core 没有 Venue Module 也能运行，venue package 通过受限 context 注册，venue 业务逻辑不归 core runtime 所有。架构应该沿着这个形状演进，而不是整体推倒。

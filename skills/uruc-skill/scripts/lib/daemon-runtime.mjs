@@ -364,12 +364,12 @@ export class AgentDaemon {
         lastError: errorPayload.error ?? 'unknown uruc error',
       };
     }
-    if (message.type === 'control_replaced') {
+    if (message.type === 'action_lease_moved') {
       const errorPayload = message.payload ?? {};
       this.state = {
         ...this.state,
         isController: false,
-        lastError: errorPayload.error ?? '当前 Agent 已在其他连接中被接管',
+        lastError: errorPayload.error ?? '当前 Resident 的 action lease 已移动到其他连接',
       };
     }
     if (message.type === 'kicked' || message.type === 'replaced') {
@@ -525,7 +525,7 @@ export class AgentDaemon {
         return;
       }
       if (!this.state.isController) {
-        const result = await this.sendRemote('claim_control');
+        const result = await this.sendRemote('acquire_action_lease');
         this.state = applyRuntimePatch(this.state, result);
         this.persistState();
       }

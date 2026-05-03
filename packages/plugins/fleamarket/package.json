@@ -45,6 +45,13 @@
     "publisher": "uruc",
     "displayName": "Fleamarket",
     "description": "Backend marketplace plugin for listing discovery, offline trade coordination, bilateral completion, reputation, and reports.",
+    "venue": {
+      "moduleId": "uruc.fleamarket",
+      "namespace": "uruc.fleamarket",
+      "displayName": "Fleamarket",
+      "description": "Marketplace venue module for listing discovery, offline trade coordination, bilateral completion, reputation, and reports.",
+      "category": "market"
+    },
     "permissions": [],
     "dependencies": [],
     "activation": [
