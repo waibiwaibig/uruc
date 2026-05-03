@@ -16,7 +16,7 @@ import type { IncomingMessage } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { nanoid } from 'nanoid';
 
-import type { CommandSchema, HookRegistry, WSContext, WSGatewayPublic, WSDispatchResult } from '../plugin-system/hook-registry.js';
+import type { CommandSchema, HookRegistry, WSCommandHookContext, WSContext, WSGatewayPublic, WSDispatchResult } from '../plugin-system/hook-registry.js';
 import type { ServiceRegistry } from '../plugin-system/service-registry.js';
 import type { AuthService } from '../auth/service.js';
 import type { PermissionCredential } from '../permission/service.js';
@@ -336,6 +336,11 @@ export class WSGateway implements WSGatewayPublic {
       if (!canExecute) return;
       permissionCredentials = canExecute.credentials;
 
+      const domainDispatchService = this.services.tryGet('domain-dispatch');
+      if (domainDispatchService?.isDomainVenueRequest(schema)) {
+        const policyAllowed = await this.canPassRuntimePolicies(clientId, client, schema, msg);
+        if (!policyAllowed) return;
+      }
       const domainDispatch = await this.dispatchDomainVenueRequest(client, schema, msg, permissionCredentials);
       if (domainDispatch !== 'skipped') return;
     }
@@ -598,6 +603,32 @@ export class WSGateway implements WSGatewayPublic {
 
     this.sendCore(client.ws, { id: msg.id, type: 'error', payload: decision.receipt });
     return null;
+  }
+
+  private async canPassRuntimePolicies(
+    clientId: string,
+    client: ConnectedClient,
+    schema: CommandSchema,
+    msg: WSMessage,
+  ): Promise<boolean> {
+    const wsCtx = this.createWSContext(clientId, client);
+    const hookCtx: WSCommandHookContext = {
+      command: msg.type,
+      ctx: wsCtx,
+      msg,
+      cancelled: false,
+    };
+    await this.hooks.runHook('ws.command', hookCtx);
+    if (!hookCtx.cancelled) return true;
+    this.sendCore(client.ws, {
+      id: msg.id,
+      type: 'error',
+      payload: hookCtx.blockReason ?? {
+        error: `Command '${schema.type}' was blocked`,
+        code: 'COMMAND_BLOCKED',
+      },
+    });
+    return false;
   }
 
   private async dispatchDomainVenueRequest(

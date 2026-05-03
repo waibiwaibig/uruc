@@ -19,6 +19,8 @@ import { canonicalDomainDocumentPayload } from '../document.js';
 import {
   DOMAIN_DISPATCH_ENVELOPE_SCHEMA,
   DOMAIN_DISPATCH_RECEIPT_SCHEMA,
+  DOMAIN_DISPATCH_ENVELOPE_SIGNED_FIELDS,
+  DOMAIN_DISPATCH_RECEIPT_SIGNED_FIELDS,
   DomainDispatchService,
   canonicalDomainDispatchEnvelopePayload,
   canonicalDomainDispatchReceiptPayload,
@@ -122,6 +124,7 @@ function domainFixture() {
         verificationMethod: 'domain-key-1',
         createdAt: '2026-05-03T00:00:01.000Z',
         canonicalization: 'uruc-domain-dispatch-receipt-v0-sorted-json-without-proof',
+        covered: [...DOMAIN_DISPATCH_RECEIPT_SIGNED_FIELDS],
         signature: sign(null, canonicalDomainDispatchReceiptPayload(receipt), privateKey).toString('base64'),
       },
     };
@@ -179,8 +182,14 @@ describe('Domain signed dispatch', () => {
           receivedEnvelopes.push(envelope);
           expect(envelope).toMatchObject({
             schema: DOMAIN_DISPATCH_ENVELOPE_SCHEMA,
+            audit: { id: expect.any(String) },
             city: { id: 'city.alpha' },
             domain: { id: 'domain.acme.social' },
+            attachment: {
+              id: expect.any(String),
+              documentUrl: `${baseUrl}/.well-known/uruc-domain.json`,
+              documentHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+            },
             resident: { id: expect.any(String) },
             venue: {
               pluginId: 'acme.social',
@@ -204,13 +213,19 @@ describe('Domain signed dispatch', () => {
             createPublicKey(envelope.city.publicKeyPem),
             Buffer.from(envelope.proof.signature, 'base64'),
           )).toBe(true);
+          expect(envelope.proof.covered).toEqual([...DOMAIN_DISPATCH_ENVELOPE_SIGNED_FIELDS]);
           const receipt = {
             schema: DOMAIN_DISPATCH_RECEIPT_SCHEMA,
+            domainId: 'domain.acme.social',
+            cityId: 'city.alpha',
+            auditId: envelope.audit.id,
+            requestId: envelope.request.id,
             status: 'delivered',
             code: 'DOMAIN_DELIVERED',
             receiptId: 'domain-receipt-1',
             envelopeHash: envelope.envelopeHash,
             eventRef: 'domain-event-1',
+            issuedAt: '2026-05-03T00:00:01.000Z',
           };
           res.setHeader('content-type', 'application/json');
           res.end(JSON.stringify(fixture.signedReceipt(receipt)));
@@ -345,6 +360,132 @@ describe('Domain signed dispatch', () => {
     }
   });
 
+  it('runs City Core runtime policy hooks before creating a domain envelope', async () => {
+    const fixture = domainFixture();
+    let dispatchCalls = 0;
+    let baseUrl = '';
+    const server = createServer((req, res) => {
+      if (req.url === '/.well-known/uruc-domain.json') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify(fixture.signedDocument(baseUrl)));
+        return;
+      }
+      if (req.url === '/uruc/attach' && req.method === 'POST') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({
+          schema: 'uruc.domain.attachment.receipt@v0',
+          status: 'accepted',
+          code: 'ATTACHED',
+          receiptId: 'attach-policy',
+          validUntil: '2026-06-03T00:00:00.000Z',
+        }));
+        return;
+      }
+      if (req.url === '/uruc/dispatch' && req.method === 'POST') {
+        dispatchCalls += 1;
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({}));
+        return;
+      }
+      res.statusCode = 404;
+      res.end();
+    });
+    baseUrl = await listen(server);
+
+    try {
+      const attachment = new DomainAttachmentService(db);
+      await attachment.attachVenueDomain({
+        cityId: 'city.alpha',
+        pluginId: 'acme.policy',
+        venue: {
+          moduleId: 'acme.social',
+          namespace: 'acme.social',
+          topology: {
+            declaration: 'domain_required',
+            mode: 'domain',
+            domain: { endpoint: baseUrl },
+          },
+        },
+      });
+
+      const domainDispatch = new DomainDispatchService(db, {
+        cityId: 'city.alpha',
+        pluginPlatform: {
+          listPlugins: () => [{
+            name: 'acme.policy',
+            version: '1.0.0',
+            started: true,
+            state: 'active',
+            venue: {
+              moduleId: 'acme.social',
+              namespace: 'acme.social',
+              topology: {
+                declaration: 'domain_required',
+                mode: 'domain',
+                domain: { endpoint: baseUrl },
+              },
+            },
+          }],
+          getPluginDiagnostics: () => [],
+          listFrontendPlugins: async () => [],
+          readFrontendAsset: async () => null,
+        },
+      });
+      services.register('domain-dispatch', domainDispatch);
+      hooks.before('ws.command', (hookCtx) => {
+        if ((hookCtx as any).command !== 'acme.policy.write@v1') return;
+        Object.assign(hookCtx as any, {
+          cancelled: true,
+          blockReason: {
+            error: 'Blocked by test policy.',
+            code: 'COMMAND_BLOCKED_BY_POLICY',
+          },
+        });
+      });
+      const handler = vi.fn();
+      hooks.registerWSCommand('acme.policy.write@v1', handler, {
+        type: 'acme.policy.write@v1',
+        description: 'Domain write blocked by policy.',
+        pluginName: 'acme.policy',
+        params: {},
+        controlPolicy: { controllerRequired: false },
+        protocol: {
+          subject: 'resident',
+          request: { type: 'acme.policy.write.request@v1' },
+          venue: { id: 'acme.social', moduleId: 'acme.social' },
+        },
+      });
+
+      const user = await auth.register('domain-policy-user', 'domain-policy@example.com', 'secret-123');
+      const sent: SentEnvelope[] = [];
+      const client = createClient(sent);
+      (gateway as any).clients.set('client-policy', client);
+      await (gateway as any).handleAgentAuth('client-policy', client, {
+        id: 'auth-policy',
+        type: 'auth',
+        payload: signToken(user.id, 'user'),
+      });
+
+      sent.length = 0;
+      await (gateway as any).handleMessage('client-policy', {
+        id: 'write-policy',
+        type: 'acme.policy.write@v1',
+        payload: { text: 'blocked' },
+      });
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(dispatchCalls).toBe(0);
+      expect(sent.at(-1)).toMatchObject({
+        id: 'write-policy',
+        type: 'error',
+        payload: { code: 'COMMAND_BLOCKED_BY_POLICY' },
+      });
+      expect(await db.select().from(schema.domainDispatchAudits)).toHaveLength(0);
+    } finally {
+      await close(server);
+    }
+  });
+
   it('keeps local topology on the local handler and does not create domain audit records', async () => {
     const domainDispatch = new DomainDispatchService(db, {
       cityId: 'city.alpha',
@@ -409,6 +550,75 @@ describe('Domain signed dispatch', () => {
       type: 'result',
       payload: { local: true },
     });
+    expect(await db.select().from(schema.domainDispatchAudits)).toHaveLength(0);
+  });
+
+  it('does not dispatch from an attachment unless the plugin runtime topology is domain', async () => {
+    await db.insert(schema.domainAttachments).values({
+      id: 'attached-local-1',
+      status: 'attached',
+      domainId: 'domain.acme.local',
+      cityId: 'city.alpha',
+      pluginId: 'acme.local-attached',
+      venueModuleId: 'acme.local-attached',
+      venueNamespace: 'acme.local-attached',
+      protocolVersion: 'uruc-domain-v0',
+      endpoint: 'https://domain.example/attach',
+      dispatchEndpoint: 'https://domain.example/dispatch',
+      documentUrl: 'https://domain.example/.well-known/uruc-domain.json',
+      documentHash: '0'.repeat(64),
+      publicKeys: '[]',
+      capabilities: '[]',
+      receiptCode: 'ATTACHED',
+      receipt: JSON.stringify({ ok: true, code: 'ATTACHED' }),
+      issuedAt: new Date('2026-05-03T00:00:00.000Z'),
+      validUntil: new Date('2026-06-03T00:00:00.000Z'),
+      createdAt: new Date('2026-05-03T00:00:00.000Z'),
+      updatedAt: new Date('2026-05-03T00:00:00.000Z'),
+    });
+
+    const domainDispatch = new DomainDispatchService(db, {
+      cityId: 'city.alpha',
+      fetch: async () => {
+        throw new Error('local topology must not call the domain network');
+      },
+      pluginPlatform: {
+        listPlugins: () => [{
+          name: 'acme.local-attached',
+          version: '1.0.0',
+          started: true,
+          state: 'active',
+          venue: {
+            moduleId: 'acme.local-attached',
+            namespace: 'acme.local-attached',
+            topology: {
+              declaration: 'local',
+              mode: 'local',
+            },
+          },
+        }],
+        getPluginDiagnostics: () => [],
+        listFrontendPlugins: async () => [],
+        readFrontendAsset: async () => null,
+      },
+    });
+
+    await expect(domainDispatch.dispatchVenueRequest({
+      schema: {
+        type: 'acme.local-attached.write@v1',
+        description: 'Local write.',
+        pluginName: 'acme.local-attached',
+        params: {},
+        protocol: {
+          subject: 'resident',
+          request: { type: 'acme.local-attached.write.request@v1' },
+          venue: { id: 'acme.local-attached', moduleId: 'acme.local-attached' },
+        },
+      },
+      msg: { id: 'local-attached-a', type: 'acme.local-attached.write@v1', payload: {} },
+      session: { userId: 'user-a', agentId: 'resident-a', agentName: 'Resident A', role: 'agent' } as any,
+      permissionCredentials: [],
+    })).resolves.toEqual({ status: 'skipped' });
     expect(await db.select().from(schema.domainDispatchAudits)).toHaveLength(0);
   });
 
@@ -629,6 +839,135 @@ describe('Domain signed dispatch', () => {
       expect(audits[0]).toMatchObject({
         status: 'failed',
         receiptCode: 'DOMAIN_DISPATCH_RECEIPT_CONTENT_TYPE_INVALID',
+      });
+    } finally {
+      await close(server);
+    }
+  });
+
+  it('rejects signed domain receipts whose semantic refs do not match the dispatch audit', async () => {
+    const fixture = domainFixture();
+    let baseUrl = '';
+    const server = createServer((req, res) => {
+      if (req.url === '/.well-known/uruc-domain.json') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify(fixture.signedDocument(baseUrl)));
+        return;
+      }
+      if (req.url === '/uruc/attach' && req.method === 'POST') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({
+          schema: 'uruc.domain.attachment.receipt@v0',
+          status: 'accepted',
+          code: 'ATTACHED',
+          receiptId: 'attach-mismatch',
+          validUntil: '2026-06-03T00:00:00.000Z',
+        }));
+        return;
+      }
+      if (req.url === '/uruc/dispatch' && req.method === 'POST') {
+        let body = '';
+        req.on('data', (chunk) => {
+          body += chunk;
+        });
+        req.on('end', () => {
+          const envelope = JSON.parse(body);
+          const receipt = {
+            schema: DOMAIN_DISPATCH_RECEIPT_SCHEMA,
+            domainId: 'domain.attacker',
+            cityId: 'city.alpha',
+            auditId: envelope.audit.id,
+            requestId: envelope.request.id,
+            status: 'delivered',
+            code: 'DOMAIN_DELIVERED',
+            receiptId: 'domain-receipt-mismatch',
+            envelopeHash: envelope.envelopeHash,
+            eventRef: null,
+            issuedAt: '2026-05-03T00:00:01.000Z',
+          };
+          res.setHeader('content-type', 'application/json');
+          res.end(JSON.stringify(fixture.signedReceipt(receipt)));
+        });
+        return;
+      }
+      res.statusCode = 404;
+      res.end();
+    });
+    baseUrl = await listen(server);
+
+    try {
+      const attachment = new DomainAttachmentService(db);
+      await attachment.attachVenueDomain({
+        cityId: 'city.alpha',
+        pluginId: 'acme.mismatch',
+        venue: {
+          moduleId: 'acme.social',
+          namespace: 'acme.social',
+          topology: {
+            declaration: 'domain_required',
+            mode: 'domain',
+            domain: { endpoint: baseUrl },
+          },
+        },
+      });
+
+      const domainDispatch = new DomainDispatchService(db, {
+        cityId: 'city.alpha',
+        pluginPlatform: {
+          listPlugins: () => [{
+            name: 'acme.mismatch',
+            version: '1.0.0',
+            started: true,
+            state: 'active',
+            venue: {
+              moduleId: 'acme.social',
+              namespace: 'acme.social',
+              topology: {
+                declaration: 'domain_required',
+                mode: 'domain',
+                domain: { endpoint: baseUrl },
+              },
+            },
+          }],
+          getPluginDiagnostics: () => [],
+          listFrontendPlugins: async () => [],
+          readFrontendAsset: async () => null,
+        },
+        now: () => new Date('2026-05-03T00:00:00.000Z'),
+      });
+
+      const result = await domainDispatch.dispatchVenueRequest({
+        schema: {
+          type: 'acme.mismatch.write@v1',
+          description: 'Domain write.',
+          pluginName: 'acme.mismatch',
+          params: {},
+          protocol: {
+            subject: 'resident',
+            request: { type: 'acme.mismatch.write.request@v1' },
+            venue: { id: 'acme.social', moduleId: 'acme.social' },
+          },
+        },
+        msg: { id: 'write-mismatch', type: 'acme.mismatch.write@v1', payload: {} },
+        session: { userId: 'user-a', agentId: 'resident-a', agentName: 'Resident A', role: 'agent' } as any,
+        permissionCredentials: [],
+      });
+
+      expect(result).toMatchObject({
+        status: 'failed',
+        receipt: {
+          ok: false,
+          code: 'DOMAIN_DISPATCH_RECEIPT_DOMAIN_MISMATCH',
+          cityId: 'city.alpha',
+          domainId: 'domain.acme.social',
+          venueModuleId: 'acme.social',
+        },
+      });
+      const audits = await db.select().from(schema.domainDispatchAudits);
+      expect(audits).toHaveLength(1);
+      expect(audits[0]).toMatchObject({
+        status: 'failed',
+        receiptCode: 'DOMAIN_DISPATCH_RECEIPT_DOMAIN_MISMATCH',
       });
     } finally {
       await close(server);

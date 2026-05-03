@@ -12,6 +12,32 @@ export const DOMAIN_DISPATCH_ENVELOPE_SCHEMA = 'uruc.domain.dispatch.envelope@v0
 export const DOMAIN_DISPATCH_RECEIPT_SCHEMA = 'uruc.domain.dispatch.receipt@v0';
 export const DOMAIN_DISPATCH_ENVELOPE_CANONICALIZATION = 'uruc-domain-dispatch-envelope-v0-sorted-json-without-proof';
 export const DOMAIN_DISPATCH_RECEIPT_CANONICALIZATION = 'uruc-domain-dispatch-receipt-v0-sorted-json-without-proof';
+export const DOMAIN_DISPATCH_ENVELOPE_SIGNED_FIELDS = [
+  'attachment',
+  'audit',
+  'city',
+  'domain',
+  'issuedAt',
+  'nonce',
+  'proofs',
+  'request',
+  'resident',
+  'schema',
+  'venue',
+] as const;
+export const DOMAIN_DISPATCH_RECEIPT_SIGNED_FIELDS = [
+  'auditId',
+  'cityId',
+  'code',
+  'domainId',
+  'envelopeHash',
+  'eventRef',
+  'issuedAt',
+  'receiptId',
+  'requestId',
+  'schema',
+  'status',
+] as const;
 
 type FetchLike = typeof fetch;
 
@@ -135,6 +161,32 @@ function hashPayload(payload: Buffer): string {
   return createHash('sha256').update(payload).digest('hex');
 }
 
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined;
+}
+
+function requireExactKeys(
+  value: Record<string, unknown>,
+  allowed: readonly string[],
+  code: string,
+  label: string,
+): void {
+  const extra = Object.keys(value).filter((key) => !allowed.includes(key));
+  const missing = allowed.filter((key) => !(key in value));
+  if (extra.length > 0 || missing.length > 0) {
+    throw new DomainDocumentError(code, `Invalid dispatch ${label}`);
+  }
+}
+
+function requireIsoTimestamp(value: unknown, code: string, label: string): string {
+  const text = stringValue(value);
+  const time = text ? Date.parse(text) : Number.NaN;
+  if (!text || Number.isNaN(time) || new Date(time).toISOString() !== text) {
+    throw new DomainDocumentError(code, `Invalid dispatch ${label}`);
+  }
+  return text;
+}
+
 function compactReceipt(input: {
   ok: boolean;
   code: string;
@@ -190,12 +242,19 @@ export class DomainDispatchService {
     this.pluginPlatform = options.pluginPlatform;
   }
 
+  isDomainVenueRequest(schema: CommandSchema): boolean {
+    const pluginId = schema.pluginName;
+    if (!pluginId || pluginId === 'core') return false;
+    const plugin = this.pluginPlatform?.listPlugins().find((item) => item.name === pluginId);
+    return plugin?.venue?.topology?.mode === 'domain';
+  }
+
   async dispatchVenueRequest(input: DomainDispatchInput): Promise<DomainDispatchResult> {
     const pluginId = input.schema.pluginName;
     if (!pluginId || pluginId === 'core') return { status: 'skipped' };
 
     const plugin = this.pluginPlatform?.listPlugins().find((item) => item.name === pluginId);
-    if (plugin?.venue?.topology?.mode && plugin.venue.topology.mode !== 'domain') {
+    if (plugin?.venue?.topology?.mode !== 'domain') {
       return { status: 'skipped' };
     }
 
@@ -230,8 +289,12 @@ export class DomainDispatchService {
 
     const requestType = input.schema.protocol?.request?.type ?? input.msg.type;
     const requiredCapabilities = input.schema.protocol?.request?.requiredCapabilities ?? [];
+    const auditId = randomUUID();
     const envelopeBase = {
       schema: DOMAIN_DISPATCH_ENVELOPE_SCHEMA,
+      audit: {
+        id: auditId,
+      },
       city: {
         id: this.cityId,
         keyId: this.cityKeyId,
@@ -242,6 +305,8 @@ export class DomainDispatchService {
       },
       attachment: {
         id: attachment.id,
+        documentUrl: attachment.documentUrl,
+        documentHash: attachment.documentHash,
       },
       resident: {
         id: input.session.agentId,
@@ -275,11 +340,13 @@ export class DomainDispatchService {
         type: 'ed25519-signature-2026',
         verificationMethod: this.cityKeyId,
         canonicalization: DOMAIN_DISPATCH_ENVELOPE_CANONICALIZATION,
+        covered: [...DOMAIN_DISPATCH_ENVELOPE_SIGNED_FIELDS],
         signature: sign(null, canonicalDomainDispatchEnvelopePayload(envelopeBase), this.privateKeyPem).toString('base64'),
       },
     };
 
-    const auditId = await this.insertAudit({
+    await this.insertAudit({
+      id: auditId,
       attachmentId: attachment.id,
       cityId: this.cityId,
       domainId: attachment.domainId,
@@ -308,6 +375,8 @@ export class DomainDispatchService {
         parseJson(await readLimitedText(response, this.maxReceiptBytes), 'DOMAIN_DISPATCH_RECEIPT_JSON_INVALID'),
         attachment,
         envelopeHash,
+        auditId,
+        input.msg.id,
       );
       const delivered = response.ok && (receipt.status === 'accepted' || receipt.status === 'delivered');
       const result = compactReceipt({
@@ -365,31 +434,63 @@ export class DomainDispatchService {
     raw: unknown,
     attachment: typeof schema.domainAttachments.$inferSelect,
     envelopeHash: string,
+    auditId: string,
+    requestId: string,
   ): {
     status: 'accepted' | 'rejected' | 'delivered' | 'failed';
     code: string;
-    receiptId?: string;
+    receiptId: string;
     eventRef?: string;
   } {
     if (!isRecord(raw)) throw new DomainDocumentError('DOMAIN_DISPATCH_RECEIPT_INVALID', 'Invalid dispatch receipt');
+    requireExactKeys(
+      raw,
+      [...DOMAIN_DISPATCH_RECEIPT_SIGNED_FIELDS, 'proof'],
+      'DOMAIN_DISPATCH_RECEIPT_INVALID',
+      'receipt fields',
+    );
     if (raw.schema !== DOMAIN_DISPATCH_RECEIPT_SCHEMA) {
       throw new DomainDocumentError('DOMAIN_DISPATCH_RECEIPT_INVALID', 'Invalid dispatch receipt schema');
+    }
+    if (raw.domainId !== attachment.domainId) {
+      throw new DomainDocumentError('DOMAIN_DISPATCH_RECEIPT_DOMAIN_MISMATCH', 'Dispatch receipt domain mismatch');
+    }
+    if (raw.cityId !== this.cityId) {
+      throw new DomainDocumentError('DOMAIN_DISPATCH_RECEIPT_CITY_MISMATCH', 'Dispatch receipt city mismatch');
+    }
+    if (raw.auditId !== auditId) {
+      throw new DomainDocumentError('DOMAIN_DISPATCH_RECEIPT_AUDIT_MISMATCH', 'Dispatch receipt audit mismatch');
+    }
+    if (raw.requestId !== requestId) {
+      throw new DomainDocumentError('DOMAIN_DISPATCH_RECEIPT_REQUEST_MISMATCH', 'Dispatch receipt request mismatch');
     }
     if (raw.status !== 'accepted' && raw.status !== 'rejected' && raw.status !== 'delivered' && raw.status !== 'failed') {
       throw new DomainDocumentError('DOMAIN_DISPATCH_RECEIPT_INVALID', 'Invalid dispatch receipt status');
     }
-    if (typeof raw.code !== 'string' || raw.code.trim() === '') {
+    const code = stringValue(raw.code);
+    if (!code) {
       throw new DomainDocumentError('DOMAIN_DISPATCH_RECEIPT_INVALID', 'Invalid dispatch receipt code');
     }
+    const receiptId = stringValue(raw.receiptId);
+    if (!receiptId) {
+      throw new DomainDocumentError('DOMAIN_DISPATCH_RECEIPT_INVALID', 'Invalid dispatch receipt id');
+    }
+    const eventRef = raw.eventRef === null ? undefined : stringValue(raw.eventRef);
+    if (raw.eventRef !== null && !eventRef) {
+      throw new DomainDocumentError('DOMAIN_DISPATCH_RECEIPT_INVALID', 'Invalid dispatch receipt eventRef');
+    }
+    requireIsoTimestamp(raw.issuedAt, 'DOMAIN_DISPATCH_RECEIPT_INVALID', 'receipt issuedAt');
     if (raw.envelopeHash !== envelopeHash) {
       throw new DomainDocumentError('DOMAIN_DISPATCH_RECEIPT_HASH_MISMATCH', 'Dispatch receipt envelope hash mismatch');
     }
     const proof = raw.proof;
+    const covered = isRecord(proof) && Array.isArray(proof.covered) ? proof.covered : undefined;
     if (!isRecord(proof)
       || proof.type !== 'ed25519-signature-2026'
       || proof.canonicalization !== DOMAIN_DISPATCH_RECEIPT_CANONICALIZATION
       || typeof proof.verificationMethod !== 'string'
-      || typeof proof.signature !== 'string') {
+      || typeof proof.signature !== 'string'
+      || JSON.stringify(covered) !== JSON.stringify(DOMAIN_DISPATCH_RECEIPT_SIGNED_FIELDS)) {
       throw new DomainDocumentError('DOMAIN_DISPATCH_RECEIPT_PROOF_INVALID', 'Invalid dispatch receipt proof');
     }
     const verificationKey = parsePublicKeys(attachment.publicKeys).find((key) => key.id === proof.verificationMethod);
@@ -412,9 +513,9 @@ export class DomainDispatchService {
     }
     return {
       status: raw.status,
-      code: raw.code,
-      ...(typeof raw.receiptId === 'string' ? { receiptId: raw.receiptId } : {}),
-      ...(typeof raw.eventRef === 'string' ? { eventRef: raw.eventRef } : {}),
+      code,
+      receiptId,
+      ...(eventRef ? { eventRef } : {}),
     };
   }
 
@@ -437,6 +538,7 @@ export class DomainDispatchService {
   }
 
   private async insertAudit(input: {
+    id: string;
     attachmentId: string;
     cityId: string;
     domainId: string;
@@ -449,11 +551,10 @@ export class DomainDispatchService {
     endpoint: string;
     envelopeHash: string;
     envelope: unknown;
-  }): Promise<string> {
-    const id = randomUUID();
+  }): Promise<void> {
     const now = this.now();
     await this.db.insert(schema.domainDispatchAudits).values({
-      id,
+      id: input.id,
       status: 'pending',
       attachmentId: input.attachmentId,
       cityId: input.cityId,
@@ -472,7 +573,6 @@ export class DomainDispatchService {
       createdAt: now,
       updatedAt: now,
     });
-    return id;
   }
 
   private async updateAudit(id: string, input: {
