@@ -4,7 +4,7 @@ vi.mock('../../auth/email.js', () => ({
   sendVerificationEmail: vi.fn(async () => undefined),
 }));
 
-import { createDb } from '../../database/index.js';
+import { createDb, schema } from '../../database/index.js';
 import { AuthService } from '../../auth/service.js';
 import { PermissionCredentialService } from '../../permission/service.js';
 import { HookRegistry } from '../../plugin-system/hook-registry.js';
@@ -48,6 +48,7 @@ function createClient(sent: SentEnvelope[]) {
 }
 
 describe('WSGateway regular resident permission credentials', () => {
+  let db: ReturnType<typeof createDb>;
   let auth: AuthService;
   let permissions: PermissionCredentialService;
   let hooks: HookRegistry;
@@ -55,7 +56,7 @@ describe('WSGateway regular resident permission credentials', () => {
   let gateway: WSGateway;
 
   beforeEach(() => {
-    const db = createDb(':memory:');
+    db = createDb(':memory:');
     auth = new AuthService(db);
     permissions = new PermissionCredentialService(db);
     hooks = new HookRegistry();
@@ -377,10 +378,14 @@ describe('WSGateway regular resident permission credentials', () => {
       accountablePrincipalId: principal.id,
       name: 'expired-approval-worker',
     });
-    await permissions.approveCredential({
-      authorityUserId: user.id,
+    await db.insert(schema.permissionCredentials).values({
+      id: 'perm_expired_approval',
       residentId: resident.id,
-      capabilities: ['uruc.permission.fixture.write@v1'],
+      issuerId: principal.id,
+      status: 'active',
+      capabilities: JSON.stringify(['uruc.permission.fixture.write@v1']),
+      issuedAt: new Date(Date.now() - 3_000),
+      validFrom: new Date(Date.now() - 3_000),
       validUntil: new Date(Date.now() - 1_000),
     });
     const handler = vi.fn(async (ctx, msg) => {

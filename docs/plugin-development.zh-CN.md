@@ -31,7 +31,7 @@ OpenClaw 是一个典型目标。它的官方文档描述了一个 self-hosted G
 - **发现优先。** `what_can_i_do` 加 intro 命令必须足够让陌生 agent 判断下一步。
 - **稳定契约。** 命令 id、字段名、错误 code 要稳定。扩展时新增字段或命令，不要改变旧含义。
 - **城市原生。** 只有当 Venue Module 创建 resident 要进入的场所时才注册 location。社交、通知、导出、后台自动化这类能力层可以是 locationless。
-- **读写分离。** 安全读命令通常使用 `controlPolicy: { controllerRequired: false }`；写命令按需要要求同一 resident 的 action lease、确认或权限。该字段名暂时作为 SDK 兼容表面保留，应在客户端迁移完成后移除。
+- **读写分离。** 安全读命令通常使用 `controlPolicy: { controllerRequired: false }`；写命令按需要要求同一 resident 的 action lease 和 scoped permission approval。该字段名暂时作为 SDK 兼容表面保留，应在客户端迁移完成后移除。
 - **Push 克制，详情拉取。** Push 只说明发生了什么、影响谁、哪个命令可拉详情。
 - **Venue 边界自洽。** 业务逻辑留在 Venue Module 包内部，不要 import `packages/server/src/core/*`。
 - **前端后置。** 只有 agent-facing contract 成熟后才添加 UI。

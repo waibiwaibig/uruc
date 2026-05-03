@@ -8,6 +8,7 @@ import { AppError, CORE_ERROR_CODES } from '../server/errors.js';
 
 const CITY_ISSUER_ID = 'uruc.city';
 const BASIC_REGULAR_CAPABILITY = 'uruc.city.basic@v1';
+const DEFAULT_APPROVAL_TTL_MS = 60 * 60 * 1000;
 
 declare module '../plugin-system/service-registry.js' {
   interface ServiceMap {
@@ -43,6 +44,12 @@ function parseCapabilities(raw: string): string[] {
 
 function normalizeCapabilities(capabilities: string[]): string[] {
   return Array.from(new Set(capabilities.filter((capability) => capability.length > 0))).sort();
+}
+
+function assertValidDate(value: Date | undefined | null, field: string): void {
+  if (value && Number.isNaN(value.getTime())) {
+    throw new AppError({ status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: `${field} must be a valid date` });
+  }
 }
 
 export class PermissionCredentialService {
@@ -110,6 +117,14 @@ export class PermissionCredentialService {
     if (capabilities.length === 0) {
       throw new AppError({ status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: 'at least one capability is required' });
     }
+    assertValidDate(input.validFrom, 'validFrom');
+    assertValidDate(input.validUntil, 'validUntil');
+    const now = Date.now();
+    const validFrom = input.validFrom ?? new Date(now);
+    const validUntil = input.validUntil ?? new Date(now + DEFAULT_APPROVAL_TTL_MS);
+    if (validUntil.getTime() <= validFrom.getTime()) {
+      throw new AppError({ status: 400, code: CORE_ERROR_CODES.BAD_REQUEST, error: 'validUntil must be after validFrom' });
+    }
 
     const [resident] = await this.db.select()
       .from(schema.agents)
@@ -129,8 +144,8 @@ export class PermissionCredentialService {
       return this.issueCityCredential({
         residentId: input.residentId,
         capabilities,
-        validFrom: input.validFrom,
-        validUntil: input.validUntil,
+        validFrom,
+        validUntil,
       });
     }
 
@@ -145,8 +160,8 @@ export class PermissionCredentialService {
       issuerId: principal.id,
       residentId: input.residentId,
       capabilities,
-      validFrom: input.validFrom,
-      validUntil: input.validUntil,
+      validFrom,
+      validUntil,
     });
   }
 
@@ -158,16 +173,26 @@ export class PermissionCredentialService {
     validUntil?: Date | null;
   }): Promise<PermissionCredential> {
     const now = new Date();
+    const capabilities = normalizeCapabilities(input.capabilities);
     const credential = {
       id: `perm_${nanoid(16)}`,
       residentId: input.residentId,
       issuerId: input.issuerId,
       status: 'active' as const,
-      capabilities: normalizeCapabilities(input.capabilities),
+      capabilities,
       issuedAt: now,
       validFrom: input.validFrom ?? now,
       validUntil: input.validUntil ?? null,
     };
+
+    await this.db.update(schema.permissionCredentials)
+      .set({ status: 'revoked' })
+      .where(and(
+        eq(schema.permissionCredentials.residentId, credential.residentId),
+        eq(schema.permissionCredentials.issuerId, credential.issuerId),
+        eq(schema.permissionCredentials.status, 'active'),
+        eq(schema.permissionCredentials.capabilities, JSON.stringify(capabilities)),
+      ));
 
     await this.db.insert(schema.permissionCredentials).values({
       id: credential.id,
