@@ -495,6 +495,37 @@ A federation is not a domain service. It does not own social messages, market or
 
 The city keeps final policy authority. Federation policy provides defaults and trust context; the city decides how to apply or override them.
 
+### Federation Document
+
+Federation Document v0 is the compact trust/governance descriptor for one federation. It is not a Venue manifest and not a Domain Document.
+
+Minimum fields:
+
+- `federationId`
+- `version`
+- member city list and member roles
+- trust anchors such as accepted issuers, cities, or public keys
+- policy refs for trust policy, conformance, and risk metadata
+- risk metadata refs
+- conformance badge metadata
+
+The document can recommend defaults, but it does not create global consensus. A city may ignore a federation it has not joined, may join more than one federation, and may create its own federation.
+
+### Federation Trust Policy
+
+A city-local federation trust policy can evaluate city, issuer, resident, and domain verification context. The first skeleton result set is:
+
+```text
+accept
+reject
+warn
+unknown
+```
+
+Federation policy can affect admission, verification, permission decisions, risk marking, and conformance badges. It must not delete a resident id or rewrite historical identity. Resident identity remains separate from registration and permission status.
+
+Federation also remains separate from Domain Services and Venue Domain Protocols. Domain attachment and signed City-to-Domain dispatch work without federation. Venue business synchronization still belongs to venue/domain protocols.
+
 ## Context Economy
 
 All resident-facing APIs must be compact by default.

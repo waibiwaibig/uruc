@@ -305,6 +305,7 @@ Current city config contents include:
 - `sources`
 - configured venue package specs
 - optional per-venue topology selection (`local` or `domain`) and selected domain endpoint/document metadata
+- optional federation membership declarations and compact local trust-policy skeletons
 
 Current city lock contents include resolved venue package runtime data such as:
 
@@ -341,7 +342,21 @@ Domain attachment records are core-owned audit state. Each record stores status 
 
 Domain Document v0 uses schema id `uruc.domain.document@v0` and protocol version `uruc-domain-v0`. The Ed25519 proof signs the sorted JSON document without the `proof` object and must declare the exact covered top-level fields (`capabilities`, `domainId`, `endpoints`, `hints`, `protocol`, `publicKeys`, `schema`, and `venue`). Fetch and receipt parsing require JSON content types, bounded response sizes, parseable JSON, and stable compact error codes.
 
-Signed domain dispatch is limited to attached domain topology. City Core performs its normal action lease and permission checks first, then signs an envelope containing the current request id/type/payload, resident id, city id, venue module id/namespace, capability and permission credential refs, timestamps, nonce, and attachment/domain refs. Domain receipts must be signed by a key from the attached Domain Document and must echo the envelope hash. City Core stores both the pre-dispatch envelope and final compact receipt in `domain_dispatch_audits`. Local topology continues local handling; missing, failed, expired, or detached attachments cannot silently fall back to domain success. Federation and cross-city trust policy remain out of scope until #12, and City Core still does not interpret Venue business payloads.
+Signed domain dispatch is limited to attached domain topology. City Core performs its normal action lease and permission checks first, then signs an envelope containing the current request id/type/payload, resident id, city id, venue module id/namespace, capability and permission credential refs, timestamps, nonce, and attachment/domain refs. Domain receipts must be signed by a key from the attached Domain Document and must echo the envelope hash. City Core stores both the pre-dispatch envelope and final compact receipt in `domain_dispatch_audits`. Local topology continues local handling; missing, failed, expired, or detached attachments cannot silently fall back to domain success. City Core still does not interpret Venue business payloads.
+
+### Federation trust policy skeleton
+
+Federation is city trust/governance metadata, not a Domain Service and not Venue business synchronization. Federation Document v0 uses schema id `uruc.federation.document@v0` and declares:
+
+- federation id and version
+- member cities and their roles
+- trust anchors such as issuers, cities, or public keys
+- policy refs for trust policy, conformance, or risk metadata
+- compact risk metadata and conformance badges
+
+City config may declare membership under `federations[federationId]` with an optional document URL and local `trustPolicy`. The trust-policy skeleton can currently return `accept`, `reject`, `warn`, or `unknown` for city, issuer, resident, or domain verification contexts. It is intentionally not a legal rules engine and does not implement global consensus.
+
+Federation policy results may be attached to resident/domain/city verification output as audit context. They are intended to feed future admission, permission decision, risk marking, and conformance badge interfaces. They do not delete or rewrite Resident IDs. A city that has not joined a federation returns `unknown` for that federation policy context and does not need to obey it. Domain attachment/dispatch and Venue Domain Protocols remain independent from Federation.
 
 ### Runtime context exposed to backend venue modules
 

@@ -152,7 +152,9 @@ City config 可以通过 `plugins[pluginId].topology.mode` 选择 `local` 或 `d
 
 Domain Document 和 attachment handshake 支持仅限连接 metadata。City Core 会拉取并校验 Domain Document，发送 attachment request，并记录带有 Domain Document hash 的可审计 attachment receipt。v0 proof 签名的是移除 `proof` 对象后的 sorted JSON document，并且必须声明精确的顶层 covered fields。
 
-对于 domain runtime mode，只有 attachment 处于 `attached` 后才会走 City-to-Domain request dispatch。City Core 会执行与 local request 相同的 action lease 和 permission checks，把 request/event payload 与 proof refs 包装成 signed envelope，POST 到 Domain dispatch endpoint，校验 signed Domain receipt，并写入 audit records。Envelope 只是 transport/audit wrapper；City Core 不解析或同步 Venue 业务状态。Federation 仍属于 #12。
+对于 domain runtime mode，只有 attachment 处于 `attached` 后才会走 City-to-Domain request dispatch。City Core 会执行与 local request 相同的 action lease 和 permission checks，把 request/event payload 与 proof refs 包装成 signed envelope，POST 到 Domain dispatch endpoint，校验 signed Domain receipt，并写入 audit records。Envelope 只是 transport/audit wrapper；City Core 不解析或同步 Venue 业务状态。
+
+Federation 是独立的 city trust/governance metadata。它可以为准入、验证、风险标记和 conformance badge 添加 policy result，但它不是 Domain Service，不同步 Venue 业务状态，也不删除 Resident ID。City config 可以在 `federations[federationId]` 下声明可选 federation membership；未加入某个 federation 的城市不需要遵守该 federation policy。
 
 常用可选字段：
 

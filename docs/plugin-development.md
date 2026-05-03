@@ -152,7 +152,9 @@ City config may select runtime topology with `plugins[pluginId].topology.mode` a
 
 Domain Document and attachment handshake support is limited to connection metadata. City Core fetches and validates the Domain Document, sends an attachment request, and records an auditable attachment receipt with the Domain Document hash. The v0 proof signs the sorted JSON document without the `proof` object and must declare the exact covered top-level fields.
 
-For domain runtime mode, request dispatch is City-to-Domain only after the attachment is `attached`. City Core runs the same action lease and permission checks as local requests, signs an envelope around the request/event payload and proof refs, posts it to the Domain dispatch endpoint, verifies the signed Domain receipt, and stores audit records. The envelope is a transport/audit wrapper; City Core does not parse or synchronize Venue business state. Federation remains #12.
+For domain runtime mode, request dispatch is City-to-Domain only after the attachment is `attached`. City Core runs the same action lease and permission checks as local requests, signs an envelope around the request/event payload and proof refs, posts it to the Domain dispatch endpoint, verifies the signed Domain receipt, and stores audit records. The envelope is a transport/audit wrapper; City Core does not parse or synchronize Venue business state.
+
+Federation is separate city trust/governance metadata. It can add policy results for admission, verification, risk marking, and conformance badges, but it is not a Domain Service, does not synchronize Venue business state, and does not remove Resident IDs. City config can declare optional federation membership under `federations[federationId]`; cities that do not join a federation do not need to obey that federation policy.
 
 Useful optional fields:
 
