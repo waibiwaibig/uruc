@@ -65,27 +65,52 @@ describe('WSGateway regular resident permission credentials', () => {
     gateway = new WSGateway({ port: 0 }, hooks, services, auth);
   });
 
-  it('resolves an active city-issued permission credential for a regular resident session', async () => {
+  it('resolves active city-issued basic credentials for shadow and regular resident sessions', async () => {
     const user = await auth.register('permission-user', 'permission-user@example.com', 'secret-123');
     const sent: SentEnvelope[] = [];
-    const client = createClient(sent);
+    const shadowClient = createClient(sent);
 
-    (gateway as any).clients.set('client-a', client);
+    (gateway as any).clients.set('client-a', shadowClient);
 
-    await (gateway as any).handleAgentAuth('client-a', client, {
+    await (gateway as any).handleAgentAuth('client-a', shadowClient, {
       id: 'auth-a',
       type: 'auth',
       payload: signToken(user.id, 'user'),
     });
 
-    const credential = await permissions.resolveActiveCityIssuedCredential(client.session);
+    const shadowCredential = await permissions.resolveActiveCityIssuedCredential(shadowClient.session);
 
-    expect(credential).toMatchObject({
-      residentId: client.session.agentId,
+    expect(shadowCredential).toMatchObject({
+      residentId: shadowClient.session.agentId,
       issuerId: 'uruc.city',
       status: 'active',
       capabilities: ['uruc.city.basic@v1'],
+      validUntil: null,
     });
+    expect(shadowCredential.issuedAt).toBeInstanceOf(Date);
+    expect(shadowCredential.validFrom).toBeInstanceOf(Date);
+
+    const regularAgent = await auth.createAgent(user.id, 'permission-user-regular');
+    const regularClient = createClient(sent);
+    (gateway as any).clients.set('client-b', regularClient);
+
+    await (gateway as any).handleAgentAuth('client-b', regularClient, {
+      id: 'auth-b',
+      type: 'auth',
+      payload: regularAgent.token,
+    });
+
+    const regularCredential = await permissions.resolveActiveCityIssuedCredential(regularClient.session);
+
+    expect(regularCredential).toMatchObject({
+      residentId: regularAgent.id,
+      issuerId: 'uruc.city',
+      status: 'active',
+      capabilities: ['uruc.city.basic@v1'],
+      validUntil: null,
+    });
+    expect(regularCredential.issuedAt).toBeInstanceOf(Date);
+    expect(regularCredential.validFrom).toBeInstanceOf(Date);
   });
 
   it('allows a venue request when the resident has every required capability', async () => {
@@ -197,6 +222,48 @@ describe('WSGateway regular resident permission credentials', () => {
     });
   });
 
+  it('keeps a venue request runnable when required capabilities are not declared', async () => {
+    const user = await auth.register('capability-undeclared', 'capability-undeclared@example.com', 'secret-123');
+    const handler = vi.fn(async (ctx, msg) => {
+      ctx.gateway.send(ctx.ws, { id: msg.id, type: 'result', payload: { ok: true } });
+    });
+    hooks.registerWSCommand('uruc.permission.fixture_read@v1', handler, {
+      type: 'uruc.permission.fixture_read@v1',
+      description: 'Read one permission fixture value.',
+      pluginName: 'uruc.permission',
+      params: {},
+      controlPolicy: { controllerRequired: false },
+      protocol: {
+        subject: 'resident',
+        request: { type: 'uruc.permission.fixture.read.request@v1' },
+        venue: { id: 'uruc.permission' },
+      },
+    });
+
+    const sent: SentEnvelope[] = [];
+    const client = createClient(sent);
+    (gateway as any).clients.set('client-a', client);
+    await (gateway as any).handleAgentAuth('client-a', client, {
+      id: 'auth-a',
+      type: 'auth',
+      payload: signToken(user.id, 'user'),
+    });
+
+    sent.length = 0;
+    await (gateway as any).handleMessage('client-a', {
+      id: 'read-a',
+      type: 'uruc.permission.fixture_read@v1',
+      payload: {},
+    });
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(sent.at(-1)).toMatchObject({
+      id: 'read-a',
+      type: 'result',
+      payload: { ok: true },
+    });
+  });
+
   it('keeps existing regular agent city commands runnable without venue capability metadata', async () => {
     const user = await auth.register('regular-agent', 'regular-agent@example.com', 'secret-123');
     const regularAgent = await auth.createAgent(user.id, 'regular-agent-alt');
@@ -209,6 +276,28 @@ describe('WSGateway regular resident permission credentials', () => {
       id: 'auth-a',
       type: 'auth',
       payload: regularAgent.token,
+    });
+
+    sent.length = 0;
+    await (gateway as any).handleMessage('client-a', { id: 'enter-a', type: 'enter_city', payload: {} });
+
+    expect(sent.at(-1)).toMatchObject({
+      id: 'enter-a',
+      type: 'result',
+    });
+  });
+
+  it('keeps existing shadow resident city commands runnable without venue capability metadata', async () => {
+    const user = await auth.register('shadow-agent', 'shadow-agent@example.com', 'secret-123');
+    const sent: SentEnvelope[] = [];
+    const client = createClient(sent);
+
+    (gateway as any).clients.set('client-a', client);
+
+    await (gateway as any).handleAgentAuth('client-a', client, {
+      id: 'auth-a',
+      type: 'auth',
+      payload: signToken(user.id, 'user'),
     });
 
     sent.length = 0;
