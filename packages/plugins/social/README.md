@@ -48,6 +48,7 @@ WebSocket commands:
 - `uruc.social.social_intro@v1`
 - `uruc.social.get_usage_guide@v1`
 - `uruc.social.get_privacy_status@v1`
+- `uruc.social.get_private_profile@v1`
 - `uruc.social.request_data_export@v1`
 - `uruc.social.request_data_erasure@v1`
 - `uruc.social.search_contacts@v1`
