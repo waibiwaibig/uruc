@@ -24,6 +24,22 @@ export type FederationRiskLevel = 'low' | 'medium' | 'high' | 'unknown';
 export type FederationConformanceStatus = 'acquired' | 'verified' | 'revoked';
 export type FederationPolicyRefDegradation = 'reject' | 'warn' | 'unknown';
 
+export interface FederationFeedRef {
+  id: string;
+  ref: string;
+  version?: number;
+  digest?: string;
+  integrity?: string;
+  mediaType?: string;
+  required?: boolean;
+  validFrom?: string;
+  validUntil?: string;
+  federationId?: string;
+  maxEntries?: number;
+  maxBodyBytes?: number;
+  onFailure?: FederationPolicyRefDegradation;
+}
+
 export interface FederationDocument {
   schema: typeof FEDERATION_DOCUMENT_SCHEMA;
   federationId: string;
@@ -59,16 +75,14 @@ export interface FederationDocument {
   }>;
   risk: {
     defaultLevel: FederationRiskLevel;
-    feeds?: Array<{
-      id: string;
-      ref: string;
-    }>;
+    feeds?: FederationFeedRef[];
   };
   conformance: {
     badges: Array<{
       id: string;
       status: FederationConformanceStatus;
     }>;
+    feeds?: FederationFeedRef[];
   };
   metadata?: {
     name?: string;
@@ -214,6 +228,57 @@ function requireArray(value: unknown, code: string, label: string): unknown[] {
   return value;
 }
 
+function parseFeedRefs(value: unknown, code: string, label: string): FederationFeedRef[] | undefined {
+  if (value === undefined) return undefined;
+  return requireArray(value, code, label).map((feed): FederationFeedRef => {
+    if (!isRecord(feed)) throw new FederationDocumentError(code, `Invalid Federation Document ${label}`);
+    const digest = feed.digest !== undefined
+      ? requireSha256Digest(feed.digest, code, `${label}.digest`)
+      : undefined;
+    const integrity = feed.integrity !== undefined
+      ? requireSha256Digest(feed.integrity, code, `${label}.integrity`)
+      : undefined;
+    if (digest && integrity && digest !== integrity) {
+      throw new FederationDocumentError(code, `Invalid Federation Document ${label} integrity`);
+    }
+    return {
+      id: requireString(feed.id, code, `${label}.id`),
+      ref: requireUrl(feed.ref, code, `${label}.ref`),
+      ...(feed.version !== undefined && typeof feed.version === 'number' && Number.isInteger(feed.version) && feed.version > 0
+        ? { version: feed.version }
+        : feed.version !== undefined
+          ? (() => { throw new FederationDocumentError(code, `Invalid Federation Document ${label}.version`); })()
+          : {}),
+      ...(digest ? { digest } : {}),
+      ...(integrity ? { integrity } : {}),
+      ...(feed.mediaType !== undefined
+        ? { mediaType: optionalMediaType(feed.mediaType, code, `${label}.mediaType`) }
+        : {}),
+      ...(feed.required !== undefined
+        ? { required: typeof feed.required === 'boolean' ? feed.required : (() => { throw new FederationDocumentError(code, `Invalid Federation Document ${label}.required`); })() }
+        : {}),
+      ...(feed.validFrom !== undefined
+        ? { validFrom: requireIsoTimestamp(feed.validFrom, code, `${label}.validFrom`) }
+        : {}),
+      ...(feed.validUntil !== undefined
+        ? { validUntil: requireIsoTimestamp(feed.validUntil, code, `${label}.validUntil`) }
+        : {}),
+      ...(feed.federationId !== undefined
+        ? { federationId: requireString(feed.federationId, code, `${label}.federationId`) }
+        : {}),
+      ...(feed.maxEntries !== undefined
+        ? { maxEntries: optionalPositiveInteger(feed.maxEntries, code, `${label}.maxEntries`) }
+        : {}),
+      ...(feed.maxBodyBytes !== undefined
+        ? { maxBodyBytes: optionalPositiveInteger(feed.maxBodyBytes, code, `${label}.maxBodyBytes`) }
+        : {}),
+      ...(feed.onFailure !== undefined
+        ? { onFailure: requireEnum(feed.onFailure, ['reject', 'warn', 'unknown'] as const, code, `${label}.onFailure`) }
+        : {}),
+    };
+  });
+}
+
 export function parseFederationDocument(raw: unknown, options: ParseFederationDocumentOptions = {}): FederationDocument {
   if (!isRecord(raw)) {
     throw new FederationDocumentError('FEDERATION_DOCUMENT_INVALID', 'Invalid Federation Document');
@@ -317,13 +382,7 @@ export function parseFederationDocument(raw: unknown, options: ParseFederationDo
 
   const risk = raw.risk;
   if (!isRecord(risk)) throw new FederationDocumentError('FEDERATION_DOCUMENT_RISK_INVALID', 'Invalid Federation Document risk');
-  const feeds = risk.feeds === undefined ? undefined : requireArray(risk.feeds, 'FEDERATION_DOCUMENT_RISK_INVALID', 'risk.feeds').map((feed) => {
-    if (!isRecord(feed)) throw new FederationDocumentError('FEDERATION_DOCUMENT_RISK_INVALID', 'Invalid Federation Document risk.feeds');
-    return {
-      id: requireString(feed.id, 'FEDERATION_DOCUMENT_RISK_INVALID', 'risk.feeds.id'),
-      ref: requireUrl(feed.ref, 'FEDERATION_DOCUMENT_RISK_INVALID', 'risk.feeds.ref'),
-    };
-  });
+  const feeds = parseFeedRefs(risk.feeds, 'FEDERATION_DOCUMENT_RISK_INVALID', 'risk.feeds');
 
   const conformance = raw.conformance;
   if (!isRecord(conformance)) {
@@ -338,6 +397,7 @@ export function parseFederationDocument(raw: unknown, options: ParseFederationDo
       status: requireEnum(badge.status, ['acquired', 'verified', 'revoked'], 'FEDERATION_DOCUMENT_CONFORMANCE_INVALID', 'conformance.badges.status'),
     };
   });
+  const conformanceFeeds = parseFeedRefs(conformance.feeds, 'FEDERATION_DOCUMENT_CONFORMANCE_INVALID', 'conformance.feeds');
 
   const metadata = raw.metadata;
   if (metadata !== undefined && !isRecord(metadata)) {
@@ -383,6 +443,7 @@ export function parseFederationDocument(raw: unknown, options: ParseFederationDo
     },
     conformance: {
       badges,
+      ...(conformanceFeeds ? { feeds: conformanceFeeds } : {}),
     },
     validFrom,
     validUntil,

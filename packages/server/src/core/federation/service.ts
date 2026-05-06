@@ -1,11 +1,24 @@
-import { createHash } from 'crypto';
+import { createHash, createPublicKey, verify } from 'crypto';
 
-import { FederationDocumentError, federationDocumentDigest, parseFederationDocument, type FederationDocument } from './document.js';
+import { FederationDocumentError, federationDocumentDigest, parseFederationDocument, type FederationDocument, type FederationFeedRef } from './document.js';
 import { evaluateTrustPolicy, type FederationPolicyResult, type TrustPolicyDecision, type TrustPolicySubject } from './policy.js';
 import type { CityFederationSpec } from '../plugin-platform/types.js';
 
 type FetchLike = typeof fetch;
 export const FEDERATION_POLICY_MATERIAL_SCHEMA = 'uruc.federation.policy-material@v0';
+export const FEDERATION_FEED_BATCH_SCHEMA = 'uruc.federation.feed-batch@v0';
+export const FEDERATION_FEED_BATCH_CANONICALIZATION = 'uruc-federation-feed-batch-v0-sorted-json-without-proof';
+export const FEDERATION_FEED_BATCH_SIGNED_FIELDS = [
+  'entries',
+  'expiresAt',
+  'feedRefId',
+  'federationId',
+  'issuedAt',
+  'issuerId',
+  'kind',
+  'schema',
+  'version',
+] as const;
 
 export interface FederationDocumentServiceOptions {
   fetch?: FetchLike;
@@ -117,6 +130,11 @@ function stableValue(value: unknown): unknown {
 
 function hashStableJson(value: unknown): string {
   return `sha256:${createHash('sha256').update(JSON.stringify(stableValue(value))).digest('hex')}`;
+}
+
+function canonicalWithoutProof(value: Record<string, unknown>): Buffer {
+  const { proof: _proof, ...unsigned } = value;
+  return Buffer.from(JSON.stringify(stableValue(unsigned)), 'utf8');
 }
 
 function parseIsoTimestamp(value: string): number | null {
@@ -589,6 +607,376 @@ export interface FederationFeedEntry {
   conformanceBadges?: string[];
   issuedAt: string;
   expiresAt: string;
+}
+
+export interface FederationFeedBatch {
+  schema: typeof FEDERATION_FEED_BATCH_SCHEMA;
+  federationId: string;
+  feedRefId: string;
+  kind: FederationFeedKind;
+  version?: number;
+  issuerId: string;
+  issuedAt: string;
+  expiresAt: string;
+  entries: FederationFeedEntry[];
+  proof?: {
+    type: 'ed25519-signature-2026';
+    verificationMethod: string;
+    createdAt: string;
+    canonicalization: typeof FEDERATION_FEED_BATCH_CANONICALIZATION;
+    covered: Array<(typeof FEDERATION_FEED_BATCH_SIGNED_FIELDS)[number]>;
+    signature: string;
+  };
+}
+
+export interface FederationFeedVerificationResult {
+  federationId: string;
+  feedRefId: string;
+  kind: FederationFeedKind;
+  decision: TrustPolicyDecision;
+  code: string;
+  source: 'network' | 'none';
+  digest?: string;
+  mediaType?: string;
+  fetchedAt?: string;
+  expiresAt?: string;
+  reasons: string[];
+  entries?: FederationPolicyResult[];
+}
+
+export interface FederationFeedServiceOptions {
+  fetch?: FetchLike;
+  timeoutMs?: number;
+  maxFeedBytes?: number;
+  maxEntries?: number;
+  now?: () => Date;
+}
+
+function feedRefDecision(ref: FederationFeedRef | undefined): TrustPolicyDecision {
+  return ref?.required === false ? (ref.onFailure ?? 'unknown') : 'reject';
+}
+
+function feedFailureResult(
+  document: FederationDocument,
+  kind: FederationFeedKind,
+  feedRefId: string,
+  code: string,
+  reason: string,
+  source: FederationFeedVerificationResult['source'],
+  options: {
+    ref?: FederationFeedRef;
+    decision?: TrustPolicyDecision;
+    digest?: string;
+    fetchedAt?: string;
+    expiresAt?: string;
+    mediaType?: string;
+  } = {},
+): FederationFeedVerificationResult {
+  return {
+    federationId: document.federationId,
+    feedRefId,
+    kind,
+    decision: options.decision ?? feedRefDecision(options.ref),
+    code,
+    source,
+    ...(options.digest ? { digest: options.digest } : {}),
+    ...(options.fetchedAt ? { fetchedAt: options.fetchedAt } : {}),
+    ...(options.expiresAt ? { expiresAt: options.expiresAt } : {}),
+    ...(options.mediaType ? { mediaType: options.mediaType } : {}),
+    reasons: [reason],
+  };
+}
+
+function findFeedRef(document: FederationDocument, kind: FederationFeedKind, feedRefId: string): FederationFeedRef | undefined {
+  const refs = kind === 'risk' ? document.risk.feeds : document.conformance.feeds;
+  return refs?.find((ref) => ref.id === feedRefId);
+}
+
+function validateFeedEntry(raw: unknown): FederationFeedEntry | null {
+  if (!isRecord(raw)) return null;
+  const id = typeof raw.id === 'string' && raw.id.trim() ? raw.id : undefined;
+  const federationId = typeof raw.federationId === 'string' && raw.federationId.trim() ? raw.federationId : undefined;
+  const kind = raw.kind === 'risk' || raw.kind === 'conformance' ? raw.kind : undefined;
+  const issuerId = typeof raw.issuerId === 'string' && raw.issuerId.trim() ? raw.issuerId : undefined;
+  const issuedAt = typeof raw.issuedAt === 'string' && parseIsoTimestamp(raw.issuedAt) !== null ? raw.issuedAt : undefined;
+  const expiresAt = typeof raw.expiresAt === 'string' && parseIsoTimestamp(raw.expiresAt) !== null ? raw.expiresAt : undefined;
+  if (!id || !federationId || !kind || !issuerId || !issuedAt || !expiresAt || !isRecord(raw.subject)) return null;
+  const subjectKind = raw.subject.kind;
+  const subject = subjectKind === 'city' && typeof raw.subject.cityId === 'string'
+    ? { kind: 'city' as const, cityId: raw.subject.cityId }
+    : subjectKind === 'issuer' && typeof raw.subject.issuerId === 'string'
+      ? { kind: 'issuer' as const, issuerId: raw.subject.issuerId }
+      : subjectKind === 'resident' && typeof raw.subject.residentId === 'string'
+        ? { kind: 'resident' as const, residentId: raw.subject.residentId }
+        : subjectKind === 'domain' && typeof raw.subject.domainId === 'string'
+          ? { kind: 'domain' as const, domainId: raw.subject.domainId }
+          : undefined;
+  if (!subject) return null;
+  if (raw.riskLevel !== undefined && !['low', 'medium', 'high', 'unknown'].includes(String(raw.riskLevel))) return null;
+  if (raw.conformanceBadges !== undefined && (!Array.isArray(raw.conformanceBadges) || raw.conformanceBadges.some((badge) => typeof badge !== 'string' || !badge.trim()))) return null;
+  return {
+    id,
+    federationId,
+    kind,
+    issuerId,
+    subject,
+    ...(raw.riskLevel !== undefined ? { riskLevel: raw.riskLevel as FederationFeedEntry['riskLevel'] } : {}),
+    ...(raw.conformanceBadges !== undefined ? { conformanceBadges: raw.conformanceBadges as string[] } : {}),
+    issuedAt,
+    expiresAt,
+  };
+}
+
+function parseFederationFeedBatch(raw: unknown, maxEntries: number): FederationFeedBatch {
+  if (!isRecord(raw)) {
+    throw new FederationDocumentError('FEDERATION_FEED_INVALID', 'Invalid federation feed batch');
+  }
+  if (raw.schema !== FEDERATION_FEED_BATCH_SCHEMA) {
+    throw new FederationDocumentError('FEDERATION_FEED_SCHEMA_INVALID', 'Unsupported federation feed batch schema');
+  }
+  const federationId = typeof raw.federationId === 'string' && raw.federationId.trim() ? raw.federationId : undefined;
+  const feedRefId = typeof raw.feedRefId === 'string' && raw.feedRefId.trim() ? raw.feedRefId : undefined;
+  const kind = raw.kind === 'risk' || raw.kind === 'conformance' ? raw.kind : undefined;
+  const issuerId = typeof raw.issuerId === 'string' && raw.issuerId.trim() ? raw.issuerId : undefined;
+  const issuedAt = typeof raw.issuedAt === 'string' && parseIsoTimestamp(raw.issuedAt) !== null ? raw.issuedAt : undefined;
+  const expiresAt = typeof raw.expiresAt === 'string' && parseIsoTimestamp(raw.expiresAt) !== null ? raw.expiresAt : undefined;
+  if (!federationId || !feedRefId || !kind || !issuerId || !issuedAt || !expiresAt || !Array.isArray(raw.entries)) {
+    throw new FederationDocumentError('FEDERATION_FEED_INVALID', 'Invalid federation feed batch');
+  }
+  if (raw.version !== undefined && (typeof raw.version !== 'number' || !Number.isInteger(raw.version) || raw.version <= 0)) {
+    throw new FederationDocumentError('FEDERATION_FEED_INVALID', 'Invalid federation feed batch version');
+  }
+  if (raw.entries.length > maxEntries) {
+    throw new FederationDocumentError('FEDERATION_FEED_ENTRY_COUNT_EXCEEDED', 'Federation feed batch has too many entries');
+  }
+  const entries = raw.entries.map(validateFeedEntry);
+  if (entries.some((entry) => entry === null)) {
+    throw new FederationDocumentError('FEDERATION_FEED_ENTRY_INVALID', 'Invalid federation feed entry');
+  }
+  const proof = raw.proof;
+  if (proof !== undefined && !isRecord(proof)) {
+    throw new FederationDocumentError('FEDERATION_FEED_SIGNATURE_INVALID', 'Invalid federation feed proof');
+  }
+  if (proof !== undefined) {
+    const proofKeys = Object.keys(proof);
+    const allowedProofKeys = ['type', 'verificationMethod', 'createdAt', 'canonicalization', 'covered', 'signature'];
+    if (proofKeys.some((key) => !allowedProofKeys.includes(key))) {
+      throw new FederationDocumentError('FEDERATION_FEED_SIGNATURE_INVALID', 'Invalid federation feed proof fields');
+    }
+    if (!Array.isArray(proof.covered) || JSON.stringify(proof.covered) !== JSON.stringify(FEDERATION_FEED_BATCH_SIGNED_FIELDS)) {
+      throw new FederationDocumentError('FEDERATION_FEED_SIGNATURE_INVALID', 'Invalid federation feed proof covered fields');
+    }
+  }
+  return {
+    schema: FEDERATION_FEED_BATCH_SCHEMA,
+    federationId,
+    feedRefId,
+    kind,
+    ...(raw.version !== undefined ? { version: raw.version } : {}),
+    issuerId,
+    issuedAt,
+    expiresAt,
+    entries: entries as FederationFeedEntry[],
+    ...(proof
+      ? {
+        proof: {
+          type: proof.type === 'ed25519-signature-2026' ? proof.type : (() => { throw new FederationDocumentError('FEDERATION_FEED_SIGNATURE_INVALID', 'Invalid federation feed proof type'); })(),
+          verificationMethod: typeof proof.verificationMethod === 'string' && proof.verificationMethod.trim() ? proof.verificationMethod : (() => { throw new FederationDocumentError('FEDERATION_FEED_SIGNATURE_INVALID', 'Invalid federation feed proof verification method'); })(),
+          createdAt: typeof proof.createdAt === 'string' && parseIsoTimestamp(proof.createdAt) !== null ? proof.createdAt : (() => { throw new FederationDocumentError('FEDERATION_FEED_SIGNATURE_INVALID', 'Invalid federation feed proof timestamp'); })(),
+          canonicalization: proof.canonicalization === FEDERATION_FEED_BATCH_CANONICALIZATION ? proof.canonicalization : (() => { throw new FederationDocumentError('FEDERATION_FEED_SIGNATURE_INVALID', 'Invalid federation feed proof canonicalization'); })(),
+          covered: [...FEDERATION_FEED_BATCH_SIGNED_FIELDS],
+          signature: typeof proof.signature === 'string' && proof.signature.trim() ? proof.signature : (() => { throw new FederationDocumentError('FEDERATION_FEED_SIGNATURE_INVALID', 'Invalid federation feed proof signature'); })(),
+        },
+      }
+      : {}),
+  };
+}
+
+function verifyFeedBatchSignature(document: FederationDocument, raw: unknown, batch: FederationFeedBatch): boolean {
+  if (!batch.proof || !isRecord(raw)) return true;
+  const anchor = document.trustAnchors.find((item) => item.type === 'public-key' && item.id === batch.proof?.verificationMethod);
+  if (!anchor) return false;
+  try {
+    return verify(
+      null,
+      canonicalWithoutProof(raw),
+      createPublicKey(anchor.ref),
+      Buffer.from(batch.proof.signature, 'base64'),
+    );
+  } catch {
+    return false;
+  }
+}
+
+function mostSevereTrustResult(results: FederationPolicyResult[]): FederationPolicyResult | undefined {
+  return results.find((item) => item.decision === 'reject')
+    ?? results.find((item) => item.decision === 'warn')
+    ?? results.find((item) => item.decision === 'unknown')
+    ?? results.find((item) => item.decision === 'accept');
+}
+
+export class FederationFeedService {
+  private readonly fetchImpl: FetchLike;
+  private readonly timeoutMs: number;
+  private readonly maxFeedBytes: number;
+  private readonly maxEntries: number;
+  private readonly now: () => Date;
+
+  constructor(options: FederationFeedServiceOptions = {}) {
+    this.fetchImpl = options.fetch ?? fetch;
+    this.timeoutMs = options.timeoutMs ?? 3_000;
+    this.maxFeedBytes = options.maxFeedBytes ?? 64 * 1024;
+    this.maxEntries = options.maxEntries ?? 100;
+    this.now = options.now ?? (() => new Date());
+  }
+
+  async verifyFeedRef(input: {
+    document: FederationDocument;
+    cityPolicy?: Pick<CityFederationSpec, 'federationId' | 'trustPolicy'>;
+    feedRefId: string;
+    kind: FederationFeedKind;
+  }): Promise<FederationFeedVerificationResult> {
+    if (!input.cityPolicy || input.cityPolicy.federationId !== input.document.federationId) {
+      return feedFailureResult(input.document, input.kind, input.feedRefId, 'FEDERATION_CITY_NOT_JOINED', 'city has not declared this federation feed context', 'none', {
+        decision: 'unknown',
+      });
+    }
+    const ref = findFeedRef(input.document, input.kind, input.feedRefId);
+    if (!ref) {
+      return feedFailureResult(input.document, input.kind, input.feedRefId, 'FEDERATION_FEED_REF_MISSING', 'feed ref is not present in the Federation Document', 'none');
+    }
+    const now = this.now();
+    const nowMs = now.getTime();
+    if (ref.validFrom && Date.parse(ref.validFrom) > nowMs) {
+      return feedFailureResult(input.document, input.kind, input.feedRefId, 'FEDERATION_FEED_REF_NOT_YET_VALID', 'feed ref is not yet valid', 'none', { ref });
+    }
+    if (ref.validUntil && Date.parse(ref.validUntil) <= nowMs) {
+      return feedFailureResult(input.document, input.kind, input.feedRefId, 'FEDERATION_FEED_REF_EXPIRED', 'feed ref is expired', 'none', { ref });
+    }
+    if (ref.federationId && ref.federationId !== input.document.federationId) {
+      return feedFailureResult(input.document, input.kind, input.feedRefId, 'FEDERATION_FEED_REF_MISMATCH', 'feed ref federation id does not match document', 'none', { ref });
+    }
+
+    let response: Response;
+    try {
+      response = await this.fetchWithTimeout(ref.ref, {
+        method: 'GET',
+        headers: { accept: ref.mediaType ?? 'application/json' },
+      });
+    } catch (error) {
+      const code = error instanceof FederationDocumentError ? error.code : 'FEDERATION_FEED_FETCH_FAILED';
+      return feedFailureResult(input.document, input.kind, input.feedRefId, code, code === 'FEDERATION_FEED_FETCH_TIMEOUT' ? 'federation feed fetch timed out' : 'federation feed fetch failed', 'network', { ref });
+    }
+    const expectedMediaType = ref.mediaType ?? 'application/json';
+    const actualMediaType = normalizeMediaType(response.headers.get('content-type'));
+    if (!mediaTypeMatches(actualMediaType, expectedMediaType)) {
+      return feedFailureResult(input.document, input.kind, input.feedRefId, 'FEDERATION_FEED_CONTENT_TYPE_INVALID', 'federation feed response content-type is invalid', 'network', { ref, mediaType: actualMediaType });
+    }
+    if (!response.ok) {
+      return feedFailureResult(input.document, input.kind, input.feedRefId, 'FEDERATION_FEED_FETCH_FAILED', `federation feed fetch failed with HTTP ${response.status}`, 'network', { ref, mediaType: actualMediaType });
+    }
+
+    let raw: unknown;
+    try {
+      raw = parseJson(await readLimitedText(response, Math.min(this.maxFeedBytes, ref.maxBodyBytes ?? this.maxFeedBytes)));
+    } catch (error) {
+      const code = error instanceof FederationDocumentError && error.code === 'FEDERATION_RESPONSE_TOO_LARGE'
+        ? 'FEDERATION_FEED_RESPONSE_TOO_LARGE'
+        : 'FEDERATION_FEED_JSON_INVALID';
+      const reason = code === 'FEDERATION_FEED_RESPONSE_TOO_LARGE'
+        ? 'federation feed response is too large'
+        : 'federation feed response is not valid JSON';
+      return feedFailureResult(input.document, input.kind, input.feedRefId, code, reason, 'network', { ref, mediaType: actualMediaType });
+    }
+
+    const digest = hashStableJson(raw);
+    const expectedDigest = ref.integrity ?? ref.digest;
+    if (expectedDigest && digest !== expectedDigest) {
+      return feedFailureResult(input.document, input.kind, input.feedRefId, 'FEDERATION_FEED_HASH_MISMATCH', 'federation feed digest does not match feed ref integrity', 'network', { ref, digest, mediaType: actualMediaType });
+    }
+
+    let batch: FederationFeedBatch;
+    try {
+      batch = parseFederationFeedBatch(raw, Math.min(this.maxEntries, ref.maxEntries ?? this.maxEntries));
+    } catch (error) {
+      const code = error instanceof FederationDocumentError ? error.code : 'FEDERATION_FEED_INVALID';
+      return feedFailureResult(input.document, input.kind, input.feedRefId, code, 'federation feed batch is invalid', 'network', { ref, digest, mediaType: actualMediaType });
+    }
+    if (!expectedDigest && !batch.proof) {
+      return feedFailureResult(input.document, input.kind, input.feedRefId, 'FEDERATION_FEED_INTEGRITY_REQUIRED', 'feed ref does not declare digest/integrity and batch is unsigned', 'network', { ref, digest, mediaType: actualMediaType });
+    }
+    if (batch.proof && !verifyFeedBatchSignature(input.document, raw, batch)) {
+      return feedFailureResult(input.document, input.kind, input.feedRefId, 'FEDERATION_FEED_SIGNATURE_INVALID', 'federation feed signature is invalid', 'network', { ref, digest, mediaType: actualMediaType });
+    }
+    if (batch.federationId !== input.document.federationId || batch.feedRefId !== ref.id || batch.kind !== input.kind) {
+      return feedFailureResult(input.document, input.kind, input.feedRefId, 'FEDERATION_FEED_MISMATCH', 'federation feed identity does not match feed ref', 'network', { ref, digest, mediaType: actualMediaType });
+    }
+    if (batch.version !== undefined && ref.version !== undefined && batch.version !== ref.version) {
+      return feedFailureResult(input.document, input.kind, input.feedRefId, 'FEDERATION_FEED_VERSION_UNSUPPORTED', 'federation feed version does not match feed ref', 'network', { ref, digest, mediaType: actualMediaType });
+    }
+    const issuedAt = parseIsoTimestamp(batch.issuedAt);
+    const expiresAt = parseIsoTimestamp(batch.expiresAt);
+    if (issuedAt === null || expiresAt === null || issuedAt >= expiresAt) {
+      return feedFailureResult(input.document, input.kind, input.feedRefId, 'FEDERATION_FEED_INVALID', 'federation feed has an invalid time window', 'network', { ref, digest, mediaType: actualMediaType });
+    }
+    if (issuedAt > nowMs) {
+      return feedFailureResult(input.document, input.kind, input.feedRefId, 'FEDERATION_FEED_NOT_YET_VALID', 'federation feed is not yet valid', 'network', { ref, digest, mediaType: actualMediaType });
+    }
+    if (expiresAt <= nowMs) {
+      return feedFailureResult(input.document, input.kind, input.feedRefId, 'FEDERATION_FEED_EXPIRED', 'federation feed is expired', 'network', { ref, digest, mediaType: actualMediaType });
+    }
+    const issuerTrusted = input.document.trustAnchors.some((anchor) => anchor.id === batch.issuerId || anchor.ref === batch.issuerId);
+    if (!issuerTrusted) {
+      return feedFailureResult(input.document, input.kind, input.feedRefId, 'FEDERATION_FEED_ISSUER_UNTRUSTED', 'federation feed issuer is not a federation trust anchor', 'network', { ref, digest, mediaType: actualMediaType });
+    }
+
+    const entries = batch.entries.map((entry) => evaluateVerifiedFeedEntry({
+      document: input.document,
+      cityPolicy: input.cityPolicy,
+      entry,
+      now,
+    }));
+    const severe = mostSevereTrustResult(entries);
+    return {
+      federationId: input.document.federationId,
+      feedRefId: ref.id,
+      kind: input.kind,
+      decision: severe?.decision ?? 'unknown',
+      code: 'FEDERATION_FEED_VERIFIED',
+      source: 'network',
+      digest,
+      mediaType: actualMediaType,
+      fetchedAt: now.toISOString(),
+      expiresAt: batch.expiresAt,
+      reasons: ['federation feed batch verified before trust evaluation'],
+      entries,
+    };
+  }
+
+  private async fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new FederationDocumentError('FEDERATION_FEED_FETCH_TIMEOUT', 'Federation feed request timed out'));
+      }, this.timeoutMs);
+    });
+    try {
+      return await Promise.race([
+        this.fetchImpl(url, { ...init, signal: controller.signal }),
+        timeout,
+      ]);
+    } catch (error) {
+      if (error instanceof FederationDocumentError) throw error;
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new FederationDocumentError('FEDERATION_FEED_FETCH_TIMEOUT', 'Federation feed request timed out');
+      }
+      throw new FederationDocumentError('FEDERATION_FEED_FETCH_FAILED', 'Federation feed request failed');
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
 }
 
 export function evaluateVerifiedFeedEntry(input: {

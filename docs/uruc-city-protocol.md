@@ -508,8 +508,8 @@ Minimum fields:
 - validity window: `validFrom` and `validUntil`
 - signed proof with deterministic canonicalization and exact covered fields
 - policy refs for trust policy, conformance, and risk metadata, including version, digest/integrity, media type, validity window, cache hints, degradation policy, and federation id where required
-- risk metadata refs
-- conformance badge metadata
+- risk metadata and feed refs
+- conformance badge metadata and feed refs
 
 The document can recommend defaults, but it does not create global consensus. A city may ignore a federation it has not joined, may join more than one federation, and may create its own federation. City Core may fetch and cache signed Federation Documents, but stale or invalid documents cannot produce `accept`, `reject`, or `warn` trust results.
 
@@ -534,7 +534,9 @@ Federation also remains separate from Domain Services and Venue Domain Protocols
 
 ### Federation Feeds
 
-Risk and conformance feeds are compact trust inputs tied to a signed Federation Document and verified policy refs. Feed verification checks federation id, issuer or trust anchor context, version, freshness, entry id, subject type, and payload limits. Verified entries can produce compact `accept`, `reject`, `warn`, or `unknown` trust context. Invalid, stale, oversized, or untrusted entries are rejected or downgraded by city-local policy. Feeds never delete or rewrite Resident IDs.
+Risk and conformance feeds are compact JSON trust inputs tied to a signed Federation Document and verified policy refs. Feed refs can declare digest/integrity or require a signed batch proof from a federation public-key trust anchor. The feed batch proof uses deterministic sorted-JSON canonicalization without the `proof` object and must declare the exact covered top-level fields. Feed fetch uses timeout, content-type, JSON parser, body-size, and entry-count limits before any entry is evaluated.
+
+Feed verification checks federation id, feed ref id, issuer or trust-anchor context, version, freshness, entry id, subject type, and payload limits. Verified entries can produce compact `accept`, `reject`, `warn`, or `unknown` trust context. Invalid signatures or hashes, stale feeds, wrong federation ids, oversized payloads, excessive entry counts, invalid JSON, invalid content-type, and untrusted issuers return stable compact results and are rejected or downgraded by city-local policy. Cities that have not joined the federation do not fetch or apply the feed. Feed material is data only, not executable code. Feeds never delete or rewrite Resident IDs.
 
 ## Context Economy
 
