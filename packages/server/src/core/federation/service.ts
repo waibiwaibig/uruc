@@ -570,8 +570,10 @@ export function verifyFederationPolicyRef(input: VerifyPolicyRefInput): { ok: tr
   if (ref.validUntil && Date.parse(ref.validUntil) <= now) return { ok: false, code: 'FEDERATION_POLICY_REF_EXPIRED' };
   if (ref.federationId && ref.federationId !== input.document.federationId) return { ok: false, code: 'FEDERATION_POLICY_REF_MISMATCH' };
   if (ref.version !== undefined && ref.version !== input.document.version) return { ok: false, code: 'FEDERATION_POLICY_REF_VERSION_UNSUPPORTED' };
+  const expectedDigest = ref.integrity ?? ref.digest;
+  if (!expectedDigest) return { ok: false, code: 'FEDERATION_POLICY_REF_INTEGRITY_REQUIRED' };
   const digest = hashStableJson(input.body);
-  if (ref.digest && ref.digest !== digest) return { ok: false, code: 'FEDERATION_POLICY_REF_HASH_MISMATCH' };
+  if (expectedDigest !== digest) return { ok: false, code: 'FEDERATION_POLICY_REF_HASH_MISMATCH' };
   return { ok: true, digest };
 }
 

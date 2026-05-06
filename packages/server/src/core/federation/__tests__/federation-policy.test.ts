@@ -458,6 +458,45 @@ describe('Federation policy skeleton', () => {
       now: new Date('2026-05-03T00:00:02.000Z'),
     })).toEqual({ ok: false, code: 'FEDERATION_POLICY_REF_MISSING' });
 
+    const integrityOnlyDocument = parseFederationDocument(federationDocument({
+      policyRefs: [{
+        id: 'fed.public-alpha.baseline',
+        type: 'trust-policy',
+        ref: 'https://fed.example/policies/baseline.json',
+        version: 1,
+        integrity: 'sha256:806590ab21efef30b2888bfb0ed048e9984379e8803c010749147a085fec7042',
+        required: true,
+        federationId: 'fed.public-alpha',
+        validFrom: '2026-05-03T00:00:00.000Z',
+        validUntil: '2099-08-03T00:00:00.000Z',
+      }],
+    }));
+    expect(verifyFederationPolicyRef({
+      document: integrityOnlyDocument,
+      policyRefId: 'fed.public-alpha.baseline',
+      body: { mode: 'tampered' },
+      now: new Date('2026-05-03T00:00:02.000Z'),
+    })).toEqual({ ok: false, code: 'FEDERATION_POLICY_REF_HASH_MISMATCH' });
+
+    const missingIntegrityDocument = parseFederationDocument(federationDocument({
+      policyRefs: [{
+        id: 'fed.public-alpha.baseline',
+        type: 'trust-policy',
+        ref: 'https://fed.example/policies/baseline.json',
+        version: 1,
+        required: true,
+        federationId: 'fed.public-alpha',
+        validFrom: '2026-05-03T00:00:00.000Z',
+        validUntil: '2099-08-03T00:00:00.000Z',
+      }],
+    }));
+    expect(verifyFederationPolicyRef({
+      document: missingIntegrityDocument,
+      policyRefId: 'fed.public-alpha.baseline',
+      body: { mode: 'observe' },
+      now: new Date('2026-05-03T00:00:02.000Z'),
+    })).toEqual({ ok: false, code: 'FEDERATION_POLICY_REF_INTEGRITY_REQUIRED' });
+
     const cityPolicy: CityFederationSpec = {
       federationId: 'fed.public-alpha',
       trustPolicy: {
