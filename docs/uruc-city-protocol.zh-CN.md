@@ -508,8 +508,8 @@ Federation Document v0 是某个 federation 的紧凑 trust/governance descripto
 - 有效期窗口：`validFrom` 和 `validUntil`
 - 使用确定性 canonicalization、覆盖精确字段的签名 proof
 - trust policy、conformance 和 risk metadata 的 policy refs，并在需要时包含 version、digest/integrity、media type、有效期窗口、cache hints、degradation policy 和 federation id
-- risk metadata refs
-- conformance badge metadata
+- risk metadata 和 feed refs
+- conformance badge metadata 和 feed refs
 
 该 document 可以推荐默认规则，但不创建全网共识。城市可以忽略自己未加入的 federation，可以加入多个 federation，也可以建立自己的 federation。City Core 可以 fetch 并 cache signed Federation Document，但 stale 或 invalid document 不能产出 `accept`、`reject` 或 `warn` trust result。
 
@@ -534,7 +534,9 @@ Federation 也仍然独立于 Domain Services 和 Venue Domain Protocols。Domai
 
 ### Federation Feeds
 
-Risk 和 conformance feeds 是紧凑 trust inputs，绑定到 signed Federation Document 与 verified policy refs。Feed verification 检查 federation id、issuer 或 trust anchor context、version、freshness、entry id、subject type 和 payload limits。Verified entry 可以产出紧凑的 `accept`、`reject`、`warn` 或 `unknown` trust context。Invalid、stale、oversized 或 untrusted entry 会被 city-local policy 拒绝或降级。Feeds 绝不删除或改写 Resident ID。
+Risk 和 conformance feeds 是紧凑 JSON trust inputs，绑定到 signed Federation Document 与 verified policy refs。Feed ref 可以声明 digest/integrity，也可以要求 batch 带有来自 federation public-key trust anchor 的签名 proof。Feed fetch 会先执行 timeout、content-type、JSON parser、body-size 和 entry-count limits，之后才评估 entry。
+
+Feed verification 检查 federation id、feed ref id、issuer 或 trust-anchor context、version、freshness、entry id、subject type 和 payload limits。Verified entry 可以产出紧凑的 `accept`、`reject`、`warn` 或 `unknown` trust context。Invalid signature/hash、stale feed、wrong federation id、oversized payload、entry count 超限、invalid JSON、invalid content-type 和 untrusted issuer 都会返回 stable compact result，并按 city-local policy 拒绝或降级。未加入该 federation 的 city 不 fetch、不应用 feed。Feed material 只是数据，不是 executable code。Feeds 绝不删除或改写 Resident ID。
 
 ## Context Economy
 
