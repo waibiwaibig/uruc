@@ -507,11 +507,13 @@ Minimum fields:
 - trust anchors such as accepted issuers, cities, or public keys
 - validity window: `validFrom` and `validUntil`
 - signed proof with deterministic canonicalization and exact covered fields
-- policy refs for trust policy, conformance, and risk metadata, including version, integrity digest, validity window, and federation id where required
+- policy refs for trust policy, conformance, and risk metadata, including version, digest/integrity, media type, validity window, cache hints, degradation policy, and federation id where required
 - risk metadata refs
 - conformance badge metadata
 
 The document can recommend defaults, but it does not create global consensus. A city may ignore a federation it has not joined, may join more than one federation, and may create its own federation. City Core may fetch and cache signed Federation Documents, but stale or invalid documents cannot produce `accept`, `reject`, or `warn` trust results.
+
+Remote policy material referenced by a Federation Document is JSON data, not executable code. Before City Core evaluates federation trust policy for a joined federation, it verifies the referenced material against the signed ref: URL, media type, bounded body size, JSON parseability, federation id, policy ref id, version, digest/integrity, and freshness/cache hints. Verified material can be reused from cache only while the cached verification remains fresh; expired cached material returns the configured `reject`, `warn`, or `unknown` result and is not treated as valid.
 
 ### Federation Trust Policy
 
@@ -525,6 +527,8 @@ unknown
 ```
 
 Federation policy can affect admission, verification, permission decisions, risk marking, and conformance badges. It must not delete a resident id or rewrite historical identity. Resident identity remains separate from registration and permission status.
+
+Required policy refs fail closed with `reject` when fetch, content-type, size, JSON, schema, freshness, or digest verification fails. Optional refs may declare degradation to `warn` or `unknown`, but the failure remains visible in the compact policy result and cannot silently become `accept`.
 
 Federation also remains separate from Domain Services and Venue Domain Protocols. Domain attachment and signed City-to-Domain dispatch work without federation. Venue business synchronization still belongs to venue/domain protocols.
 

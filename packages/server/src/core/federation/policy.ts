@@ -10,6 +10,16 @@ export interface FederationPolicyResult {
   code: string;
   scope: TrustPolicyScope;
   reasons: string[];
+  policyRefs?: Array<{
+    policyRefId: string;
+    decision: TrustPolicyDecision;
+    code: string;
+    source: 'network' | 'cache' | 'none';
+    digest?: string;
+    fetchedAt?: string;
+    expiresAt?: string;
+    reasons: string[];
+  }>;
 }
 
 export type TrustPolicySubject =

@@ -22,6 +22,7 @@ export type FederationAssurance = 'low' | 'medium' | 'high';
 export type FederationPolicyRefType = 'trust-policy' | 'conformance' | 'risk';
 export type FederationRiskLevel = 'low' | 'medium' | 'high' | 'unknown';
 export type FederationConformanceStatus = 'acquired' | 'verified' | 'revoked';
+export type FederationPolicyRefDegradation = 'reject' | 'warn' | 'unknown';
 
 export interface FederationDocument {
   schema: typeof FEDERATION_DOCUMENT_SCHEMA;
@@ -44,10 +45,17 @@ export interface FederationDocument {
     ref: string;
     version?: number;
     digest?: string;
+    integrity?: string;
+    mediaType?: string;
     required?: boolean;
     validFrom?: string;
     validUntil?: string;
     federationId?: string;
+    cache?: {
+      maxAgeSeconds?: number;
+      stale?: FederationPolicyRefDegradation;
+    };
+    onFailure?: FederationPolicyRefDegradation;
   }>;
   risk: {
     defaultLevel: FederationRiskLevel;
@@ -106,6 +114,23 @@ function requireString(value: unknown, code: string, label: string): string {
   return text;
 }
 
+function requireSha256Digest(value: unknown, code: string, label: string): string {
+  const text = requireString(value, code, label);
+  if (!/^sha256:[a-f0-9]{64}$/i.test(text)) {
+    throw new FederationDocumentError(code, `Invalid Federation Document ${label}`);
+  }
+  return text.toLowerCase();
+}
+
+function optionalMediaType(value: unknown, code: string, label: string): string | undefined {
+  if (value === undefined) return undefined;
+  const text = requireString(value, code, label).toLowerCase();
+  if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(text)) {
+    throw new FederationDocumentError(code, `Invalid Federation Document ${label}`);
+  }
+  return text;
+}
+
 function requireUrl(value: unknown, code: string, label: string): string {
   const text = requireString(value, code, label);
   try {
@@ -146,6 +171,14 @@ function requireIsoTimestamp(value: unknown, code: string, label: string): strin
     throw new FederationDocumentError(code, `Invalid Federation Document ${label}`);
   }
   return text;
+}
+
+function optionalPositiveInteger(value: unknown, code: string, label: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    throw new FederationDocumentError(code, `Invalid Federation Document ${label}`);
+  }
+  return value;
 }
 
 function requireExactKeys(value: Record<string, unknown>, allowed: readonly string[], code: string, label: string): void {
@@ -225,6 +258,19 @@ export function parseFederationDocument(raw: unknown, options: ParseFederationDo
     if (!isRecord(policyRef)) {
       throw new FederationDocumentError('FEDERATION_DOCUMENT_POLICY_REFS_INVALID', 'Invalid Federation Document policyRefs');
     }
+    const digest = policyRef.digest !== undefined
+      ? requireSha256Digest(policyRef.digest, 'FEDERATION_DOCUMENT_POLICY_REFS_INVALID', 'policyRefs.digest')
+      : undefined;
+    const integrity = policyRef.integrity !== undefined
+      ? requireSha256Digest(policyRef.integrity, 'FEDERATION_DOCUMENT_POLICY_REFS_INVALID', 'policyRefs.integrity')
+      : undefined;
+    if (digest && integrity && digest !== integrity) {
+      throw new FederationDocumentError('FEDERATION_DOCUMENT_POLICY_REFS_INVALID', 'Invalid Federation Document policyRefs integrity');
+    }
+    const cache = policyRef.cache;
+    if (cache !== undefined && !isRecord(cache)) {
+      throw new FederationDocumentError('FEDERATION_DOCUMENT_POLICY_REFS_INVALID', 'Invalid Federation Document policyRefs.cache');
+    }
     return {
       id: requireString(policyRef.id, 'FEDERATION_DOCUMENT_POLICY_REFS_INVALID', 'policyRefs.id'),
       type: requireEnum(policyRef.type, ['trust-policy', 'conformance', 'risk'], 'FEDERATION_DOCUMENT_POLICY_REFS_INVALID', 'policyRefs.type'),
@@ -234,8 +280,10 @@ export function parseFederationDocument(raw: unknown, options: ParseFederationDo
         : policyRef.version !== undefined
           ? (() => { throw new FederationDocumentError('FEDERATION_DOCUMENT_POLICY_REFS_INVALID', 'Invalid Federation Document policyRefs.version'); })()
           : {}),
-      ...(policyRef.digest !== undefined
-        ? { digest: requireString(policyRef.digest, 'FEDERATION_DOCUMENT_POLICY_REFS_INVALID', 'policyRefs.digest') }
+      ...(digest ? { digest } : {}),
+      ...(integrity ? { integrity } : {}),
+      ...(policyRef.mediaType !== undefined
+        ? { mediaType: optionalMediaType(policyRef.mediaType, 'FEDERATION_DOCUMENT_POLICY_REFS_INVALID', 'policyRefs.mediaType') }
         : {}),
       ...(policyRef.required !== undefined
         ? { required: typeof policyRef.required === 'boolean' ? policyRef.required : (() => { throw new FederationDocumentError('FEDERATION_DOCUMENT_POLICY_REFS_INVALID', 'Invalid Federation Document policyRefs.required'); })() }
@@ -248,6 +296,21 @@ export function parseFederationDocument(raw: unknown, options: ParseFederationDo
         : {}),
       ...(policyRef.federationId !== undefined
         ? { federationId: requireString(policyRef.federationId, 'FEDERATION_DOCUMENT_POLICY_REFS_INVALID', 'policyRefs.federationId') }
+        : {}),
+      ...(cache
+        ? {
+          cache: {
+            ...(cache.maxAgeSeconds !== undefined
+              ? { maxAgeSeconds: optionalPositiveInteger(cache.maxAgeSeconds, 'FEDERATION_DOCUMENT_POLICY_REFS_INVALID', 'policyRefs.cache.maxAgeSeconds') }
+              : {}),
+            ...(cache.stale !== undefined
+              ? { stale: requireEnum(cache.stale, ['reject', 'warn', 'unknown'], 'FEDERATION_DOCUMENT_POLICY_REFS_INVALID', 'policyRefs.cache.stale') }
+              : {}),
+          },
+        }
+        : {}),
+      ...(policyRef.onFailure !== undefined
+        ? { onFailure: requireEnum(policyRef.onFailure, ['reject', 'warn', 'unknown'], 'FEDERATION_DOCUMENT_POLICY_REFS_INVALID', 'policyRefs.onFailure') }
         : {}),
     };
   });
