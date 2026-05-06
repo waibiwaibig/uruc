@@ -2,12 +2,12 @@
 
 # Uruc Protocol v1 Status
 
-This document records the Uruc Protocol v1 baseline after PR
-[#35](https://github.com/waibiwaibig/uruc/pull/35), merged as
-`0b64dc524daabfef13b1dfb659fd0f3e477a50e1`.
+This document records the Uruc Protocol v1 release-preparation status after PR
+[#42](https://github.com/waibiwaibig/uruc/pull/42), merged as
+`b1735c954da6218a0f476c1a76482e39ff1265e1`.
 
 The status below is based on the current `main` branch after that merge, the
-open/closed GitHub issue state checked on 2026-05-03, and the architecture
+open/closed GitHub issue state checked on 2026-05-06, and the architecture
 documents in this repository. It is a release-preparation summary, not a new
 implementation plan.
 
@@ -16,6 +16,7 @@ implementation plan.
 Uruc Protocol v1 has reached the convergence baseline for the public
 repository. The completed baseline includes:
 
+- Protocol v1 convergence merged.
 - Resident-facing vocabulary for the city protocol, with current runnable
   WebSocket commands carrying `protocol` metadata where the bridge exists.
 - Same-resident action lease naming and behavior in the runtime and user-facing
@@ -32,8 +33,12 @@ repository. The completed baseline includes:
   receipt verification, and domain dispatch audit records.
 - Federation Document v0 fetch, signature validation, cache, expiry, and a
   compact trust-policy skeleton.
+- Federation policy reference integrity hardening.
+- Federation risk and conformance feed verification with compact trust results.
 - Protocol conformance tests and compatibility cleanup for resident-facing API
   surfaces.
+- Real-run smoke coverage that includes the permission-required live fixture.
+- Federation hardening complete for the v1 baseline.
 - Runtime budget and full-suite timeout guardrails.
 
 The current implementation still uses some existing transport and package terms
@@ -44,16 +49,18 @@ vocabulary.
 
 ## Explicit Non-Goals
 
-The v1 baseline does not start the remaining federation hardening work in
-[#32](https://github.com/waibiwaibig/uruc/issues/32) or
-[#33](https://github.com/waibiwaibig/uruc/issues/33). Those remain v1.1 follow-up
-issues.
+The v1 baseline includes the federation policy reference integrity and
+risk/conformance feed verification work tracked by
+[#32](https://github.com/waibiwaibig/uruc/issues/32) and
+[#33](https://github.com/waibiwaibig/uruc/issues/33). The hardening umbrella in
+[#26](https://github.com/waibiwaibig/uruc/issues/26) is closed.
 
 The v1 baseline also does not claim these capabilities:
 
 - full venue business state synchronization in City Core
 - a legal rules engine for federation policy
 - global consensus across federations
+- federation/domain handling of Venue business synchronization
 - removal or rewriting of Resident IDs through federation policy
 - a second request handler or command alias created by `protocol` metadata
 - account ownership, resident impersonation, action-lease transfer, or
@@ -123,37 +130,41 @@ it does not parse or synchronize venue business payloads.
 
 Federation is city trust and governance metadata. It is separate from Domain
 Services and Venue business synchronization. The v1 baseline includes signed
-Federation Document validation, cache, expiry, and compact trust context. It
-does not implement global consensus, legal policy execution, or federation-based
-Resident ID rewriting.
+Federation Document validation, cache, expiry, policy reference integrity
+checks, risk feed verification, conformance feed verification, and compact trust
+context. It does not implement global consensus, legal policy execution,
+federation/domain handling of Venue business synchronization, or
+federation-based Resident ID rewriting.
 
 ## Issue and PR Status
 
-Checked against GitHub on 2026-05-03:
+Checked against GitHub on 2026-05-06:
 
 | Item | Status | Title |
 | --- | --- | --- |
 | [#1](https://github.com/waibiwaibig/uruc/issues/1) | Closed | PRD: Resident-based Uruc city protocol |
-| [#26](https://github.com/waibiwaibig/uruc/issues/26) | Open | PRD: Uruc protocol hardening and migration |
+| [#26](https://github.com/waibiwaibig/uruc/issues/26) | Closed | PRD: Uruc protocol hardening and migration |
 | [#27](https://github.com/waibiwaibig/uruc/issues/27) | Closed | Add CI runtime budget and full-suite timeout guardrails |
 | [#28](https://github.com/waibiwaibig/uruc/issues/28) | Closed | Rename legacy internal controller session fields to action lease |
 | [#29](https://github.com/waibiwaibig/uruc/issues/29) | Closed | Finish resident/action-lease naming migration in UI and plugin copy |
 | [#30](https://github.com/waibiwaibig/uruc/issues/30) | Closed | Harden City-to-Domain dispatch envelope verification and audit |
 | [#31](https://github.com/waibiwaibig/uruc/issues/31) | Closed | Implement signed Federation Document fetch, validation, cache, and expiry |
-| [#32](https://github.com/waibiwaibig/uruc/issues/32) | Open | Verify federation policy reference integrity before trust evaluation |
-| [#33](https://github.com/waibiwaibig/uruc/issues/33) | Open | Verify federation risk and conformance feeds with compact trust results |
+| [#32](https://github.com/waibiwaibig/uruc/issues/32) | Closed | Verify federation policy reference integrity before trust evaluation |
+| [#33](https://github.com/waibiwaibig/uruc/issues/33) | Closed | Verify federation risk and conformance feeds with compact trust results |
 | [#34](https://github.com/waibiwaibig/uruc/issues/34) | Closed | Clean resident-facing API compatibility surfaces and add protocol conformance tests |
 | [#35](https://github.com/waibiwaibig/uruc/pull/35) | Merged | Protocol v1 convergence |
+| [#39](https://github.com/waibiwaibig/uruc/issues/39) | Closed | Add bundled live permission-required venue fixture |
+| [#41](https://github.com/waibiwaibig/uruc/pull/41) | Merged | [codex] Verify federation policy reference integrity |
+| [#42](https://github.com/waibiwaibig/uruc/pull/42) | Merged | [codex] Verify federation risk and conformance feeds |
 
-Issue #26 remains open as the hardening/migration umbrella at the v1 baseline.
-Issues #32 and #33 remain open as v1.1 federation hardening follow-up work.
+Issue #26 is closed as the completed hardening/migration umbrella for the v1
+baseline. Issues #32 and #33 are closed as the completed federation hardening
+work for the v1 baseline.
 
 ## Recommended Next Steps
 
-Recommended release-preparation work after this baseline:
+Remaining work after this release-preparation status:
 
-1. Validate the v1 baseline against real Uruc usage scenarios.
-2. Draft release notes from the v1 convergence work and the issue table above.
-3. Add or refresh a quickstart that exercises the resident/action-lease,
-   permission, Venue Module, Domain, and Federation surfaces that exist today.
-4. Continue federation hardening through #32 and #33 as v1.1 work.
+1. Write the production deployment runbook.
+2. Prepare external ecosystem onboarding.
+3. Automate long-term conformance badge publication.
