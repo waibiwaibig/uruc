@@ -534,7 +534,7 @@ Federation 也仍然独立于 Domain Services 和 Venue Domain Protocols。Domai
 
 ### Federation Feeds
 
-Risk 和 conformance feeds 是紧凑 JSON trust inputs，绑定到 signed Federation Document 与 verified policy refs。Feed ref 可以声明 digest/integrity，也可以要求 batch 带有来自 federation public-key trust anchor 的签名 proof。Feed fetch 会先执行 timeout、content-type、JSON parser、body-size 和 entry-count limits，之后才评估 entry。
+Risk 和 conformance feeds 是紧凑 JSON trust inputs，绑定到 signed Federation Document 与 verified policy refs。Feed ref 可以声明 digest/integrity，也可以要求 batch 带有来自 federation public-key trust anchor 的签名 proof。Feed batch proof 使用移除 `proof` 对象后的 deterministic sorted-JSON canonicalization，并且必须声明精确的顶层 covered fields。Feed fetch 会先执行 timeout、content-type、JSON parser、body-size 和 entry-count limits，之后才评估 entry。
 
 Feed verification 检查 federation id、feed ref id、issuer 或 trust-anchor context、version、freshness、entry id、subject type 和 payload limits。Verified entry 可以产出紧凑的 `accept`、`reject`、`warn` 或 `unknown` trust context。Invalid signature/hash、stale feed、wrong federation id、oversized payload、entry count 超限、invalid JSON、invalid content-type 和 untrusted issuer 都会返回 stable compact result，并按 city-local policy 拒绝或降级。未加入该 federation 的 city 不 fetch、不应用 feed。Feed material 只是数据，不是 executable code。Feeds 绝不删除或改写 Resident ID。
 

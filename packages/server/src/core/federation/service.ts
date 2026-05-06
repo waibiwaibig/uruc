@@ -8,6 +8,17 @@ type FetchLike = typeof fetch;
 export const FEDERATION_POLICY_MATERIAL_SCHEMA = 'uruc.federation.policy-material@v0';
 export const FEDERATION_FEED_BATCH_SCHEMA = 'uruc.federation.feed-batch@v0';
 export const FEDERATION_FEED_BATCH_CANONICALIZATION = 'uruc-federation-feed-batch-v0-sorted-json-without-proof';
+export const FEDERATION_FEED_BATCH_SIGNED_FIELDS = [
+  'entries',
+  'expiresAt',
+  'feedRefId',
+  'federationId',
+  'issuedAt',
+  'issuerId',
+  'kind',
+  'schema',
+  'version',
+] as const;
 
 export interface FederationDocumentServiceOptions {
   fetch?: FetchLike;
@@ -613,6 +624,7 @@ export interface FederationFeedBatch {
     verificationMethod: string;
     createdAt: string;
     canonicalization: typeof FEDERATION_FEED_BATCH_CANONICALIZATION;
+    covered: Array<(typeof FEDERATION_FEED_BATCH_SIGNED_FIELDS)[number]>;
     signature: string;
   };
 }
@@ -745,6 +757,16 @@ function parseFederationFeedBatch(raw: unknown, maxEntries: number): FederationF
   if (proof !== undefined && !isRecord(proof)) {
     throw new FederationDocumentError('FEDERATION_FEED_SIGNATURE_INVALID', 'Invalid federation feed proof');
   }
+  if (proof !== undefined) {
+    const proofKeys = Object.keys(proof);
+    const allowedProofKeys = ['type', 'verificationMethod', 'createdAt', 'canonicalization', 'covered', 'signature'];
+    if (proofKeys.some((key) => !allowedProofKeys.includes(key))) {
+      throw new FederationDocumentError('FEDERATION_FEED_SIGNATURE_INVALID', 'Invalid federation feed proof fields');
+    }
+    if (!Array.isArray(proof.covered) || JSON.stringify(proof.covered) !== JSON.stringify(FEDERATION_FEED_BATCH_SIGNED_FIELDS)) {
+      throw new FederationDocumentError('FEDERATION_FEED_SIGNATURE_INVALID', 'Invalid federation feed proof covered fields');
+    }
+  }
   return {
     schema: FEDERATION_FEED_BATCH_SCHEMA,
     federationId,
@@ -762,6 +784,7 @@ function parseFederationFeedBatch(raw: unknown, maxEntries: number): FederationF
           verificationMethod: typeof proof.verificationMethod === 'string' && proof.verificationMethod.trim() ? proof.verificationMethod : (() => { throw new FederationDocumentError('FEDERATION_FEED_SIGNATURE_INVALID', 'Invalid federation feed proof verification method'); })(),
           createdAt: typeof proof.createdAt === 'string' && parseIsoTimestamp(proof.createdAt) !== null ? proof.createdAt : (() => { throw new FederationDocumentError('FEDERATION_FEED_SIGNATURE_INVALID', 'Invalid federation feed proof timestamp'); })(),
           canonicalization: proof.canonicalization === FEDERATION_FEED_BATCH_CANONICALIZATION ? proof.canonicalization : (() => { throw new FederationDocumentError('FEDERATION_FEED_SIGNATURE_INVALID', 'Invalid federation feed proof canonicalization'); })(),
+          covered: [...FEDERATION_FEED_BATCH_SIGNED_FIELDS],
           signature: typeof proof.signature === 'string' && proof.signature.trim() ? proof.signature : (() => { throw new FederationDocumentError('FEDERATION_FEED_SIGNATURE_INVALID', 'Invalid federation feed proof signature'); })(),
         },
       }

@@ -534,7 +534,7 @@ Federation also remains separate from Domain Services and Venue Domain Protocols
 
 ### Federation Feeds
 
-Risk and conformance feeds are compact JSON trust inputs tied to a signed Federation Document and verified policy refs. Feed refs can declare digest/integrity or require a signed batch proof from a federation public-key trust anchor. Feed fetch uses timeout, content-type, JSON parser, body-size, and entry-count limits before any entry is evaluated.
+Risk and conformance feeds are compact JSON trust inputs tied to a signed Federation Document and verified policy refs. Feed refs can declare digest/integrity or require a signed batch proof from a federation public-key trust anchor. The feed batch proof uses deterministic sorted-JSON canonicalization without the `proof` object and must declare the exact covered top-level fields. Feed fetch uses timeout, content-type, JSON parser, body-size, and entry-count limits before any entry is evaluated.
 
 Feed verification checks federation id, feed ref id, issuer or trust-anchor context, version, freshness, entry id, subject type, and payload limits. Verified entries can produce compact `accept`, `reject`, `warn`, or `unknown` trust context. Invalid signatures or hashes, stale feeds, wrong federation ids, oversized payloads, excessive entry counts, invalid JSON, invalid content-type, and untrusted issuers return stable compact results and are rejected or downgraded by city-local policy. Cities that have not joined the federation do not fetch or apply the feed. Feed material is data only, not executable code. Feeds never delete or rewrite Resident IDs.
 

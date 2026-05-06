@@ -188,6 +188,17 @@ function signedFeedBatch(
       verificationMethod,
       createdAt: '2026-05-03T00:00:01.000Z',
       canonicalization: 'uruc-federation-feed-batch-v0-sorted-json-without-proof',
+      covered: [
+        'entries',
+        'expiresAt',
+        'feedRefId',
+        'federationId',
+        'issuedAt',
+        'issuerId',
+        'kind',
+        'schema',
+        'version',
+      ],
       signature: sign(null, Buffer.from(JSON.stringify(stableValue(batch)), 'utf8'), privateKey).toString('base64'),
     },
   };
@@ -1116,6 +1127,58 @@ describe('Federation policy skeleton', () => {
         { decision: 'warn', code: 'FEDERATION_RISK_WARN' },
         { decision: 'unknown', code: 'FEDERATION_NO_MATCH' },
       ],
+    });
+  });
+
+  it('rejects signed feed batches that do not declare the exact covered fields', async () => {
+    const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+    const signed = signedFeedBatch(feedBatch(), privateKey);
+    const batch = {
+      ...signed,
+      proof: {
+        ...signed.proof,
+        covered: ['schema', 'federationId'],
+      },
+    };
+    const document = parseFederationDocument(federationDocument({
+      extraTrustAnchors: [{
+        id: 'fed.public-alpha.feed-key',
+        type: 'public-key',
+        ref: publicKey.export({ format: 'pem', type: 'spki' }).toString(),
+        assurance: 'high',
+      }],
+      risk: {
+        defaultLevel: 'unknown',
+        feeds: [{
+          id: 'fed.public-alpha.risk-feed',
+          ref: 'https://fed.example/feeds/risk.json',
+          version: 1,
+          mediaType: 'application/json',
+          required: true,
+          federationId: 'fed.public-alpha',
+          maxEntries: 10,
+        }],
+      },
+    }));
+    const service = new FederationFeedService({
+      now: () => new Date('2026-05-03T00:00:02.000Z'),
+      fetch: async () => new Response(JSON.stringify(batch), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    });
+
+    await expect(service.verifyFeedRef({
+      document,
+      cityPolicy: {
+        federationId: 'fed.public-alpha',
+        trustPolicy: { mode: 'observe' as const },
+      },
+      feedRefId: 'fed.public-alpha.risk-feed',
+      kind: 'risk',
+    })).resolves.toMatchObject({
+      decision: 'reject',
+      code: 'FEDERATION_FEED_SIGNATURE_INVALID',
     });
   });
 

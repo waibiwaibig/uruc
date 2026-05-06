@@ -67,7 +67,12 @@ describe('Uruc Protocol v1 conformance', () => {
     expect(federation).toContain('FederationDocumentService');
     expect(federation).toContain('verifyFederationPolicyRef');
     expect(federation).toContain('evaluateVerifiedFeedEntry');
+    expect(federation).toContain('FEDERATION_FEED_BATCH_SIGNED_FIELDS');
+    expect(federation).toContain('FEDERATION_CITY_NOT_JOINED');
+    expect(federation).toContain('feed ref does not declare digest/integrity and batch is unsigned');
     expect(docs).toContain('A federation is not a domain service');
     expect(docs).toContain('It must not delete a resident id');
+    expect(docs).toContain('Cities that have not joined the federation do not fetch or apply the feed');
+    expect(docs).toContain('Feed material is data only, not executable code');
   });
 });
